@@ -1,8 +1,9 @@
+/* @import debe preceder cualquier otra declaración CSS (@tailwind incluido) -- ver CHANGELOG.md, corrección de Fase 2. */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
 /*
  * Variables, fuentes y animaciones portadas literalmente de las reglas :root/body
@@ -32,10 +33,7 @@
   }
 
   body {
-    font-family:
-      'Inter',
-      system-ui,
-      sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
     background:
       radial-gradient(1200px 600px at 80% -10%, rgba(52, 225, 232, 0.06), transparent 60%),
       radial-gradient(900px 500px at 0% 110%, rgba(139, 124, 255, 0.05), transparent 55%),
