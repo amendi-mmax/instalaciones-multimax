@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+/*
+ * Variables, fuentes y animaciones portadas literalmente de las reglas :root/body
+ * de Multimax_Despacho_v1.3.html. La migración completa de las clases de
+ * componente del prototipo (mx-top, mx-grid, mx-card, mx-btn, etc.) ocurre en la
+ * fase de "Layout general / Navegación / Componentes compartidos" y en el módulo
+ * Coordinator/Installer/Admin correspondiente -- no en esta fase de scaffold.
+ */
+@layer base {
+  :root {
+    --ink: #0a0f1c;
+    --ink2: #0e1526;
+    --surf: #131c30;
+    --surf2: #19243c;
+    --line: #243049;
+    --ice: #34e1e8;
+    --amber: #ffb23e;
+    --red: #ff5c7a;
+    --green: #3be08a;
+    --violet: #a99bff;
+    --text: #eaf0fb;
+    --muted: #8190ac;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family:
+      'Inter',
+      system-ui,
+      sans-serif;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(52, 225, 232, 0.06), transparent 60%),
+      radial-gradient(900px 500px at 0% 110%, rgba(139, 124, 255, 0.05), transparent 55%),
+      var(--ink);
+    color: var(--text);
+    min-height: 100vh;
+    width: 100%;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  input,
+  select {
+    font-family: inherit;
+  }
+}
+
+@layer utilities {
+  .animate-mx-spin {
+    animation: mxspin 1s linear infinite;
+  }
+  .animate-mx-blink {
+    animation: mxblink 1.4s ease-in-out infinite;
+  }
+  .animate-mx-sweep {
+    animation: mxsweep 4.5s linear infinite;
+  }
+  .animate-mx-ping {
+    animation: mxping 2s ease-out infinite;
+  }
+  .animate-mx-pop {
+    animation: mxpop 0.35s ease;
+  }
+  .animate-mx-up {
+    animation: mxup 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+@keyframes mxspin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes mxblink {
+  50% {
+    opacity: 0.55;
+  }
+}
+@keyframes mxsweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes mxping {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.6;
+  }
+  80%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+@keyframes mxpop {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes mxup {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-mx-sweep,
+  .animate-mx-ping,
+  .animate-mx-blink,
+  .animate-mx-spin {
+    animation: none !important;
+  }
+}
