@@ -26,14 +26,21 @@
     --violet: #a99bff;
     --text: #eaf0fb;
     --muted: #8190ac;
+    /* Familias tipográficas del prototipo (--fd/--fb/--fm en el body original). Se elevan a
+       :root para poder usarse también fuera de `body` (ej. dentro de portales de Dialog/Drawer). */
+    --fd: 'Space Grotesk', system-ui, sans-serif;
+    --fb: 'Inter', system-ui, sans-serif;
+    --fm: 'Space Mono', ui-monospace, monospace;
   }
 
   * {
     box-sizing: border-box;
+    margin: 0;
+    padding: 0;
   }
 
   body {
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: var(--fb);
     background:
       radial-gradient(1200px 600px at 80% -10%, rgba(52, 225, 232, 0.06), transparent 60%),
       radial-gradient(900px 500px at 0% 110%, rgba(139, 124, 255, 0.05), transparent 55%),
@@ -47,6 +54,9 @@
   button {
     font-family: inherit;
     cursor: pointer;
+    border: none;
+    background: none;
+    color: inherit;
   }
 
   input,
@@ -126,6 +136,860 @@
   .animate-mx-ping,
   .animate-mx-blink,
   .animate-mx-spin {
+    animation: none !important;
+  }
+}
+
+/* ==========================================================================
+ * Fase 3 · Layout general y componentes compartidos
+ * --------------------------------------------------------------------------
+ * Clases `mx-*` portadas VERBATIM (mismos selectores, mismas declaraciones,
+ * mismas custom properties) desde el <style> de Multimax_Despacho_v1.3.html.
+ * Se mantienen fuera de @layer a propósito: en el HTML original son reglas
+ * planas de hoja de estilos (no utilidades de Tailwind), y envolverlas en
+ * @layer alteraría su orden de cascada/especificidad frente a las utilidades
+ * de Tailwind que puedan combinarse en los mismos elementos.
+ *
+ * Alcance de esta fase: SOLO layout general, navegación, header, sidebar y
+ * componentes compartidos genéricos. Las clases específicas de Coordinator,
+ * Installer y Admin (tarjetas de trabajo, radar, rondas, feed de respuestas,
+ * publish-modal completo, calendario maestro, tabla de instaladores, etc.)
+ * se portarán en sus fases correspondientes (Fase 4/5/6) — ver
+ * MIGRATION_STATUS.md para el detalle exacto de qué quedó dentro/fuera.
+ * ========================================================================== */
+
+/* ---- Utilidades de animación con nombre de clase original (no-Tailwind) ---- */
+.mx-spin {
+  animation: mxspin 1s linear infinite;
+}
+.mx-blink {
+  animation: mxblink 1.4s ease-in-out infinite;
+}
+
+/* ---- Header / Top navigation (mx-top) ---- */
+.mx-top {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(10, 15, 28, 0.82);
+  backdrop-filter: blur(12px);
+}
+.mx-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.mx-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  background: linear-gradient(135deg, var(--ice), #1fb6bd);
+  box-shadow: 0 0 22px rgba(52, 225, 232, 0.35);
+}
+.mx-brand-t {
+  font-family: var(--fd);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  font-size: 15px;
+}
+.mx-brand-s {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+.mx-roleswitch {
+  display: flex;
+  gap: 4px;
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 4px;
+}
+.mx-roleswitch button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.mx-roleswitch button.on {
+  background: linear-gradient(135deg, rgba(52, 225, 232, 0.18), rgba(52, 225, 232, 0.06));
+  color: var(--ice);
+  box-shadow: inset 0 0 0 1px rgba(52, 225, 232, 0.3);
+}
+.mx-topright {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mx-ghost {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 7px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.mx-ghost:hover {
+  color: var(--text);
+  border-color: var(--ice);
+}
+.mx-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.mx-master-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(52, 225, 232, 0.1);
+  border: 1px solid rgba(52, 225, 232, 0.3);
+  color: var(--ice);
+  border-radius: 8px;
+  padding: 5px 10px;
+}
+
+/* ---- Two-column layout (mx-grid) y contenedor de columna (mx-col) ---- */
+.mx-grid {
+  display: grid;
+  grid-template-columns: minmax(340px, 1fr) minmax(360px, 1.05fr);
+  gap: 16px;
+  padding: 16px;
+  max-width: 1240px;
+  margin: 0 auto;
+  align-items: start;
+}
+.mx-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ---- Card / CardHeader ---- */
+.mx-card {
+  background: linear-gradient(180deg, var(--surf), var(--ink2));
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+}
+.mx-section-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.mx-section-h > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--fd);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+}
+.mx-section-h svg {
+  color: var(--ice);
+}
+
+/* ---- Button ---- */
+.mx-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 11px 14px;
+  border-radius: 11px;
+  flex: 1;
+  transition: 0.15s;
+}
+.mx-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.mx-btn-ice {
+  background: linear-gradient(135deg, var(--ice), #22b9c0);
+  color: #04222a;
+  box-shadow: 0 6px 20px rgba(52, 225, 232, 0.25);
+}
+.mx-btn-ice:hover:not(:disabled) {
+  filter: brightness(1.07);
+}
+.mx-btn-amber {
+  background: linear-gradient(135deg, var(--amber), #e6962a);
+  color: #2a1a02;
+}
+.mx-btn-amber:hover:not(:disabled) {
+  filter: brightness(1.07);
+}
+.mx-btn-ghost {
+  background: var(--surf2);
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+.mx-btn-ghost:hover:not(:disabled) {
+  border-color: var(--ice);
+}
+
+/* ---- StatTile / Counter (mx-stats) ---- */
+.mx-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+}
+.mx-stat {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 11px 10px;
+}
+.mx-stat-v {
+  font-family: var(--fm);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1;
+}
+.mx-stat-l {
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-top: 5px;
+  letter-spacing: 0.02em;
+}
+.mx-stat-s {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* ---- EmptyState ---- */
+.mx-empty {
+  text-align: center;
+  padding: 34px 16px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.mx-empty b {
+  color: var(--text);
+}
+.mx-empty-ic {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  margin: 0 auto 12px;
+  display: grid;
+  place-items: center;
+  background: rgba(52, 225, 232, 0.08);
+  color: var(--ice);
+  border: 1px solid rgba(52, 225, 232, 0.2);
+}
+.mx-qempty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 60px 24px;
+  text-align: center;
+  max-width: 500px;
+  margin: 0 auto;
+}
+.mx-qempty-ic {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: rgba(52, 225, 232, 0.07);
+  border: 1px solid rgba(52, 225, 232, 0.2);
+  color: var(--ice);
+  display: grid;
+  place-items: center;
+}
+.mx-qempty h3 {
+  font-family: var(--fd);
+  font-size: 20px;
+  font-weight: 700;
+}
+.mx-qempty p {
+  font-size: 13.5px;
+  color: var(--muted);
+  line-height: 1.6;
+  max-width: 360px;
+}
+
+/* ---- Input / Textarea / Select / Label (mx-fields) ----
+ * `.mx-input`/`.mx-textarea`/`.mx-select-native` son variantes standalone
+ * (mismas declaraciones que `.mx-fields input`/`.mx-fields select`) para que
+ * los componentes Input/Textarea/Select de src/components/ui funcionen fuera
+ * del wrapper `.mx-fields` de un formulario — mismo caso que `.mx-chip` más
+ * arriba. `.mx-fields` se conserva intacto como layout de formulario. */
+.mx-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.mx-f2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.mx-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.mx-fields input,
+.mx-fields textarea,
+.mx-input,
+.mx-textarea {
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 12px;
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 400;
+}
+.mx-fields input:focus,
+.mx-fields textarea:focus,
+.mx-input:focus,
+.mx-textarea:focus {
+  outline: none;
+  border-color: var(--ice);
+  box-shadow: 0 0 0 3px rgba(52, 225, 232, 0.12);
+}
+.mx-fields select,
+.mx-select-native {
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 12px;
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 400;
+  cursor: pointer;
+}
+.mx-fields select:focus,
+.mx-select-native:focus {
+  outline: none;
+  border-color: var(--ice);
+  box-shadow: 0 0 0 3px rgba(52, 225, 232, 0.12);
+}
+
+/* ---- Chip (toggle) — mx-bidbtn / mx-chips / mx-urg ---- */
+.mx-bidopts {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-top: 2px;
+}
+.mx-bidbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 11px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--ink);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.mx-bidbtn svg {
+  color: var(--muted);
+}
+.mx-bidbtn.on {
+  border-color: var(--ice);
+  color: var(--ice);
+  background: rgba(52, 225, 232, 0.08);
+}
+.mx-bidbtn.on svg {
+  color: var(--ice);
+}
+.mx-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+/*
+ * `.mx-chips button` / `.mx-chips button.on` en el prototipo es un selector
+ * descendiente (requiere un <button> anidado dentro de un contenedor
+ * `.mx-chips`). Para que el Chip de src/components/ui/chip.tsx sea un
+ * componente autocontenido (pueda usarse fuera de ese contenedor exacto),
+ * se añade `.mx-chip`/`.mx-chip.on` con las MISMAS declaraciones aplicadas
+ * directamente al botón. La apariencia resultante es idéntica; solo cambia
+ * el mecanismo de selección CSS. Documentado en MIGRATION_STATUS.md.
+ */
+.mx-chips button,
+.mx-chip {
+  font-size: 13px;
+  padding: 9px 13px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: var(--ink);
+  font-weight: 600;
+}
+.mx-chips button.on,
+.mx-chip.on {
+  border-color: var(--ice);
+  color: var(--ice);
+  background: rgba(52, 225, 232, 0.08);
+}
+.mx-urg {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--ink);
+}
+.mx-urg.on {
+  border-color: var(--red);
+  color: var(--red);
+  background: rgba(255, 92, 122, 0.08);
+}
+
+/* ---- Tabs (mx-subtabs genérico + mx-phonetabs para PhoneFrame) ---- */
+.mx-subtabs-wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 16px 16px 0;
+}
+.mx-subtabs {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 4px;
+  flex-wrap: wrap;
+}
+.mx-subtabs button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 15px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.mx-subtabs button svg {
+  color: var(--muted);
+}
+.mx-subtabs button.on,
+.mx-subtabs button[data-state='active'] {
+  background: linear-gradient(135deg, rgba(52, 225, 232, 0.16), rgba(52, 225, 232, 0.05));
+  color: var(--ice);
+  box-shadow: inset 0 0 0 1px rgba(52, 225, 232, 0.3);
+}
+.mx-subtabs button.on svg,
+.mx-subtabs button[data-state='active'] svg {
+  color: var(--ice);
+}
+.mx-phonetabs {
+  display: flex;
+  border-top: 1px solid var(--line);
+  background: rgba(10, 15, 28, 0.6);
+  margin-top: auto;
+}
+.mx-phonetabs button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.mx-phonetabs button svg {
+  color: var(--muted);
+}
+.mx-phonetabs button.on,
+.mx-phonetabs button.on svg,
+.mx-phonetabs button[data-state='active'],
+.mx-phonetabs button[data-state='active'] svg {
+  color: var(--ice);
+}
+/*
+ * Los selectores `[data-state='active']` de arriba (mx-subtabs/mx-phonetabs)
+ * son un añadido de esta fase: Tabs (ui/tabs.tsx) se construyó sobre
+ * @radix-ui/react-tabs, que expone el estado activo vía el atributo
+ * `data-state` en vez de una clase `.on` manual. Se agregan como selector
+ * ALTERNATIVO junto al `.on` original (que se preserva para el
+ * role-switch del Header, manejado con estado local simple sin Radix) —
+ * mismo resultado visual, dos mecanismos de activación distintos.
+ */
+
+/* ---- Page container (mx-page) ---- */
+.mx-page {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 16px;
+}
+.mx-pagehead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.mx-pagehead h2 {
+  font-family: var(--fd);
+  font-size: 20px;
+  font-weight: 700;
+}
+.mx-pagehead .mx-sub {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.mx-backbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px 12px;
+}
+.mx-backbtn:hover {
+  color: var(--ice);
+  border-color: var(--ice);
+}
+
+/* ---- Phone frame (Installer, estructura genérica) ---- */
+.mx-instwrap {
+  display: grid;
+  grid-template-columns: minmax(320px, 400px) minmax(240px, 300px);
+  gap: 18px;
+  justify-content: center;
+  padding: 22px 16px;
+  align-items: start;
+}
+.mx-phone {
+  background: linear-gradient(180deg, #0d1424, #0a0f1c);
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  overflow: hidden;
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  min-height: 540px;
+  display: flex;
+  flex-direction: column;
+}
+.mx-phone-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+}
+.mx-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+}
+.mx-mesel {
+  margin-left: auto;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 11.5px;
+  padding: 5px 7px;
+  max-width: 150px;
+}
+.mx-mesel:focus {
+  outline: none;
+  border-color: var(--ice);
+}
+.mx-instside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.mx-mini {
+  padding: 14px;
+}
+.mx-profile {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.mx-profile > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mx-profile b {
+  color: var(--text);
+  font-family: var(--fm);
+}
+.mx-profile svg {
+  color: var(--ice);
+}
+.mx-rules {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.mx-rules li {
+  padding-left: 16px;
+  position: relative;
+}
+.mx-rules li:before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ice);
+}
+.mx-rules b {
+  color: var(--text);
+}
+
+/* ---- Footer ---- */
+.mx-foot {
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 18px 20px 28px;
+  max-width: 760px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* ---- Dialog / Modal / Drawer (slide-up) ---- */
+.mx-modal-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 12, 24, 0.9);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+}
+.mx-modal-panel {
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-top: 1px solid rgba(52, 225, 232, 0.2);
+  border-radius: 24px 24px 0 0;
+  width: 100%;
+  max-width: 620px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: mxup 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mx-modal-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 4px;
+  position: sticky;
+  top: 0;
+  background: var(--surf);
+  z-index: 1;
+  border-bottom: 1px solid var(--line);
+}
+.mx-modal-hd h3 {
+  font-family: var(--fd);
+  font-size: 17px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.mx-modal-hd h3 svg {
+  color: var(--ice);
+}
+.mx-modal-close {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--surf2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 20px;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.mx-modal-close:hover {
+  color: var(--text);
+}
+.mx-modal-body {
+  padding: 16px 20px 32px;
+}
+
+/* ---- ConfirmDialog ---- */
+.mx-confirm-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 12, 24, 0.82);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+}
+.mx-confirm-card {
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  max-width: 380px;
+  width: 100%;
+  padding: 22px;
+  animation: mxpop 0.18s ease;
+}
+.mx-confirm-card h3 {
+  font-family: var(--fd);
+  font-size: 17px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 9px;
+}
+.mx-confirm-card h3 svg {
+  color: var(--red);
+}
+.mx-confirm-card p {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.55;
+  margin-bottom: 18px;
+}
+.mx-confirm-acts {
+  display: flex;
+  gap: 10px;
+}
+.mx-confirm-acts button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 11px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 13px;
+}
+.mx-confirm-no {
+  background: var(--surf2);
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+.mx-confirm-no:hover {
+  border-color: var(--ice);
+}
+.mx-confirm-yes {
+  background: rgba(255, 92, 122, 0.14);
+  border: 1px solid var(--red);
+  color: var(--red);
+}
+.mx-confirm-yes:hover {
+  background: rgba(255, 92, 122, 0.22);
+}
+
+/* ---- Breakpoints del prototipo (920px / 560px / 760px) ---- */
+@media (max-width: 920px) {
+  .mx-grid {
+    grid-template-columns: 1fr;
+  }
+  .mx-instwrap {
+    grid-template-columns: 1fr;
+    max-width: 420px;
+    margin: 0 auto;
+  }
+  .mx-instside {
+    order: -1;
+  }
+}
+@media (max-width: 560px) {
+  .mx-top {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .mx-roleswitch {
+    order: 3;
+    width: 100%;
+  }
+  .mx-roleswitch button {
+    flex: 1;
+    justify-content: center;
+  }
+  .mx-topright {
+    order: 2;
+  }
+  .mx-f2 {
+    grid-template-columns: 1fr;
+  }
+  .mx-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mx-sweep,
+  .mx-ping,
+  .mx-blink,
+  .mx-spin {
     animation: none !important;
   }
 }
