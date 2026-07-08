@@ -2,6 +2,56 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Sprint 3.3 — Cierre del Sprint] — 2026-07-08
+
+Cierre administrativo. Sin cambios de código en esta entrada — únicamente documentación.
+
+- ✅ Validación visual aprobada por el usuario.
+- ✅ Validación local aprobada por el usuario (`npm run lint`, `npm run typecheck`, `npm run build`, `npm run dev`).
+- ✅ Sprint 3.3 cerrado.
+- Siguiente Sprint a desarrollar: **Sprint 3.4** (no se inicia sin aprobación explícita).
+
+## [Sprint 3.3 — Fix de integración visual de `mx-subtabs`] — 2026-07-08
+
+**No es un Sprint nuevo.** Corrección del Sprint 3.3: el usuario confirmó que las 4 validaciones reales pasan, pero `MxSubtabs` no se veía renderizado en ninguna pantalla. Nueva regla explícita del usuario, vigente para todos los Sprints futuros: un componente que compila pero no es visible no permite dar el Sprint por finalizado.
+
+### Corregido
+
+- `src/layouts/RootLayout.tsx` (único archivo modificado): se agregó el renderizado de `<MxSubtabs>` con dos `<MxSubtabButton>` ("Despacho en vivo" activo, "Mis trabajos" inactivo — íconos/textos literales de la instancia Coordinator del HTML) como primer hijo de `<main>`, visible cuando `role === 'coordinador'`. Reproduce la posición exacta del HTML fuente: `.mx-subtabs` es el primer elemento de la rama `role === "coord"` de `App()`, antes de `Coordinator`/`CoordinatorJobs` (que no existen todavía).
+
+### Sin cambios
+
+- No se modificó `MxSubtabs`/`MxSubtabButton` (implementación interna intacta desde el Sprint 3.3 original). Sin `onClick` en los botones — no se agregó lógica, eventos, estado real, React Query ni Supabase. No se tocó `Header`, `mx-instside`/`InstallerSidebar`, `AppRouter.tsx`, `ARCHITECTURE.md` ni ningún otro bloque.
+
+### Validación
+
+- `tsc --noEmit` (stubs ambientales): 0 diagnósticos. `prettier --check`: cero diferencias. `git status --porcelain`: único archivo modificado, `RootLayout.tsx`.
+- Pendiente: re-confirmación real del usuario (`npm run lint`/`typecheck`/`build`/`dev`) y verificación visual directa en el navegador tras este fix.
+
+## [Sprint 3.3 — `mx-subtabs`] — 2026-07-08
+
+Migra exclusivamente `.mx-subtabs-wrap`/`.mx-subtabs` (contenedor + botones de sub-navegación), reutilizado tal cual dos veces en el HTML fuente: Coordinator ("Despacho en vivo"/"Mis trabajos") y AdminPanel ("Calendario maestro"/"Instaladores").
+
+### Añadido
+
+- `src/components/shared/mx-subtabs.tsx` (`MxSubtabs`) — contenedor `.mx-subtabs-wrap > .mx-subtabs`.
+- `src/components/shared/mx-subtab-button.tsx` (`MxSubtabButton`) — botón plano con `className` condicional `on`/inactivo, ícono + texto como props. Ambos puramente presentacionales: sin `useState` interno, sin lógica de navegación, sin datos mock.
+- `docs/sprints/sprint-3.3.md`.
+
+### Sin cambios
+
+- `.mx-subtabs-wrap`/`.mx-subtabs` ya estaban portadas verbatim en `globals.css` desde Fase 3 — cero cambios de CSS. No se tocó `Header`, `mx-instside`/`InstallerSidebar`, `RootLayout.tsx`, `AppRouter.tsx`, `ARCHITECTURE.md` ni `components/ui/tabs.tsx`.
+
+### Reportado (sin corregir)
+
+- `mx-subtabs` tiene dos instancias reales en el HTML (Coordinator, AdminPanel); ninguna de las dos pantallas existe todavía en este proyecto, así que `MxSubtabs`/`MxSubtabButton` no se integraron en ninguna página en este Sprint (integrarlos habría requerido construir Coordinator o AdminPanel, fuera de alcance).
+- Ya existe `components/ui/tabs.tsx` (Fase 3, Radix, sin consumidores) apuntando a la misma clase CSS — posible duplicación futura con `MxSubtabs`/`MxSubtabButton`, no resuelta aquí; queda para que el Sprint que construya Coordinator/AdminPanel decida cuál usar.
+
+### Validación
+
+- `tsc --noEmit` (stubs ambientales): 0 diagnósticos. `prettier --check`: cero diferencias. `git status`/`git diff --stat`: solo 3 archivos nuevos (2 componentes + `docs/sprints/sprint-3.3.md`), ningún archivo existente modificado.
+- Las cuatro validaciones reales (`npm run lint`/`typecheck`/`build`/`dev`) siguen pendientes de confirmación del usuario en su máquina.
+
 ## [Sprint 3.2.2 — Corrección de integración de `InstallerSidebar`] — 2026-07-07
 
 Sub-iteración solicitada por el usuario para corregir 3 problemas de la integración visual hecha en el Sprint 3.2.1. **No es el Sprint 3.3; no migra ningún bloque adicional del HTML.** No se modificó `InstallerSidebar`/`InstallerSidebarCard`/`InstallerProfileSummary`/`InstallerPriorityRules` — todas las correcciones se hicieron únicamente en el Layout donde se integra.

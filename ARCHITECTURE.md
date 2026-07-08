@@ -217,7 +217,7 @@ Extraído por lectura completa del script de `Multimax_Despacho_v1.3.html` (lín
 | Prototipo (función) | Nuevo componente/archivo | Notas de migración |
 |---|---|---|
 | `mkIcon`/`ICONS` | `lucide-react` | Mapeo 1:1 por nombre visual (ver §7.2). Mismo `size`, `strokeWidth=2`, `strokeLinecap/Linejoin=round`. |
-| `Pill` | `components/shared/Pill.tsx` | Igual, tipado con `tone: 'muted'|'ice'|'amber'|'green'|'red'|'violet'`. |
+| `Pill` | `components/ui/badge.tsx` (`Badge`) | Fusionado con Badge en Fase 3 — ver §13.1. Igual, tipado con `tone: 'muted'|'ice'|'amber'|'green'|'red'|'violet'`. |
 | `StatTile` | `components/shared/StatTile.tsx` | Igual. |
 | `CountRing` | `components/shared/CountRing.tsx` | Igual; `remaining`/`total` ahora derivan de `bid_cierra_at` real, no de simulación. |
 | `Radar` | `features/despacho/components/RadarPanel.tsx` | Misma geometría SVG (`hashAngle`, círculos concéntricos, sweep). `instState` ahora viene de: (a) `eligibleIds` por query, (b) `bids` por Realtime, (c) presence/broadcast para "abrió"/"respondiendo" — ver §9.3. |
@@ -643,3 +643,16 @@ Todo el código de la aplicación debe leer trabajos **siempre** desde `trabajos
 9. **Fase 9**: Pulido, manejo de errores/loading states, y despliegue.
 
 Cada fase debe dejar el proyecto compilando (`npm install && npm run dev` sin errores) antes de pasar a la siguiente, y debe detenerse para aprobación explícita del usuario.
+
+> **Nota (Fase 2):** el orden de fases de arriba es el original de Fase 1. Desde Fase 2, por pedido del usuario, el orden vigente es otro (Scaffold → Layout general → Coordinator → Installer → Admin → Supabase → Realtime → eliminación de mocks → pruebas finales) — ver `PROJECT_STATUS.md`/`TODO.md` para la numeración autoritativa. Este documento no se reescribió en ese momento porque el cambio fue de secuencia, no de arquitectura (decisión ya registrada en `CHANGELOG.md`, `[Fase 2]`).
+
+---
+
+## 13. Adenda — Fase 3 (Layout general y componentes compartidos)
+
+Cambios puntuales respecto al inventario de §3/§4, detectados al construir el Layout general y la librería de componentes compartidos. Ninguno altera el stack, el modelo de datos, ni las estrategias de Supabase/Auth/RLS/Realtime de las secciones anteriores.
+
+1. **`Pill` se fusionó con `Badge`.** §4 preveía `components/shared/Pill.tsx`. Al construir la librería `components/ui/` (shadcn-style), se determinó que `Pill` (`.mx-pill`) y el concepto genérico de "badge" del stack shadcn/ui son el mismo componente — se implementó una sola vez como `components/ui/badge.tsx` (`Badge`, con prop `tone`), evitando duplicar el mismo tratamiento visual bajo dos nombres. Cualquier referencia futura a "Pill" en este documento debe leerse como `Badge`.
+2. **`RootLayout.tsx` sí incluye, temporalmente, un selector de rol manual.** §3 lo describía como "sin selector manual", asumiendo Auth ya implementada. La Fase 3 ocurre antes de la Fase de Auth (hoy Fase 7 en el orden vigente) y las instrucciones de esta fase exigen no alterar la apariencia/interactividad del prototipo. Resolución: `Header`/`RootLayout` reconstruyen `.mx-roleswitch` idéntico al original, respaldado por `useState<Rol>` local (no por `AuthContext`). La Fase 7 reemplaza ese estado por la sesión real sin tocar la apariencia — la nota "sin selector manual" de §3 sigue siendo el objetivo final, solo se pospuso su cumplimiento. Ver `MIGRATION_STATUS.md` §5 para el detalle.
+3. **Primitivos Radix confirmados para `components/ui/`**: `@radix-ui/react-dialog` (Dialog/Modal/Drawer/ConfirmDialog), `@radix-ui/react-tabs`, `@radix-ui/react-checkbox`, `@radix-ui/react-switch`, `@radix-ui/react-tooltip`, `@radix-ui/react-dropdown-menu`, `@radix-ui/react-slot` (Button `asChild`), `@radix-ui/react-label`. Se decidió explícitamente **no** agregar `@radix-ui/react-select` (el prototipo usa `<select>` nativo en todos sus formularios — un primitivo custom cambiaría comportamiento/apariencia nativa) ni `@radix-ui/react-separator`/`@radix-ui/react-progress`/`@radix-ui/react-scroll-area` (implementados como `div`s simples con los tokens del proyecto, para minimizar dependencias donde no se necesita comportamiento accesible adicional).
+4. **`Modal` y `Drawer` son dos primitivos nuevos de `components/ui/`**, no mencionados en §4 porque esa sección solo cataloga componentes de *feature* (Coordinator/Installer/Admin). `Drawer` porta verbatim `.mx-modal-bg`/`.mx-modal-panel` (el "modal" slide-up del prototipo, usado hoy por `PublishModal` en Fase 4). `Modal` es un patrón centrado genérico nuevo, sin equivalente en el prototipo. Ver `MIGRATION_STATUS.md` §6.2 para el razonamiento completo del renombre.

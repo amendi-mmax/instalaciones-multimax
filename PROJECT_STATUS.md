@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — HANDYMAX · Multimax Despacho
 
-Última actualización: 2026-07-07 — Sprint 3.2.2 (corrección de integración de `InstallerSidebar`)
+Última actualización: 2026-07-08 — Sprint 3.3 (`mx-subtabs`) — ✅ Completado (cierre documental)
 
 ## Cambio de metodología (vigente desde el Sprint 3.1)
 
@@ -186,8 +186,37 @@ Sub-iteración para corregir 3 problemas reportados en la integración visual de
 - Validación best-effort: `tsc --noEmit` 0 diagnósticos; `prettier --check` cero diferencias; `git diff --stat` confirma que `RootLayout.tsx` es el único archivo de código modificado. Pendiente de confirmación real del usuario (`npm run lint`/`typecheck`/`build`/`dev`).
 - Detalle completo: `docs/sprints/sprint-3.2.md` → "Sprint 3.2.2".
 
+## Sprint 3.3 — `mx-subtabs` (2026-07-08) — ✅ Completado
+
+Migró exclusivamente `.mx-subtabs-wrap`/`.mx-subtabs` (contenedor + botones de sub-navegación), reutilizado tal cual dos veces en el HTML fuente: dentro de `App()` (rama `role === "coord"`, tabs "Despacho en vivo"/"Mis trabajos" del Coordinator) y dentro de `AdminPanel()` (tabs "Calendario maestro"/"Instaladores"). Objetivo/análisis/implementación completos en `docs/sprints/sprint-3.3.md`.
+
+- Componentes nuevos: `MxSubtabs` (contenedor `.mx-subtabs-wrap > .mx-subtabs`) y `MxSubtabButton` (botón plano con `className` condicional `on`/inactivo, ícono + texto como props). Puramente presentacionales — sin `useState` interno, sin lógica de navegación ni datos mock; `active`/`icon`/`onClick`/el texto del tab son props que deberá proveer el Sprint que construya Coordinator o AdminPanel.
+- `.mx-subtabs-wrap`/`.mx-subtabs` ya estaban portadas verbatim en `globals.css` desde Fase 3 — verificado clase por clase contra el HTML fuente, coincide al 100%. No fue necesario ningún cambio de CSS.
+- Se detectó y **reportó sin corregir**: `mx-subtabs` tiene dos instancias reales (Coordinator, AdminPanel), y ninguna de las dos pantallas existe todavía en este proyecto — por lo tanto `MxSubtabs`/`MxSubtabButton` no se integraron en ninguna página en este Sprint (integrarlos habría requerido construir Coordinator o AdminPanel, fuera de alcance explícito). Mismo criterio que `InstallerSidebar` en el Sprint 3.2, que tampoco se montó en ningún lugar hasta la sub-iteración 3.2.1 explícitamente solicitada.
+- Se detectó y **reportó sin resolver**: ya existe `components/ui/tabs.tsx` (Fase 3, `Tabs`/`TabsList`/`TabsTrigger` sobre `@radix-ui/react-tabs`) apuntando a la misma clase `.mx-subtabs`, sin consumidores. No se modificó ni se eliminó — queda documentada la posible duplicación para que el Sprint que construya Coordinator/AdminPanel decida cuál de los dos usar.
+- Validación best-effort (misma metodología de siempre): 0 diagnósticos de `tsc`, cero diferencias de `prettier`.
+- Detalle completo: `docs/sprints/sprint-3.3.md`.
+
+### Corrección — Fix de integración visual de `mx-subtabs` (2026-07-08)
+
+El usuario confirmó localmente que `npm run lint`/`typecheck`/`build`/`dev` pasan en verde sobre `feature/sprint-3-3-mx-subtabs`, pero detectó que `MxSubtabs` no se veía renderizado en ningún lugar de la aplicación — el Sprint no podía darse por finalizado sin validación visual (nueva regla explícita del usuario, obligatoria desde ahora para todos los Sprints). Único archivo modificado: `src/layouts/RootLayout.tsx`.
+
+- Se agregó, como primer hijo de `<main>` (antes del bloque `mx-instwrap`/`InstallerSidebar` de Sprint 3.2.1/3.2.2), el renderizado condicional de `<MxSubtabs>` con dos `<MxSubtabButton>` cuando `role === 'coordinador'` — reproduce la posición exacta del HTML fuente (`.mx-subtabs` es el primer elemento de la rama `role === "coord"` de `App()`, antes de `Coordinator`/`CoordinatorJobs`, que no existen todavía).
+- "Despacho en vivo" queda activo (estado inicial real del HTML, `coordTab = "despacho"`); "Mis trabajos" inactivo. Íconos y textos son los literales exactos de la instancia Coordinator del HTML — nada inventado.
+- Sin `onClick` en ningún botón — no se agregó lógica, eventos, estado real, React Query ni Supabase. No se modificó `MxSubtabs`/`MxSubtabButton` (implementación interna intacta) ni ningún otro componente aprobado.
+- Validación best-effort: `tsc --noEmit` 0 diagnósticos; `prettier --check` cero diferencias; `git status --porcelain` confirma que `RootLayout.tsx` es el único archivo de código modificado.
+- Detalle completo: `docs/sprints/sprint-3.3.md` → "Corrección — Fix de integración visual".
+
+### Sprint 3.3 finalizado (2026-07-08)
+
+- Validación local completada: el usuario confirmó en su máquina que `npm run lint`, `npm run typecheck`, `npm run build` y `npm run dev` finalizan las 4 sin errores sobre `feature/sprint-3-3-mx-subtabs`, incluido el fix de integración visual.
+- Validación visual completada: el usuario confirmó que `MxSubtabs` es visible en la aplicación, en la posición correspondiente al bloque `mx-subtabs` de `Multimax_Despacho_v1.3.html`.
+- No quedan pendientes técnicos del Sprint 3.3. La integración temporal en `RootLayout.tsx` queda aprobada tal cual hasta que exista `layouts/CoordinatorLayout.tsx` en un Sprint futuro.
+- **El siguiente Sprint a desarrollar es el Sprint 3.4** — no se inicia sin aprobación explícita del usuario.
+
 ## Qué falta
 
+- **Sprint 3.3: cerrado, sin pendientes técnicos** (ver "Sprint 3.3 finalizado" arriba).
 - **Bloqueante para cerrar el Sprint 3.2**: confirmar en el entorno del usuario `npm install && npm run lint && npm run typecheck && npm run build && npm run dev` en verde sobre la rama `feature/sprint-3-2-mx-instside`.
 - A partir de aquí, el trabajo restante (antes descrito como "Fase 4 — Coordinator", "Fase 5 — Installer", "Fase 6 — Admin", etc.) se ejecuta Sprint a Sprint según `docs/SPRINTS_INDEX.md`, cada uno esperando aprobación explícita antes de iniciar el siguiente. La integración con Supabase, Realtime, eliminación de mocks y pruebas finales (antes Fases 7–10) siguen vigentes como trabajo futuro, a re-planificar en Sprints una vez completado el bloque 3.x.
 - `CountRing`/`LiveCountdown` (countdown circular de rondas/bids) y los layouts por rol (`CoordinatorLayout`/`InstallerLayout`/`AdminLayout`) siguen fuera de alcance hasta el Sprint que corresponda. Ver `MIGRATION_STATUS.md`.
@@ -212,4 +241,4 @@ Ninguno de estos bloquea el scaffold de esta fase; sí bloquearán las fases 7 (
 
 ## Próximos pasos
 
-Esperar validación local del usuario (`npm install && npm run lint && npm run typecheck && npm run build && npm run dev` sobre `feature/sprint-3-2-mx-instside`) y aprobación explícita antes de iniciar el Sprint 3.3. No se avanza automáticamente a ningún Sprint siguiente.
+Esperar validación local del usuario (`npm install && npm run lint && npm run typecheck && npm run build && npm run dev` sobre `feature/sprint-3-3-mx-subtabs`) y aprobación explícita antes de iniciar el Sprint 3.4. No se avanza automáticamente a ningún Sprint siguiente.

@@ -1,9 +1,12 @@
+import { ClipboardList, Crosshair } from 'lucide-react';
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 
 import { Footer } from '@/components/shared/footer';
 import { Header } from '@/components/shared/header';
 import { InstallerSidebar } from '@/components/shared/installer-sidebar';
+import { MxSubtabButton } from '@/components/shared/mx-subtab-button';
+import { MxSubtabs } from '@/components/shared/mx-subtabs';
 import type { Rol } from '@/types/enums';
 
 /**
@@ -81,6 +84,33 @@ import type { Rol } from '@/types/enums';
  * responsive (`@media (max-width:920px)`, ya portado en `globals.css`)
  * se toman tal cual del HTML — no se agregó ni modificó CSS en este
  * Sprint.
+ *
+ * ---------------------------------------------------------------------
+ * TEMPORARY INTEGRATION — Sprint 3.3 (fix de integración visual)
+ * ---------------------------------------------------------------------
+ * `MxSubtabs`/`MxSubtabButton` (creados en el Sprint 3.3, `mx-subtabs`)
+ * quedaron sin renderizarse en ningún lugar al cerrar ese Sprint — el
+ * usuario confirmó que `npm run lint/typecheck/build/dev` pasan, pero
+ * el bloque no era visible en pantalla, así que el Sprint no podía darse
+ * por aprobado (ver docs/sprints/sprint-3.3.md → sección de corrección).
+ *
+ * En el HTML fuente, `.mx-subtabs` solo existe dentro de `App()`, rama
+ * `role === "coord"` (línea ~2079), como el primer elemento después del
+ * selector "Sucursal activa" (`mx-suc-sel`, no migrado todavía) y antes
+ * de `Coordinator`/`CoordinatorJobs` (no existen todavía). Aquí se monta
+ * cuando `role === 'coordinador'`, como primer hijo de `<main>` — mismo
+ * criterio que `InstallerSidebar` para `role === 'instalador'`: no hay
+ * ninguna otra pieza de Coordinator que preceda a `mx-subtabs` en este
+ * proyecto todavía, así que no hay nada más que anteponerle sin salirse
+ * de alcance.
+ *
+ * "Despacho en vivo" queda con `active` (coincide con el estado inicial
+ * real del HTML, `useState("despacho")` — línea 1903) y "Mis trabajos"
+ * inactivo. Ninguno de los dos botones recibe `onClick`: no se agrega
+ * lógica de navegación ni estado real en este Sprint — son literales
+ * fijos, igual que los valores de `InstallerSidebar` en el Sprint 3.2.1.
+ * Se retira de aquí en cuanto exista el Sprint que construya
+ * `Coordinator`/`layouts/CoordinatorLayout.tsx` real.
  */
 export function RootLayout() {
   const [role, setRole] = useState<Rol>('coordinador');
@@ -89,6 +119,17 @@ export function RootLayout() {
     <div className="flex min-h-screen flex-col">
       <Header role={role} onRoleChange={setRole} />
       <main className="flex-1">
+        {/* TEMPORARY INTEGRATION — Sprint 3.3 (fix de integración visual): ver comentario de la función. */}
+        {role === 'coordinador' && (
+          <MxSubtabs>
+            <MxSubtabButton active icon={<Crosshair size={14} />}>
+              Despacho en vivo
+            </MxSubtabButton>
+            <MxSubtabButton active={false} icon={<ClipboardList size={14} />}>
+              Mis trabajos
+            </MxSubtabButton>
+          </MxSubtabs>
+        )}
         {/* TEMPORARY INTEGRATION — Sprint 3.2.1, corregida en 3.2.2: ver comentario de la función. */}
         {role === 'instalador' && (
           <div className="mx-instwrap">
