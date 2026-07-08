@@ -1,7 +1,7 @@
 # Sprint 3.1 - Migración del Header
 
 Rama: `feature/sprint-3-1-header`
-Estado: 🟡 En revisión — Sprint 3.1.1 aplicó las correcciones de compilación reportadas por el usuario; queda pendiente que el usuario confirme localmente `npm run lint`/`npm run typecheck`/`npm run build`/`npm run dev` en verde para pasar a ✅ Completado (ver sección "Sprint 3.1.1 — Cierre y validación" más abajo).
+Estado: 🟡 En revisión — causa raíz de los errores restantes identificada y neutralizada (archivo legado `LayoutShowcasePage.tsx`, ver "Sprint 3.1.1 — Validación final" más abajo); queda pendiente que el usuario confirme localmente `npm run lint`/`npm run typecheck`/`npm run build`/`npm run dev` en verde para pasar a ✅ Completado.
 
 ## Objetivo
 
@@ -218,6 +218,31 @@ npm run dev
 ```
 
 En cuanto el usuario confirme las cuatro en verde, el estado de este Sprint pasa de 🟡 En revisión a ✅ Completado (actualización a aplicar en `docs/SPRINTS_INDEX.md`, `PROJECT_STATUS.md`, `CHANGELOG.md` y este archivo).
+
+## Sprint 3.1.1 — Validación final (2026-07-03, segunda ronda)
+
+El usuario volvió a correr la validación local y reportó que los errores restantes venían principalmente de `src/pages/LayoutShowcasePage.tsx`.
+
+### Diagnóstico
+
+1. **Verificación de referencias**: se confirmó con `grep -rn "LayoutShowcasePage" src/` y con `git log --diff-filter=D -- src/pages/LayoutShowcasePage.tsx` que este archivo **ya no existe en el proyecto** (eliminado en el commit del Sprint 3.1 original, `86d4b4a`) y que **ningún archivo lo referencia** — ni `AppRouter.tsx`, ni `RootLayout.tsx`, ni ningún otro router o componente. El árbol de Git actual (`git ls-tree -r HEAD`) no contiene la ruta `src/pages/LayoutShowcasePage.tsx`.
+2. **Causa raíz real de lo que el usuario ve en su máquina**: el puente de archivos usado para entregar los cambios de este proyecto a la máquina del usuario solo puede crear/sobrescribir archivos, no borrarlos de forma remota (limitación de la herramienta, no del proyecto). Por eso, aunque el archivo se eliminó del repositorio en la nube desde el Sprint 3.1, siguió existiendo físicamente en la carpeta local del usuario. Ese archivo legado usaba las props `title` de `CardHeader`/`SidebarCard`/`Toast` con su nombre original — al renombrarlas en el Sprint 3.1.1 (`cardTitle`/`sidebarTitle`/`toastTitle`), ese archivo obsoleto, todavía presente solo en el disco del usuario, empezó a fallar el typecheck también. Confirmado inspeccionando la fecha de modificación del archivo en la máquina del usuario: coincide exactamente con la entrega original de Sprint 3.1, es decir, nunca se volvió a tocar ni a borrar.
+3. **Acción tomada**: dado que no hay forma de borrar archivos remotamente con las herramientas disponibles, se sobrescribió `src/pages/LayoutShowcasePage.tsx` en la máquina del usuario con un stub vacío (`export {};`) que documenta en un comentario por qué existe y qué acción manual falta. Esto elimina el error de compilación que producía sin esperar a que el usuario lo borre. Se le indicó explícitamente que debe terminar de borrar el archivo por completo desde el Explorador de Windows o su editor — no debe quedar como código muerto permanentemente.
+4. **Sobre no crear props incompatibles / mantener retrocompatibilidad**: se evaluó si `cardTitle`/`sidebarTitle`/`toastTitle` (Sprint 3.1.1, primera ronda) rompen compatibilidad con algún componente real del proyecto. Resultado: **no** — se confirmó de nuevo con `grep` que `CardHeader`, `SidebarCard` y `Toast` no tienen ningún consumidor real en `src/` (el único que los usaba, `LayoutShowcasePage.tsx`, era precisamente el archivo legado ya eliminado del proyecto). Revertir el renombre para "mantener compatibilidad" reintroduciría el error real de TypeScript que motivó el Sprint 3.1.1 (conflicto con `HTMLAttributes<HTMLDivElement>.title`). Por lo tanto, se mantienen los nombres `cardTitle`/`sidebarTitle`/`toastTitle` sin cambios — no hay compatibilidad real que romper.
+
+### Archivos modificados en esta ronda
+
+Ninguno en el proyecto (repositorio en la nube) — no fue necesario, porque el archivo legado nunca estuvo ahí. Se sobrescribió únicamente el archivo obsoleto en la copia local del usuario (`src/pages/LayoutShowcasePage.tsx`, fuera del control de versiones de este Sprint).
+
+### Validaciones (repetidas tras el diagnóstico)
+
+- `grep -rn "LayoutShowcasePage" src/` (proyecto en la nube): sin resultados.
+- `git ls-tree -r HEAD --name-only | grep src/pages`: sin resultados (la carpeta `src/pages/` está vacía, a la espera de páginas reales de Sprints futuros).
+- `tsc --noEmit` con stubs ambientales: **0 diagnósticos**.
+- `prettier --check`: cero diferencias.
+- Verificado que `header.tsx`, `header-brand.tsx`, `header-role-switch.tsx`, `header-status.tsx`, `RootLayout.tsx` y `AppRouter.tsx` no tienen cambios (`git diff` vacío contra el commit anterior).
+
+**Sigue pendiente lo mismo de siempre**: que el usuario confirme en su máquina, ahora con el archivo legado neutralizado, que `npm run lint`, `npm run typecheck`, `npm run build` y `npm run dev` terminan en verde. Solo entonces el Sprint 3.1 pasa a ✅ Completado.
 
 ## Próximo Sprint
 
