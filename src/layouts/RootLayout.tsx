@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 
 import { Footer } from '@/components/shared/footer';
 import { Header } from '@/components/shared/header';
+import { InstallerSidebar } from '@/components/shared/installer-sidebar';
 import type { Rol } from '@/types/enums';
 
 /**
@@ -24,6 +25,62 @@ import type { Rol } from '@/types/enums';
  * se dejan los valores por defecto de `HeaderStatus`, que reproducen el
  * estado inicial exacto del prototipo (`sucursalCoord` = "Multiplaza",
  * `jobs` = []). Ver docs/sprints/sprint-3.1.md.
+ *
+ * ---------------------------------------------------------------------
+ * TEMPORARY INTEGRATION — Sprint 3.2.1 (corregida en Sprint 3.2.2)
+ * ---------------------------------------------------------------------
+ * `InstallerSidebar` (creado en el Sprint 3.2, `mx-instside`) todavía no
+ * tiene ningún layout/página real que lo monte (`layouts/InstallerLayout.tsx`
+ * no existe — ver ARCHITECTURE.md §3 y docs/sprints/sprint-3.2.md). Para
+ * poder validarlo visualmente en el navegador sin esperar a ese Sprint
+ * futuro, se renderiza aquí temporalmente dentro de `<main>`, con valores
+ * literales de ejemplo (no un mock de datos nuevo: solo números fijos para
+ * esta prueba visual, ya que `InstallerProfileSummary` no admite props
+ * opcionales/por defecto — ver docs/sprints/sprint-3.2.md §"riesgos").
+ * No reemplaza ni anticipa el layout completo del Instalador. Debe
+ * eliminarse de aquí en cuanto exista el Sprint que construya
+ * `layouts/InstallerLayout.tsx` real.
+ *
+ * Sprint 3.2.2 corrige 3 problemas de la integración de 3.2.1, sin tocar
+ * `InstallerSidebar` (ver docs/sprints/sprint-3.2.md §"Sprint 3.2.2"):
+ *
+ * 1) Antes se renderizaba para cualquier `role`. En el HTML fuente,
+ *    `mx-instside` solo existe dentro de `Installer()`, que `App()` monta
+ *    únicamente cuando `role === "inst"` (línea ~2113). Aquí se traduce
+ *    como `role === 'instalador'` — nunca para `coordinador`/`admin`.
+ *
+ * 2) Antes se renderizaba como bloque de ancho completo, directo dentro de
+ *    `<main>`. En el HTML fuente `<aside class="mx-instside">` es hermano
+ *    de `<div class="mx-phone">` dentro de `<div class="mx-instwrap">`, un
+ *    grid de 2 columnas (`.mx-instwrap{grid-template-columns:minmax(320px,
+ *    400px) minmax(240px,300px);...}` — línea 169 del HTML fuente, ya
+ *    portado a `globals.css` desde Fase 3, sin cambios en este Sprint).
+ *    Envolver `InstallerSidebar` en `.mx-instwrap` le devuelve su columna
+ *    angosta (240-300px) en vez de ocupar todo el ancho de `<main>`.
+ *
+ * 3) El contenedor "Main Workspace" (este `<main>`) no reservaba espacio
+ *    para el futuro Phone. Se agrega un "Phone Placeholder" — un `<div>`
+ *    vacío, sin clase `.mx-phone` ni contenido — como primer hijo de
+ *    `.mx-instwrap`, únicamente para ocupar la primera columna del grid
+ *    (`minmax(320px,400px)`) que el layout final usará para el teléfono.
+ *    No se implementa aquí ningún estilo/contenido de `.mx-phone` —
+ *    corresponde al Sprint que construya `layouts/InstallerLayout.tsx` /
+ *    `PhoneFrame.tsx` (ver ARCHITECTURE.md §3).
+ *
+ * Estructura temporal resultante dentro de `<main>` (solo si
+ * `role === 'instalador'`):
+ *   <main> (Main Workspace)
+ *     <div class="mx-instwrap">
+ *       <div />               ← Phone Placeholder (reservado, vacío)
+ *       <InstallerSidebar />   ← ya renderiza su propio <aside class="mx-instside">
+ *     </div>
+ *     <Outlet/>
+ *
+ * Padding/gap/alineación del grid (`.mx-instwrap`: gap 18px, padding
+ * 22px 16px, justify-content:center, align-items:start) y el breakpoint
+ * responsive (`@media (max-width:920px)`, ya portado en `globals.css`)
+ * se toman tal cual del HTML — no se agregó ni modificó CSS en este
+ * Sprint.
  */
 export function RootLayout() {
   const [role, setRole] = useState<Rol>('coordinador');
@@ -32,6 +89,16 @@ export function RootLayout() {
     <div className="flex min-h-screen flex-col">
       <Header role={role} onRoleChange={setRole} />
       <main className="flex-1">
+        {/* TEMPORARY INTEGRATION — Sprint 3.2.1, corregida en 3.2.2: ver comentario de la función. */}
+        {role === 'instalador' && (
+          <div className="mx-instwrap">
+            {/* Phone Placeholder — reserva la primera columna del grid para
+                el futuro `layouts/InstallerLayout.tsx` (mx-phone). No se
+                implementa contenido/estilo de Phone en este Sprint. */}
+            <div />
+            <InstallerSidebar rating={4.9} km={1.8} cumplimiento={98} aceptacion={92} />
+          </div>
+        )}
         <Outlet context={{ role }} />
       </main>
       <Footer />

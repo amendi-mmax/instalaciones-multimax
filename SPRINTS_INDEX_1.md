@@ -7,7 +7,7 @@
 | Sprint | Estado | Elemento | Rama Git |
 |---------|--------|----------|-----------|
 | 3.1 | ✅ Completado | Header (`<header class="mx-top">`) | `feature/sprint-3-1-header` |
-| 3.2 | 🟡 En progreso (pendiente validación local del usuario) | `mx-instside` (panel lateral del Instalador) | `feature/sprint-3-2-mx-instside` |
+| 3.2 | 🟡 En progreso (sub-iteración 3.2.2 — corrección de integración visual; pendiente validación local del usuario) | `mx-instside` (panel lateral del Instalador) | `feature/sprint-3-2-mx-instside` |
 | 3.3 | ⏳ Pendiente | Top Navigation | `feature/sprint-3-3-top-navigation` |
 | 3.4 | ⏳ Pendiente | Main Layout | `feature/sprint-3-4-main-layout` |
 | 3.5 | ⏳ Pendiente | Publish Modal | `feature/sprint-3-5-publish-modal` |
@@ -27,6 +27,15 @@
 
 - **3.2 (Sidebar → `mx-instside`)**: confirmado y resuelto en el Sprint 3.2. El único elemento visual llamado "sidebar" en el HTML es `.mx-instside` (panel lateral del Instalador, con las tarjetas "Tu perfil" y "Reglas de prioridad"). Detalle completo en `docs/sprints/sprint-3.2.md`.
 - **3.3 (Top Navigation)**: el candidato más claro en el HTML es `.mx-subtabs-wrap`/`.mx-subtabs` (tabs "Despacho en vivo" / "Mis trabajos"), que aparece **fuera** de `<header>` pero **dentro** de la rama `role === "coord"` — es decir, depende visualmente de que el Coordinator exista. A confirmar alcance exacto antes de iniciar.
+
+## Resumen — Sprint 3.2.2 (corrección de integración visual)
+
+- **Sprint actual**: 3.2.2 (sub-iteración de corrección; no un Sprint nuevo de migración de HTML, no es el Sprint 3.3).
+- **Estado**: Corrección de integración visual — `InstallerSidebar` (Sprint 3.2) ahora solo se renderiza para `role === 'instalador'`, respeta el ancho de columna del HTML (`.mx-instwrap`) y el contenedor queda preparado (Phone Placeholder reservado) para el siguiente Sprint. Pendiente validación local del usuario para pasar a ✅ Completado.
+- **Bloques HTML migrados hasta ahora**: Header (`mx-top`, Sprint 3.1), `mx-instside` (panel lateral del Instalador, Sprint 3.2).
+- **Pendientes** (sin Sprint asignado todavía en este índice, salvo lo ya listado en la tabla): Phone Layout (`mx-phone`/`mx-phone-bar`/`mx-phonetabs`, `layouts/InstallerLayout.tsx`), Main Layout, Navigation, Coordinator, Jobs, Dialogs.
+
+Detalle completo de las 3 correcciones aplicadas: `docs/sprints/sprint-3.2.md` → "Sprint 3.2.2".
 
 ## Notas de alcance detectadas durante Sprint 3.2
 

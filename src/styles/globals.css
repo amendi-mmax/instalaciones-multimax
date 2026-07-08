@@ -772,6 +772,12 @@
   color: var(--text);
   font-family: var(--fm);
 }
+/* .mx-starc: faltaba desde Fase 3 (fuente: línea 117 del <style> original).
+   Se usa en el ícono Star de InstallerProfileSummary (Sprint 3.2) y también
+   en otros bloques todavía no migrados (ResponsesFeed, AdminInstaladores). */
+.mx-starc {
+  color: var(--amber);
+}
 .mx-profile svg {
   color: var(--ice);
 }
