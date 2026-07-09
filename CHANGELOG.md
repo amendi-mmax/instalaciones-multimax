@@ -2,6 +2,36 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Sprint 3.5 — `PublishModal`] — 2026-07-09
+
+Continúa la migración incremental. Se verificó que el nombre genérico "Publish Modal" de `docs/SPRINTS_INDEX.md` corresponde al bloque real (función `PublishModal()`, línea 2496 del script) — a diferencia del Sprint 3.4, aquí no hubo que corregir el nombre. Se detectó y descartó un snapshot DOM obsoleto (`.mx-publishwrap`/`.mx-publish`) que no aparece en ningún `React.createElement` del script vigente.
+
+### Añadido
+
+- `src/components/shared/publish-modal.tsx` (`PublishModal`, `PublishForm`) — reconstruye `.mx-modal-bg`/`.mx-modal-panel`/`.mx-modal-hd`/`.mx-modal-close`/`.mx-modal-body` (vía `Drawer`, Fase 3, primer consumidor real) + el formulario completo `.mx-fields` (14 campos, líneas 2496-2631 del HTML fuente).
+- `PROVINCIAS`, `ZONAS`, `BID_OPTIONS` (+ interfaz `BidOption`), `buildTimeSlots`/`SLOTS_COORD` en `src/constants/index.ts` — catálogos verbatim del HTML fuente (líneas 1061-1113).
+- `.mx-priceinput`/`.mx-datein` en `src/styles/globals.css` — CSS verbatim de las líneas 222-226 y 229-230 del HTML fuente, no portado antes de este Sprint.
+- `docs/sprints/sprint-3.5.md`.
+
+### Cambiado
+
+- `src/layouts/RootLayout.tsx`: nuevo estado `showPublishModal`/`setShowPublishModal` (forzado a `true` temporalmente — el HTML fuente arranca en `false` — para que el bloque sea visible sin esperar al botón real `onOpenPublish` de `Coordinator`/`QueueBar`, todavía inexistente); `PublishModal` se renderiza como hermano de los bloques de `role` ya migrados, justo antes de `<Outlet/>`, mismo orden relativo que en `App()`.
+
+### Reportado (sin corregir)
+
+- El botón "Publicar trabajo" invoca `onPublish(f)`, pero se le pasa una función vacía — no existe todavía ningún `TRABAJOS`/lista de trabajos que actualizar (Sprint futuro de Job Cards).
+- Snapshot DOM obsoleto detectado para este mismo bloque (ver arriba) — documentado, no se usó como referencia de implementación.
+
+### Sin cambios
+
+- No se modificó `Header`, `mx-instside`/`InstallerSidebar`, `mx-subtabs`/`MxSubtabs`/`MxSubtabButton`, `SucursalSelect`, `Footer`, `AppRouter.tsx` ni `ARCHITECTURE.md`. No se implementó Job Cards, Radar, Timeline, Countdown, Feed, Admin, Installer Dashboard, lógica realtime, Supabase ni navegación real.
+
+### Validación
+
+- `tsc --noEmit` (stubs ambientales): 0 diagnósticos. `prettier --check` sobre `.ts`/`.tsx`: cero diferencias. Balance de llaves de `globals.css`: 165/165.
+- Limitación detectada en los stubs ambientales de este sandbox (colapsan tipos de React a `any`) que ocultaba un error real de indexado estricto (`ZONAS` vs. `f.provincia: string`) — corregido manualmente antes de continuar (ver `docs/sprints/sprint-3.5.md`).
+- Las cuatro validaciones reales (`npm run lint`/`typecheck`/`build`/`dev`) y la validación visual siguen pendientes de confirmación del usuario en su máquina.
+
 ## [Sprint 3.4 — Cierre del Sprint] — 2026-07-08
 
 Cierre administrativo. Sin cambios de código en esta entrada — únicamente documentación.

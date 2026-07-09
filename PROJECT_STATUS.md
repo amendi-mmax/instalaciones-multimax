@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — HANDYMAX · Multimax Despacho
 
-Última actualización: 2026-07-08 — Sprint 3.4 (`mx-suc-sel`) — ✅ Completado
+Última actualización: 2026-07-09 — Sprint 3.5 (`PublishModal`) — 🟡 En revisión
 
 ## Cambio de metodología (vigente desde el Sprint 3.1)
 
@@ -233,13 +233,27 @@ Análisis directo del HTML (sin asumir de antemano que correspondía a "Main Lay
 - No quedan pendientes técnicos del Sprint 3.4. La integración temporal en `RootLayout.tsx` queda aprobada tal cual hasta que exista `layouts/CoordinatorLayout.tsx` en un Sprint futuro.
 - **El siguiente Sprint a desarrollar es el Sprint 3.5** — no se inicia sin aprobación explícita del usuario.
 
+## Sprint 3.5 — `PublishModal` (2026-07-09) — 🟡 En revisión
+
+Se verificó que el nombre genérico "Publish Modal" de `docs/SPRINTS_INDEX.md` corresponde al bloque real (función `PublishModal()`, línea 2496 del script) — no hubo que corregirlo, a diferencia del Sprint 3.4. Se detectó y descartó un snapshot DOM obsoleto (`.mx-publishwrap`/`.mx-publish`) que no aparece en ningún `React.createElement` del script vigente. Objetivo/análisis/implementación completos en `docs/sprints/sprint-3.5.md`.
+
+- Componente nuevo: `PublishModal` (`src/components/shared/publish-modal.tsx`) — reconstruye el shell del modal (`.mx-modal-bg`/`.mx-modal-panel`/`.mx-modal-hd`/`.mx-modal-close`/`.mx-modal-body`, vía `Drawer` de Fase 3, primer consumidor real) más el formulario completo `.mx-fields` (14 campos).
+- Reutiliza `Drawer`, `Select`, `Input`, `Chip` (variantes `urg`/`bidbtn`) y `DialogPortal` — ningún componente compartido nuevo más allá de `PublishModal` mismo.
+- Nuevas constantes en `src/constants/index.ts`: `PROVINCIAS`, `ZONAS`, `BID_OPTIONS` (+ `BidOption`), `buildTimeSlots`/`SLOTS_COORD` — catálogos verbatim del HTML fuente.
+- `.mx-priceinput`/`.mx-datein` agregadas a `globals.css`, verbatim — no existían antes de este Sprint.
+- `RootLayout.tsx`: nuevo estado `showPublishModal`/`setShowPublishModal` (forzado a `true` temporalmente, ver "Problema encontrado" en `docs/sprints/sprint-3.5.md`); `PublishModal` se renderiza como hermano de los bloques de `role` ya migrados, justo antes de `<Outlet/>`.
+- Se detectó y **reportó sin corregir**: el botón "Publicar trabajo" no ejecuta ninguna lógica real (`onPublish` es una función vacía) — no existe todavía ningún `TRABAJOS`/lista de trabajos (Sprint futuro de Job Cards).
+- Validación best-effort: 0 diagnósticos de `tsc`; `prettier --check` en `.ts`/`.tsx` sin diferencias. Se detectó y corrigió manualmente una limitación de los stubs ambientales de este sandbox (colapsan tipos de React a `any`, ocultando un error real de indexado estricto en `ZONAS`) — ver `docs/sprints/sprint-3.5.md`.
+- Detalle completo: `docs/sprints/sprint-3.5.md`.
+
 ## Qué falta
 
-- **Sprint 3.4: cerrado, sin pendientes técnicos** (ver "Sprint 3.4 finalizado" arriba).
+- **Bloqueante para cerrar el Sprint 3.5**: confirmar en el entorno del usuario `npm install && npm run lint && npm run typecheck && npm run build && npm run dev` en verde sobre la rama `feature/sprint-3-5-publish-modal`, y verificar visualmente que `PublishModal` aparece con el formulario completo y coincide con el HTML oficial.
 - **Bloqueante para cerrar el Sprint 3.2**: confirmar en el entorno del usuario `npm install && npm run lint && npm run typecheck && npm run build && npm run dev` en verde sobre la rama `feature/sprint-3-2-mx-instside`.
 - A partir de aquí, el trabajo restante (antes descrito como "Fase 4 — Coordinator", "Fase 5 — Installer", "Fase 6 — Admin", etc.) se ejecuta Sprint a Sprint según `docs/SPRINTS_INDEX.md`, cada uno esperando aprobación explícita antes de iniciar el siguiente. La integración con Supabase, Realtime, eliminación de mocks y pruebas finales (antes Fases 7–10) siguen vigentes como trabajo futuro, a re-planificar en Sprints una vez completado el bloque 3.x.
 - `CountRing`/`LiveCountdown` (countdown circular de rondas/bids) y los layouts por rol (`CoordinatorLayout`/`InstallerLayout`/`AdminLayout`) siguen fuera de alcance hasta el Sprint que corresponda. Ver `MIGRATION_STATUS.md`.
-- Sincronización pendiente entre `SucursalSelect` y el badge de sucursal del Header (reportado, no corregido) — ver "Problema encontrado" en `docs/sprints/sprint-3.4.md`; queda como trabajo futuro, no bloquea el cierre de este Sprint.
+- Sincronización pendiente entre `SucursalSelect` y el badge de sucursal del Header (reportado, no corregido) — ver "Problema encontrado" en `docs/sprints/sprint-3.4.md`; queda como trabajo futuro, no bloquea el cierre de ningún Sprint.
+- `onPublish` sin lógica real en `PublishModal` (reportado, no corregido) — ver "Problema encontrado" en `docs/sprints/sprint-3.5.md`; pendiente para el Sprint que implemente Job Cards/`TRABAJOS`.
 
 ## Problemas encontrados (heredados de Fase 1, siguen sin resolver)
 
@@ -260,4 +274,4 @@ Ninguno de estos bloquea el scaffold de esta fase; sí bloquearán las fases 7 (
 
 ## Próximos pasos
 
-Esperar aprobación explícita del usuario antes de iniciar el Sprint 3.5. No se avanza automáticamente a ningún Sprint siguiente.
+Esperar validación local + visual del usuario sobre `feature/sprint-3-5-publish-modal` y aprobación explícita antes de iniciar el Sprint 3.6. No se avanza automáticamente a ningún Sprint siguiente.

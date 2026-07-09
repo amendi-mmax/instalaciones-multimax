@@ -2,22 +2,23 @@
 
 Seguimiento **exclusivo** de la reconstrucción HTML→React de `Multimax_Despacho_v1.3.html` (3.557 líneas, referencia visual/UX oficial e inmodificable del proyecto). No sustituye a `PROJECT_STATUS.md` (estado general), `TODO.md` (checklist) ni `CHANGELOG.md` (registro de cambios) — se actualiza al final de cada fase con el detalle pantalla por pantalla y componente por componente.
 
-Última actualización: 2026-07-08 — Sprint 3.4 (`mx-suc-sel`) — ✅ Completado.
+Última actualización: 2026-07-09 — Sprint 3.5 (`PublishModal`) — 🟡 En revisión.
 
 Desde el Sprint 3.1, este archivo se actualiza al cierre de **cada Sprint** (no solo de cada Fase). El detalle de análisis previo + implementación de cada Sprint vive en `docs/sprints/sprint-X.Y.md`; el índice y estado de todos los Sprints planeados vive en `docs/SPRINTS_INDEX.md`. Desde el Sprint 3.2, cada Sprint se identifica por el bloque/selector real del HTML, no por un nombre genérico de sección.
 
 ## 0. Seguimiento del Sprint actual
 
-- **Sprint actual**: 3.4 — ✅ Completado
-- **Bloque HTML**: `mx-suc-sel` (selector de sucursal activa) — `<div class="mx-suc-sel">` dentro de `App()`, rama `role === "coord"` (líneas 2071-2079 del JSX fuente), hermano de `.mx-subtabs-wrap` (migrado en el Sprint 3.3) dentro del mismo `<div>` contenedor anónimo. CSS fuente en `<style>`, líneas 412-415 (comentario "Selector de sucursal").
-- **Estado**: ✅ Completado. Validación visual aprobada por el usuario: `SucursalSelect` es visible en la aplicación, en la posición exacta del bloque correspondiente de `Multimax_Despacho_v1.3.html`. Validación local aprobada: `npm run lint`, `npm run typecheck`, `npm run build` y `npm run dev` — las 4 exitosas, confirmadas por el usuario en su máquina. Análisis previo (ver `docs/sprints/sprint-3.4.md`) determinó que el siguiente bloque pendiente real (no el nombre genérico "Main Layout" que tenía `docs/SPRINTS_INDEX.md`) era `mx-suc-sel`. Componente construido e integrado visualmente en `RootLayout` desde el primer commit de este Sprint (no requirió una ronda de "fix" separada, a diferencia de 3.2/3.3).
-- **Componente React**: `SucursalSelect` (`src/components/shared/sucursal-select.tsx`) — controlado, recibe `value`/`onChange` como props (sin `useState` interno), mismo patrón que `role` en `RootLayout`. Usa la nueva constante `SUCURSALES` (`src/constants/index.ts`), lista verbatim de sucursales tomada del HTML fuente (línea 1116), no es dato mock de negocio.
-- **Integración**: `SucursalSelect` se renderiza en `src/layouts/RootLayout.tsx`, como primer hijo del `<div>` anónimo que ya contenía `MxSubtabs` (Sprint 3.3), cuando `role === 'coordinador'` — reproduce el orden exacto del HTML fuente (`mx-suc-sel` precede a `mx-subtabs` dentro de la misma rama `role === "coord"`). Estado `sucursalCoord`/`setSucursalCoord` vive en `RootLayout`, mismo nivel que `role`, igual que en `App()` del HTML fuente. Sin `onClick`/lógica de navegación adicional — el `onChange` solo actualiza el estado local, sin efectos secundarios ni conexión a Supabase.
-- **Cobertura del HTML**: `.mx-suc-sel` migrado al 100% en su markup/CSS, visible/integrado en `RootLayout` para `role === 'coordinador'`. Agregado global del proyecto ≈22% (ver §7).
-- **Archivos creados**: `src/components/shared/sucursal-select.tsx`, `docs/sprints/sprint-3.4.md`.
-- **Archivos modificados**: `src/constants/index.ts` (constante `SUCURSALES`), `src/styles/globals.css` (bloque `.mx-suc-sel`, verbatim), `src/layouts/RootLayout.tsx` (estado `sucursalCoord`/`setSucursalCoord` + integración de `SucursalSelect`), `CHANGELOG.md`, `PROJECT_STATUS.md`, este archivo, `TODO.md`, `docs/SPRINTS_INDEX.md`.
-- **Problema encontrado (reportado, no corregido)**: `HeaderStatus` ya tiene un prop opcional `sucursalActiva` (default `"Multiplaza"`, fijado en el Sprint 3.1) que muestra un badge de sucursal en el Header, pero `RootLayout` no se lo pasa. Ahora que existe un `sucursalCoord` real controlado por `SucursalSelect`, cambiar el selector no actualiza ese badge — quedan desincronizados. No se corrige en este Sprint: pasar `sucursalCoord` a `Header` se consideró fuera del alcance mínimo permitido ("no modificar Header"). Ver `docs/sprints/sprint-3.4.md` → "Problema encontrado".
-- **Pendientes**: resolver en un Sprint futuro la desincronización `SucursalSelect`↔`HeaderStatus.sucursalActiva` (requiere tocar la invocación de `Header`, fuera de alcance de este Sprint); integrar `MxSubtabs`/`MxSubtabButton` y ahora también `SucursalSelect` de forma definitiva dentro del Sprint que construya `layouts/CoordinatorLayout.tsx`/Coordinator real (pendiente heredado de Sprint 3.3); decidir sobre la posible duplicación `ui/Tabs` vs `MxSubtabs`/`MxSubtabButton` para AdminPanel (heredado, sin resolver); `km` sin campo equivalente en `types/domain.ts`/schema SQL (ver §6, heredado de Sprint 3.2); segunda versión de "Reglas de prioridad" (4 ítems, dentro de `InstallerProfile()`) sin Sprint asignado todavía — ver notas en `docs/SPRINTS_INDEX.md`. **Siguiente Sprint a desarrollar: Sprint 3.5. No se inicia sin aprobación explícita del usuario.**
+- **Sprint actual**: 3.5 — 🟡 En revisión
+- **Bloque HTML**: `PublishModal` (función `PublishModal({ sucursal, onPublish, onClose })`, líneas 2496-2631 del JSX fuente) — `.mx-modal-bg`/`.mx-modal-panel`/`.mx-modal-hd`/`.mx-modal-close`/`.mx-modal-body` + formulario `.mx-fields` completo. Renderizado como hermano de las ramas de `role` en `App()`, gateado por `showPublishModal` (línea 2121).
+- **Estado**: 🟡 En revisión. Análisis previo (ver `docs/sprints/sprint-3.5.md`) confirmó que el nombre genérico "Publish Modal" de `docs/SPRINTS_INDEX.md` sí corresponde al bloque real (función `PublishModal` del script) — a diferencia del Sprint 3.4, no hubo que corregir el nombre; se descartó un snapshot DOM obsoleto (`.mx-publishwrap`/`.mx-publish`) que no aparece en ningún `React.createElement` del script vigente. Componente construido e integrado visualmente en `RootLayout` desde el primer commit de este Sprint. Validación best-effort de este sandbox (`tsc --noEmit` con stubs, `prettier --check`) en verde. **Pendiente de validación real del usuario** (`npm install/lint/typecheck/build/dev` en su máquina) y de **validación visual del usuario** (confirmar que `PublishModal` aparece con el formulario completo y coincide con el HTML oficial) antes de poder marcarse ✅ Completado.
+- **Componente React**: `PublishModal` (`src/components/shared/publish-modal.tsx`) — estado del formulario (`f`/`setF`) interno al componente, igual que en el HTML fuente. Reutiliza `Drawer`/`DrawerOverlay`/`DrawerContent`/`DrawerHeader`/`DrawerBody` (Fase 3, primer consumidor real), `Select`, `Input`, `Chip` (variantes `urg`/`bidbtn`) y `DialogPortal` — ningún componente compartido nuevo además de `PublishModal` mismo.
+- **Datos nuevos**: `PROVINCIAS`, `ZONAS`, `BID_OPTIONS` (+ interfaz `BidOption`), `buildTimeSlots`/`SLOTS_COORD` en `src/constants/index.ts` — catálogos verbatim del HTML fuente (líneas 1061-1113), no son mocks de negocio.
+- **Integración**: `PublishModal` se renderiza en `src/layouts/RootLayout.tsx` como hermano de los bloques de `role` ya migrados (`SucursalSelect`+`MxSubtabs` / `mx-instwrap`+`InstallerSidebar`), justo antes de `<Outlet/>` — mismo orden relativo que en `App()`. Nuevo estado `showPublishModal`/`setShowPublishModal`, forzado a `true` temporalmente (el HTML fuente arranca en `false`) para que el bloque sea visible sin esperar al botón real `onOpenPublish` de `Coordinator`/`QueueBar`, todavía inexistente.
+- **Cobertura del HTML**: `PublishModal` migrado al 100% en su markup/CSS (2 reglas CSS nuevas, `.mx-priceinput`/`.mx-datein`; el resto ya portado desde Fase 3), visible/integrado en `RootLayout`. Agregado global del proyecto ≈24% (ver §7).
+- **Archivos creados**: `src/components/shared/publish-modal.tsx`, `docs/sprints/sprint-3.5.md`.
+- **Archivos modificados**: `src/constants/index.ts` (`PROVINCIAS`/`ZONAS`/`BID_OPTIONS`/`buildTimeSlots`/`SLOTS_COORD`), `src/styles/globals.css` (bloque `.mx-priceinput`/`.mx-datein`, verbatim), `src/layouts/RootLayout.tsx` (estado `showPublishModal`/`setShowPublishModal` + integración de `PublishModal`), `CHANGELOG.md`, `PROJECT_STATUS.md`, este archivo, `TODO.md`, `docs/SPRINTS_INDEX.md`.
+- **Problema encontrado (reportado, no corregido)**: el botón "Publicar trabajo" invoca `onPublish(f)`, pero `RootLayout` le pasa una función vacía — no existe todavía ningún `TRABAJOS`/lista de trabajos que actualizar (pertenece al Sprint futuro de Job Cards). Ver `docs/sprints/sprint-3.5.md` → "Problema encontrado".
+- **Pendientes**: validación real del usuario (4 comandos npm) + validación visual sobre `feature/sprint-3-5-publish-modal`; conectar `onPublish` a lógica real cuando exista Job Cards/`TRABAJOS`; sustituir `showPublishModal` forzado por el botón real `onOpenPublish` cuando exista `Coordinator`/`QueueBar`; resolver en un Sprint futuro la desincronización `SucursalSelect`↔`HeaderStatus.sucursalActiva` (heredado de Sprint 3.4); integrar `MxSubtabs`/`MxSubtabButton`/`SucursalSelect`/`PublishModal` de forma definitiva dentro del Sprint que construya `layouts/CoordinatorLayout.tsx`/Coordinator real; decidir sobre la posible duplicación `ui/Tabs` vs `MxSubtabs`/`MxSubtabButton` para AdminPanel (heredado, sin resolver); `km` sin campo equivalente en `types/domain.ts`/schema SQL (heredado de Sprint 3.2); segunda versión de "Reglas de prioridad" (heredado, sin Sprint asignado) — ver notas en `docs/SPRINTS_INDEX.md`. **No se inicia Sprint 3.6 sin aprobación explícita del usuario.**
 
 ## 1. Estado de cada pantalla
 
@@ -28,7 +29,7 @@ Desde el Sprint 3.1, este archivo se actualiza al cierre de **cada Sprint** (no 
 | Sub-tabs (`mx-subtabs`, usado en Coordinator y AdminPanel) | ✅ Reconstruido y visible en `RootLayout` para `role === 'coordinador'` (instancia Coordinator); integración definitiva a `layouts/CoordinatorLayout.tsx`/AdminPanel queda pendiente de esos Sprints futuros — ver §0 | Sprint 3.3 |
 | Selector de sucursal activa (`mx-suc-sel`) | ✅ Reconstruido y visible en `RootLayout` para `role === 'coordinador'`; validación real + visual aprobadas por el usuario (ver §0); badge `sucursalActiva` de `HeaderStatus` desincronizado, reportado sin corregir | Sprint 3.4 |
 | Coordinator · Despacho en vivo (`mx-grid`, JobCard, Radar, Rounds, Feed) | ⛔ No iniciado | Fase 4 |
-| Coordinator · Publicar trabajo (`mx-publishwrap`/`PublishModal`) | ⛔ No iniciado (solo Input/Select/Chip genéricos listos) | Fase 4 |
+| Coordinator · Publicar trabajo (`PublishModal`) | 🟡 Reconstruido y visible en `RootLayout` (forzado abierto temporalmente); pendiente validación real + visual del usuario (ver §0); `onPublish` sin lógica real, reportado sin corregir | Sprint 3.5 |
 | Coordinator · Mis trabajos / Detalle (`mx-joblist`/`mx-detail-grid`/Timeline) | ⛔ No iniciado | Fase 4 |
 | Coordinator · Calendario maestro (`mx-cal-*`) | ⛔ No iniciado | Fase 4 |
 | Installer · Phone shell (`mx-phone`/`mx-phone-bar`) | ✅ Reconstruido (`PhoneFrame`, estructural) | Fase 3 |
@@ -94,6 +95,7 @@ Desde el Sprint 3.1, este archivo se actualiza al cierre de **cada Sprint** (no 
 | `MxSubtabs` | `.mx-subtabs-wrap`, `.mx-subtabs` (contenedor) | Sprint 3.3 (nuevo; sin consumidor todavía, ver §0) |
 | `MxSubtabButton` | `.mx-subtabs button` (+ `.on`) | Sprint 3.3 (nuevo; sin consumidor todavía, ver §0) |
 | `SucursalSelect` | `.mx-suc-sel` (contenedor + `<label>` + `<select>`) | Sprint 3.4 (nuevo; componente controlado, sin `useState` interno) |
+| `PublishModal` | `.mx-modal-bg`/`.mx-modal-panel`/`.mx-modal-hd`/`.mx-modal-close`/`.mx-modal-body` (vía `Drawer`) + `.mx-fields`/`.mx-f2`/`.mx-priceinput`/`.mx-datein`/`.mx-bidopts` | Sprint 3.5 (nuevo; primer consumidor real de `Drawer`, formulario completo con estado interno) |
 
 ### `layouts/`
 
@@ -101,7 +103,7 @@ Desde el Sprint 3.1, este archivo se actualiza al cierre de **cada Sprint** (no 
 
 ## 3. Componentes pendientes (por fase)
 
-- **Fase 4 (Coordinator)**: JobCard, RadarPanel (+`CountRing`), RoundsPanel, ResponsesFeed, AssignedPanel, NoResponsePanel, PublishModal (formulario completo con RHF+Zod), QueueBar, JobList/JobRow, JobDetail (+Timeline), MasterCalendar, `LiveCountdown`, badge master (`mx-master-badge`). (Selector de sucursal, `mx-suc-sel`, ya migrado — Sprint 3.4.)
+- **Fase 4 (Coordinator)**: JobCard, RadarPanel (+`CountRing`), RoundsPanel, ResponsesFeed, AssignedPanel, NoResponsePanel, QueueBar, JobList/JobRow, JobDetail (+Timeline), MasterCalendar, `LiveCountdown`, badge master (`mx-master-badge`). (Selector de sucursal, `mx-suc-sel`, ya migrado — Sprint 3.4; `PublishModal`, ya migrado — Sprint 3.5, pendiente conectar `onPublish` a Job Cards/`TRABAJOS` reales.)
 - **Fase 5 (Installer)**: AlertScreen, OfferForm (+`DisponibilidadChips`), ResponseSentScreen, AssignedScreen (+`RevealCard`), LostScreen, DeclinedScreen, ClosedScreen, MisTrabajosList, PerfilScreen (pantalla completa `mx-profscreen`, con su propia versión de 4 ítems de "Reglas de prioridad" — decidir si reutiliza `InstallerPriorityRules` o crea `PriorityRulesCard`, ya reservado en `ARCHITECTURE.md` §3). Datos reales de `InstallerProfileSummary`/`InstallerSidebar` (ya existente desde Sprint 3.2) conectados vía hook futuro (`useMiPerfil`).
 - **Fase 6 (Admin)**: InstallerTable/InstallerRow, InviteForm, reutilización de MasterCalendar.
 - **Fase 7 (Auth)**: reemplazo del `useState<Rol>` local del Header/RootLayout por sesión real; eliminación del selector manual de instalador en `PhoneFrame` (`mx-mesel`).
@@ -155,17 +157,18 @@ Ninguna de estas adaptaciones cambia la apariencia final — todas están coment
 | Métrica | Valor |
 | --- | --- |
 | Selectores `.mx-*` únicos en el CSS original | 199 |
-| Selectores `.mx-*` únicos portados (acumulado tras Sprint 3.4) | 70 (35%) — +1 respecto a Sprint 3.3 (`.mx-suc-sel`, nueva, no existía en `globals.css` antes de este Sprint) |
+| Selectores `.mx-*` únicos portados (acumulado tras Sprint 3.5) | 72 (36%) — +2 respecto a Sprint 3.4 (`.mx-priceinput`, `.mx-datein`, nuevas, no existían en `globals.css` antes de este Sprint) |
 | Líneas HTML original (referencia total) | 3.557 |
 | Líneas de CSS original (`<style>` completo) | 454 |
-| Líneas de la sección `mx-*` en `globals.css` (incl. comentarios) | 892 — +34 en Sprint 3.4 (bloque `.mx-suc-sel`, verbatim) |
+| Líneas de la sección `mx-*` en `globals.css` (incl. comentarios) | 945 — +53 en Sprint 3.5 (bloque `.mx-priceinput`/`.mx-datein`, verbatim) |
 | Líneas TSX/TS de componentes React de Fase 3 | 1.847 |
 | Líneas TSX de componentes React creados en Sprint 3.2 | 197 (`installer-sidebar.tsx` + `installer-sidebar-card.tsx` + `installer-profile-summary.tsx` + `installer-priority-rules.tsx`) |
 | Líneas TSX de componentes React creados en Sprint 3.3 | 83 (`mx-subtabs.tsx` + `mx-subtab-button.tsx`) |
 | Líneas TSX de componentes React creados en Sprint 3.4 | 49 (`sucursal-select.tsx`) |
-| **Cobertura estimada del HTML (agregada, tras Sprint 3.4)** | **≈ 22%** |
+| Líneas TSX de componentes React creados en Sprint 3.5 | 262 (`publish-modal.tsx`) — el bloque JSX/formulario más grande migrado hasta ahora en un solo componente |
+| **Cobertura estimada del HTML (agregada, tras Sprint 3.5)** | **≈ 24%** |
 
-Nota: la cifra agregada sube de ≈21% (cierre de Sprint 3.3) a ≈22% por la reconstrucción real del markup/CSS/componente de `mx-suc-sel` (bloque previamente sin ningún avance — ni CSS ni componente). Metodología igual de aproximada que en fases anteriores — no es un diff automatizado.
+Nota: la cifra agregada sube de ≈22% (cierre de Sprint 3.4) a ≈24% por la reconstrucción real del markup/CSS/componente de `PublishModal` (formulario completo de 14 campos, antes sin ningún avance propio más allá de los primitivos `ui/` genéricos ya existentes). Metodología igual de aproximada que en fases anteriores — no es un diff automatizado.
 
 ### Desglose por área (según formato solicitado)
 
@@ -174,7 +177,7 @@ Nota: la cifra agregada sube de ≈21% (cierre de Sprint 3.3) a ≈22% por la re
 - **`mx-instside` (panel lateral del Instalador)**: 100% — las dos tarjetas ("Tu perfil"/"Reglas de prioridad") reconstruidas íntegras desde el Sprint 3.2, incluyendo la lógica condicional/textos exactos. Sin datos reales conectados todavía (props obligatorias sin fuente — ver §0), pero eso es responsabilidad de Fase 5/Supabase, no de reconstrucción visual.
 - **Navigation**: 95% — `mx-subtabs` (reconstruido en Sprint 3.3 vía `MxSubtabs`/`MxSubtabButton`, visible temporalmente en `RootLayout` para `role === 'coordinador'` — ver §0), `mx-phonetabs`, `mx-backbtn` completos en CSS; falta `mx-jobfilter`, la integración definitiva de `mx-subtabs` dentro de Coordinator/AdminPanel real, y la navegación interna de Admin.
 - **`mx-suc-sel` (selector de sucursal activa)**: 100% en markup/CSS/componente (`SucursalSelect`, Sprint 3.4), visible temporalmente en `RootLayout` para `role === 'coordinador'` — ver §0. Pendiente: sincronización con el badge `sucursalActiva` de `HeaderStatus` (reportado, no corregido) e integración definitiva dentro de `layouts/CoordinatorLayout.tsx` cuando exista.
-- **Componentes Compartidos**: 85% — los 27 componentes `ui/` solicitados están creados; resta ajuste fino cuando se conecten a datos reales.
-- **Coordinator**: 0%
+- **Componentes Compartidos**: 85% — los 27 componentes `ui/` solicitados están creados; resta ajuste fino cuando se conecten a datos reales. `Drawer` tiene ahora su primer consumidor real (`PublishModal`, Sprint 3.5).
+- **Coordinator**: `mx-suc-sel` (100%, Sprint 3.4) y `PublishModal` (100% en markup/CSS/componente, Sprint 3.5, visible temporalmente en `RootLayout` — ver §0, sin lógica de publicación real conectada) ya reconstruidos; el resto (JobCard, Radar, Rounds, Feed, QueueBar, JobList/JobDetail, MasterCalendar) sigue en 0%.
 - **Installer**: `mx-instside` (100%, Sprint 3.2) y el shell `PhoneFrame` (cuenta en "Layout") ya reconstruidos; el resto (Solicitudes, Mis trabajos, Perfil completo — incl. su propia versión de 4 ítems de "Reglas de prioridad") sigue en 0%.
 - **Admin**: 0%

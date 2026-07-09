@@ -8,7 +8,8 @@ Checklist vivo. **Desde el Sprint 3.1, el checklist activo para el trabajo resta
 4. **Sprint 3.2 — `mx-instside` 🟡** (pendiente validación local — ver `docs/sprints/sprint-3.2.md`)
 5. **Sprint 3.3 — `mx-subtabs` ✅** (validación local + visual aprobadas — ver `docs/sprints/sprint-3.3.md`)
 6. **Sprint 3.4 — `mx-suc-sel` ✅** (validación local + visual aprobadas — ver `docs/sprints/sprint-3.4.md`)
-7. Sprints 3.5–3.16 — ver `docs/SPRINTS_INDEX.md`
+7. **Sprint 3.5 — `PublishModal` 🟡** (pendiente validación local + visual del usuario — ver `docs/sprints/sprint-3.5.md`)
+8. Sprints 3.6–3.16 — ver `docs/SPRINTS_INDEX.md`
 5. (Futuro, a re-planificar en Sprints) Integración completa con Supabase, Realtime, eliminación de datos mock, pruebas finales
 
 ## Fase 1 — Arquitectura (completada)
@@ -109,10 +110,25 @@ Migra exclusivamente `<div class="mx-suc-sel">` (selector de sucursal activa), l
 - [x] **Sprint 3.4 cerrado formalmente (✅ Completado)**. Sin pendientes técnicos.
 - [ ] **Detenido a propósito**: no se avanza a Sprint 3.5 sin aprobación explícita del usuario.
 
-## Fase 4 — Módulo Coordinator (no iniciada; ver Sprints 3.5 en adelante en `docs/SPRINTS_INDEX.md`)
+## Sprint 3.5 — `PublishModal` (en revisión, ver validación pendiente)
+
+Migra exclusivamente la función `PublishModal({ sucursal, onPublish, onClose })` (líneas 2496-2631 del JSX fuente) — `.mx-modal-bg`/`.mx-modal-panel`/`.mx-modal-hd`/`.mx-modal-close`/`.mx-modal-body` + el formulario `.mx-fields` completo. Detalle completo en `docs/sprints/sprint-3.5.md`.
+
+- [x] Análisis previo obligatorio: se verificó que el nombre genérico "Publish Modal" de `docs/SPRINTS_INDEX.md` sí corresponde al bloque real (función `PublishModal` confirmada en el propio script) — a diferencia del Sprint 3.4, no hubo que corregir el nombre. Se descartó un snapshot DOM obsoleto (`.mx-publishwrap`/`.mx-publish`) que no aparece en ningún `React.createElement` del script vigente.
+- [x] `PublishModal` (`src/components/shared/publish-modal.tsx`) — reutiliza `Drawer` (Fase 3, primer consumidor real), `Select`, `Input`, `Chip` (`urg`/`bidbtn`), `DialogPortal`; estado del formulario interno al componente, igual que en el HTML fuente.
+- [x] Constantes `PROVINCIAS`, `ZONAS`, `BID_OPTIONS` (+ `BidOption`), `buildTimeSlots`/`SLOTS_COORD` agregadas a `src/constants/index.ts` (verbatim del HTML fuente — no son mocks de negocio).
+- [x] Bloque CSS `.mx-priceinput`/`.mx-datein` agregado a `globals.css` verbatim; no existía antes de este Sprint.
+- [x] Integrado visualmente desde el primer commit del Sprint en `RootLayout.tsx`, como hermano de los bloques de `role` ya migrados, justo antes de `<Outlet/>` — mismo orden relativo que en `App()`. Nuevo estado `showPublishModal`/`setShowPublishModal`, forzado a `true` temporalmente para visibilidad inmediata (documentado como decisión temporal).
+- [x] Detectado y **reportado sin corregir**: el botón "Publicar trabajo" no ejecuta ninguna lógica real (`onPublish` es una función vacía) — no existe todavía ningún `TRABAJOS`/lista de trabajos (Sprint futuro de Job Cards). Ver `docs/sprints/sprint-3.5.md` → "Problema encontrado".
+- [x] Validación best-effort (`tsc --noEmit` con stubs + `prettier --check`) — ver `docs/sprints/sprint-3.5.md` → "Validaciones ejecutadas". Nota transparente: se detectó y corrigió manualmente una limitación de los stubs ambientales (colapsan tipos de React a `any`, ocultando un error real de indexado estricto en `ZONAS`).
+- [ ] **Pendiente: validación real del usuario** (`npm install/lint/typecheck/build/dev`) sobre `feature/sprint-3-5-publish-modal`.
+- [ ] **Pendiente: validación visual del usuario** — confirmar que `PublishModal` aparece con el formulario completo y coincide con el HTML oficial.
+- [ ] **Detenido a propósito**: no se avanza a Sprint 3.6 sin aprobación explícita del usuario.
+
+## Fase 4 — Módulo Coordinator (no iniciada; ver Sprints 3.6 en adelante en `docs/SPRINTS_INDEX.md`)
 
 - [ ] `DespachoPage` (QueueBar, JobCard, RadarPanel, JobStatsGrid, ResponsesFeed, AssignedPanel, NoResponsePanel) con datos mock locales.
-- [ ] `PublishModal` con React Hook Form + Zod.
+- [ ] Conectar `PublishModal` (Sprint 3.5) a lógica real de publicación (`onPublish` → `TRABAJOS`) y al botón real `onOpenPublish` de `QueueBar`.
 - [ ] `TrabajosPage` / `TrabajoDetailPage` (historial, filtro, timeline) con datos mock locales.
 - [ ] `MasterCalendar` (grid, dots, leyenda) con datos mock locales.
 - [ ] `CountRing`/`LiveCountdown` (countdown circular de rondas/bids — movidos desde Fase 3, son feature-specific de Jobs/Radar).

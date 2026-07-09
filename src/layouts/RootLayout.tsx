@@ -7,6 +7,7 @@ import { Header } from '@/components/shared/header';
 import { InstallerSidebar } from '@/components/shared/installer-sidebar';
 import { MxSubtabButton } from '@/components/shared/mx-subtab-button';
 import { MxSubtabs } from '@/components/shared/mx-subtabs';
+import { PublishModal } from '@/components/shared/publish-modal';
 import { SucursalSelect } from '@/components/shared/sucursal-select';
 import type { Rol } from '@/types/enums';
 
@@ -136,10 +137,45 @@ import type { Rol } from '@/types/enums';
  * — quedan desincronizados. No se corrige aquí: pasar `sucursalCoord` a
  * `Header` cuenta como modificar su integración fuera del alcance mínimo
  * de este Sprint ("No modificar Header"). Ver docs/sprints/sprint-3.4.md.
+ *
+ * ---------------------------------------------------------------------
+ * TEMPORARY INTEGRATION — Sprint 3.5 (`PublishModal`)
+ * ---------------------------------------------------------------------
+ * `PublishModal` reconstruye la función `PublishModal()` del HTML fuente
+ * (líneas 2496-2631). En `App()`, este bloque es un HERMANO de las ramas de
+ * `role` (no está anidado dentro de `role === "coord"`): se renderiza
+ * `showPublishModal && React.createElement(PublishModal, {...})` justo
+ * después de `role === "admin" && AdminPanel` y antes de `confirmCancel &&
+ * ConfirmCancel`/`<footer>` (línea 2121). Aquí se reproduce esa misma
+ * posición: `PublishModal` se monta como hermano de los dos bloques
+ * condicionados por `role` de arriba, sin condicionarlo por `role` (igual
+ * que en el HTML fuente), justo antes de `<Outlet/>`.
+ *
+ * El nombre "Publish Modal" de `docs/SPRINTS_INDEX.md` SÍ corresponde al
+ * bloque real — confirmado en el propio script (`function PublishModal(...)`,
+ * línea 2496) — pero el DOM pre-renderizado (línea 457 del HTML) muestra un
+ * bloque distinto y obsoleto (`.mx-publishwrap`/`.mx-publish`/`.mx-pub-h`),
+ * que no aparece en ningún `React.createElement` del script. Ver "Problema
+ * encontrado" en docs/sprints/sprint-3.5.md.
+ *
+ * `showPublishModal`/`setShowPublishModal` reproduce el estado homónimo de
+ * `App()` (línea 1905), pero aquí se **fuerza su valor inicial a `true`**
+ * (el HTML fuente arranca en `false`) para que el bloque sea visible de
+ * inmediato al ejecutar `npm run dev`, sin esperar al botón real
+ * "Publicar trabajo" de `Coordinator`/`QueueBar` (`onOpenPublish`, Sprint
+ * futuro) que todavía no existe. Es una decisión temporal, igual en espíritu
+ * a las de los Sprints 3.2.1/3.3/3.4 — se revertirá a `false` (más el botón
+ * real que lo abra) en el Sprint que construya `Coordinator`/`QueueBar`.
+ *
+ * `onPublish` no ejecuta ninguna lógica de negocio real en este Sprint (no
+ * existe todavía ningún listado de trabajos/`TRABAJOS` que actualizar) — se
+ * pasa una función vacía, documentada como pendiente para el Sprint que
+ * implemente Job Cards/`TRABAJOS`.
  */
 export function RootLayout() {
   const [role, setRole] = useState<Rol>('coordinador');
   const [sucursalCoord, setSucursalCoord] = useState('Multiplaza');
+  const [showPublishModal, setShowPublishModal] = useState(true);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -169,6 +205,15 @@ export function RootLayout() {
             <InstallerSidebar rating={4.9} km={1.8} cumplimiento={98} aceptacion={92} />
           </div>
         )}
+        {/* TEMPORARY INTEGRATION — Sprint 3.5 (PublishModal): ver comentario de la función. */}
+        <PublishModal
+          sucursal={sucursalCoord}
+          open={showPublishModal}
+          onOpenChange={setShowPublishModal}
+          onPublish={() => {
+            /* Sin lógica de negocio en este Sprint — ver comentario de la función. */
+          }}
+        />
         <Outlet context={{ role }} />
       </main>
       <Footer />

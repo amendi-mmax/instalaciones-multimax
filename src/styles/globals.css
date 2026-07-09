@@ -583,6 +583,59 @@
   background: rgba(255, 92, 122, 0.08);
 }
 
+/* ---- Precio sugerido / Fecha del formulario de publicación
+   (mx-priceinput, mx-datein — Sprint 3.5) ----
+   Fuente: <style> original, líneas 222-230, portado verbatim. No existía en
+   globals.css antes de este Sprint (.mx-cominput/.mx-horasel/.mx-sendbtn,
+   líneas 227-233, pertenecen a otras pantallas — OfferForm del Instalador —
+   fuera de alcance de este Sprint, no se agregan). */
+.mx-priceinput {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 4px 14px;
+}
+.mx-priceinput:focus-within {
+  border-color: var(--ice);
+}
+.mx-priceinput span {
+  font-family: var(--fm);
+  font-size: 22px;
+  color: var(--green);
+  font-weight: 700;
+}
+.mx-priceinput input {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-family: var(--fm);
+  font-size: 24px;
+  font-weight: 700;
+  padding: 12px 0;
+  width: 100%;
+}
+.mx-priceinput input:focus {
+  outline: none;
+}
+.mx-datein {
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 11px 13px;
+  color: var(--text);
+  font-size: 13px;
+  width: 100%;
+  color-scheme: dark;
+}
+.mx-datein:focus {
+  outline: none;
+  border-color: var(--ice);
+}
+
 /* ---- Selector de sucursal (mx-suc-sel, Sprint 3.4) ----
    Fuente: <style> original, líneas 412-415 (comentario fuente:
    "Selector de sucursal"), portado verbatim. No existía en globals.css
