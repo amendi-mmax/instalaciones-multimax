@@ -2,6 +2,50 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Sprint 3.6 — Cierre del Sprint] — 2026-07-09
+
+Cierre administrativo. Sin cambios de código en esta entrada — únicamente documentación.
+
+- ✅ Validación local aprobada por el usuario (`npm run lint`, `npm run typecheck`, `npm run build`, `npm run dev`) sobre `feature/sprint-3-6-coordinator-empty-state`.
+- ✅ Validación visual aprobada por el usuario: `CoordinatorEmptyState` coincide con `Multimax_Despacho_v1.3.html`, y el botón "Publicar trabajo" abre correctamente `PublishModal`.
+- ✅ Sprint 3.6 cerrado.
+- Siguiente Sprint a desarrollar: **Sprint 3.7** (no se inicia sin aprobación explícita).
+
+## [Sprint 3.6 — `CoordinatorEmptyState`] — 2026-07-09
+
+Continúa la migración incremental. El nombre genérico "Job Cards" que traía `docs/SPRINTS_INDEX.md` para este Sprint **no corresponde** al bloque real reconstruible ahora mismo: `mx-jobcard` y el resto de `function Coordinator(props)` (QueueBar, Radar, AssignedPanel, respuestas) solo se alcanzan cuando `jobs.length > 0`, y `jobs` arranca en `[]` sin ningún seed/mock en el HTML fuente — poblarlo requeriría lógica de negocio o mocks fuera de alcance de este Sprint. El único bloque de `Coordinator()` reconstruible honestamente es su estado vacío (`mx-qempty`, líneas 2146-2163 del script). Corrección de nombre análoga a la del Sprint 3.4 ("Main Layout" → `mx-suc-sel`).
+
+### Añadido
+
+- `src/components/shared/coordinator-empty-state.tsx` (`CoordinatorEmptyState`) — reconstruye `div.mx-qempty` (icono `Crosshair`, "No hay trabajos activos", texto, botón "Publicar trabajo"), reutilizando `EmptyState` (`size="page"`) y `Button` (`variant="ice"`), ambos de Fase 3 y sin consumidor real hasta este Sprint.
+- `docs/sprints/sprint-3.6.md`.
+
+### Cambiado
+
+- `src/layouts/RootLayout.tsx`: se agrega `<CoordinatorEmptyState onOpenPublish={() => setShowPublishModal(true)} />` como último hijo del bloque `role === 'coordinador'`, después de `MxSubtabs` — misma posición relativa que `Coordinator` en el HTML fuente. Se revierte `showPublishModal` de `useState(true)` (forzado, Sprint 3.5) a `useState(false)` (valor real del HTML fuente), ya que ahora existe el botón real `onOpenPublish` que lo abre — resuelve el pendiente documentado desde el cierre del Sprint 3.5.
+
+### Sin CSS nuevo
+
+- `.mx-qempty`/`.mx-qempty-ic`/`.mx-btn`/`.mx-btn-ice` ya estaban portados en `globals.css` desde Fase 3 — verificado antes de implementar. `globals.css` no se tocó en este Sprint.
+
+### Sin cambios
+
+- No se modificó `Header`, `mx-instside`/`InstallerSidebar`, `mx-subtabs`/`MxSubtabs`/`MxSubtabButton`, `SucursalSelect`, `PublishModal` (el componente en sí), `Footer` ni `AppRouter.tsx`. No se implementó `mx-jobcard`, `QueueBar`, Radar, `AssignedPanel`, `NoResponsePanel`, feed de respuestas, `CoordinatorJobs`, ni ninguna lógica de negocio/Supabase/realtime/mock de trabajos.
+
+### Validación
+
+- `tsc --noEmit` (stubs ambientales): 0 diagnósticos. `prettier --check` sobre `.ts`/`.tsx`: cero diferencias (tras `--write` sobre el único archivo nuevo). `git diff --stat`: solo `RootLayout.tsx` modificado + `coordinator-empty-state.tsx` nuevo, `globals.css` sin cambios.
+- **Sprint 3.6 queda en 🟡 En revisión** — pendiente de que el usuario confirme localmente `npm install`/`lint`/`typecheck`/`build`/`dev` y la validación visual.
+
+## [Sprint 3.5 — Cierre del Sprint] — 2026-07-09
+
+Cierre administrativo. Sin cambios de código en esta entrada — únicamente documentación.
+
+- ✅ Validación local aprobada por el usuario (`npm run lint`, `npm run typecheck`, `npm run build`, `npm run dev`) sobre `feature/sprint-3-5-publish-modal`.
+- ✅ Validación visual aprobada por el usuario: `PublishModal` coincide con `Multimax_Despacho_v1.3.html`, sin diferencias visuales importantes. La integración temporal mediante `showPublishModal=true` queda aprobada tal cual hasta que exista `Coordinator`/`QueueBar`.
+- ✅ Sprint 3.5 cerrado.
+- Siguiente Sprint a desarrollar: **Sprint 3.6** (no se inicia sin aprobación explícita).
+
 ## [Sprint 3.5 — `PublishModal`] — 2026-07-09
 
 Continúa la migración incremental. Se verificó que el nombre genérico "Publish Modal" de `docs/SPRINTS_INDEX.md` corresponde al bloque real (función `PublishModal()`, línea 2496 del script) — a diferencia del Sprint 3.4, aquí no hubo que corregir el nombre. Se detectó y descartó un snapshot DOM obsoleto (`.mx-publishwrap`/`.mx-publish`) que no aparece en ningún `React.createElement` del script vigente.

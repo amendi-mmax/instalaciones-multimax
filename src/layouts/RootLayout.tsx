@@ -2,6 +2,7 @@ import { ClipboardList, Crosshair } from 'lucide-react';
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 
+import { CoordinatorEmptyState } from '@/components/shared/coordinator-empty-state';
 import { Footer } from '@/components/shared/footer';
 import { Header } from '@/components/shared/header';
 import { InstallerSidebar } from '@/components/shared/installer-sidebar';
@@ -159,23 +160,50 @@ import type { Rol } from '@/types/enums';
  * encontrado" en docs/sprints/sprint-3.5.md.
  *
  * `showPublishModal`/`setShowPublishModal` reproduce el estado homónimo de
- * `App()` (línea 1905), pero aquí se **fuerza su valor inicial a `true`**
- * (el HTML fuente arranca en `false`) para que el bloque sea visible de
- * inmediato al ejecutar `npm run dev`, sin esperar al botón real
- * "Publicar trabajo" de `Coordinator`/`QueueBar` (`onOpenPublish`, Sprint
- * futuro) que todavía no existe. Es una decisión temporal, igual en espíritu
- * a las de los Sprints 3.2.1/3.3/3.4 — se revertirá a `false` (más el botón
- * real que lo abra) en el Sprint que construya `Coordinator`/`QueueBar`.
+ * `App()` (línea 1905). En el Sprint 3.5 se **forzó su valor inicial a
+ * `true`** (el HTML fuente arranca en `false`) porque todavía no existía
+ * ningún botón real "Publicar trabajo"/`onOpenPublish` que lo abriera. El
+ * Sprint 3.6 revierte esa integración temporal (ver bloque de abajo): ahora
+ * `showPublishModal` arranca en `false`, igual que el HTML fuente.
  *
- * `onPublish` no ejecuta ninguna lógica de negocio real en este Sprint (no
- * existe todavía ningún listado de trabajos/`TRABAJOS` que actualizar) — se
- * pasa una función vacía, documentada como pendiente para el Sprint que
- * implemente Job Cards/`TRABAJOS`.
+ * `onPublish` no ejecuta ninguna lógica de negocio real todavía (no existe
+ * ningún listado de trabajos/`TRABAJOS` que actualizar) — se sigue pasando
+ * una función vacía, documentada como pendiente para el Sprint que
+ * implemente la lógica real de `publishJob`.
+ *
+ * ---------------------------------------------------------------------
+ * TEMPORARY INTEGRATION — Sprint 3.6 (`CoordinatorEmptyState`)
+ * ---------------------------------------------------------------------
+ * `CoordinatorEmptyState` reconstruye el único bloque JSX de
+ * `function Coordinator(props)` alcanzable sin datos/lógica de negocio: el
+ * `if (jobs.length === 0) return <div className="mx-qempty">...</div>`
+ * (líneas 2146-2163 del HTML fuente). "Job Cards", el nombre genérico que
+ * `docs/SPRINTS_INDEX.md` asignaba a este Sprint, NO corresponde a este
+ * bloque — `mx-jobcard` y el resto de `Coordinator()` (QueueBar, Radar,
+ * `AssignedPanel`, respuestas) solo existen cuando `jobs.length > 0`, y
+ * `jobs` arranca en `[]` sin ningún seed/mock en el HTML fuente. Ver
+ * "Determinación del bloque pendiente" en docs/sprints/sprint-3.6.md.
+ *
+ * En `App()`, `Coordinator` se renderiza como hermano de `mx-suc-sel`/
+ * `mx-subtabs-wrap`, dentro de la misma rama `role === "coord"`, cuando
+ * `coordTab === "despacho"` (línea 2096). Como `RootLayout` todavía no
+ * tiene estado real de `coordTab` (Sprint 3.3 dejó "Despacho en vivo"/"Mis
+ * trabajos" como literales fijos, sin `onClick`), `CoordinatorEmptyState`
+ * se renderiza aquí de forma incondicional dentro de `role ===
+ * 'coordinador'`, inmediatamente después de `MxSubtabs` — misma posición
+ * relativa que el HTML fuente le da a `Coordinator`.
+ *
+ * `onOpenPublish` se conecta exactamente igual que en el HTML fuente
+ * (línea 2107: `onOpenPublish: () => setShowPublishModal(true)`): esto
+ * resuelve el pendiente documentado en el Sprint 3.5 ("sustituir
+ * showPublishModal forzado por el botón real onOpenPublish cuando exista
+ * Coordinator/QueueBar") — por eso `showPublishModal` vuelve a arrancar en
+ * `false` en este Sprint.
  */
 export function RootLayout() {
   const [role, setRole] = useState<Rol>('coordinador');
   const [sucursalCoord, setSucursalCoord] = useState('Multiplaza');
-  const [showPublishModal, setShowPublishModal] = useState(true);
+  const [showPublishModal, setShowPublishModal] = useState(false);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -193,6 +221,8 @@ export function RootLayout() {
                 Mis trabajos
               </MxSubtabButton>
             </MxSubtabs>
+            {/* TEMPORARY INTEGRATION — Sprint 3.6 (CoordinatorEmptyState): ver comentario de la función. */}
+            <CoordinatorEmptyState onOpenPublish={() => setShowPublishModal(true)} />
           </div>
         )}
         {/* TEMPORARY INTEGRATION — Sprint 3.2.1, corregida en 3.2.2: ver comentario de la función. */}

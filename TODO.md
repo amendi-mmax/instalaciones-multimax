@@ -8,8 +8,9 @@ Checklist vivo. **Desde el Sprint 3.1, el checklist activo para el trabajo resta
 4. **Sprint 3.2 — `mx-instside` 🟡** (pendiente validación local — ver `docs/sprints/sprint-3.2.md`)
 5. **Sprint 3.3 — `mx-subtabs` ✅** (validación local + visual aprobadas — ver `docs/sprints/sprint-3.3.md`)
 6. **Sprint 3.4 — `mx-suc-sel` ✅** (validación local + visual aprobadas — ver `docs/sprints/sprint-3.4.md`)
-7. **Sprint 3.5 — `PublishModal` 🟡** (pendiente validación local + visual del usuario — ver `docs/sprints/sprint-3.5.md`)
-8. Sprints 3.6–3.16 — ver `docs/SPRINTS_INDEX.md`
+7. **Sprint 3.5 — `PublishModal` ✅** (validación local + visual aprobadas — ver `docs/sprints/sprint-3.5.md`)
+8. **Sprint 3.6 — `CoordinatorEmptyState` ✅** (validación local + visual aprobadas — ver `docs/sprints/sprint-3.6.md`)
+9. Sprints 3.7–3.16 — ver `docs/SPRINTS_INDEX.md`
 5. (Futuro, a re-planificar en Sprints) Integración completa con Supabase, Realtime, eliminación de datos mock, pruebas finales
 
 ## Fase 1 — Arquitectura (completada)
@@ -110,7 +111,7 @@ Migra exclusivamente `<div class="mx-suc-sel">` (selector de sucursal activa), l
 - [x] **Sprint 3.4 cerrado formalmente (✅ Completado)**. Sin pendientes técnicos.
 - [ ] **Detenido a propósito**: no se avanza a Sprint 3.5 sin aprobación explícita del usuario.
 
-## Sprint 3.5 — `PublishModal` (en revisión, ver validación pendiente)
+## Sprint 3.5 — `PublishModal` (completado ✅)
 
 Migra exclusivamente la función `PublishModal({ sucursal, onPublish, onClose })` (líneas 2496-2631 del JSX fuente) — `.mx-modal-bg`/`.mx-modal-panel`/`.mx-modal-hd`/`.mx-modal-close`/`.mx-modal-body` + el formulario `.mx-fields` completo. Detalle completo en `docs/sprints/sprint-3.5.md`.
 
@@ -121,14 +122,31 @@ Migra exclusivamente la función `PublishModal({ sucursal, onPublish, onClose })
 - [x] Integrado visualmente desde el primer commit del Sprint en `RootLayout.tsx`, como hermano de los bloques de `role` ya migrados, justo antes de `<Outlet/>` — mismo orden relativo que en `App()`. Nuevo estado `showPublishModal`/`setShowPublishModal`, forzado a `true` temporalmente para visibilidad inmediata (documentado como decisión temporal).
 - [x] Detectado y **reportado sin corregir**: el botón "Publicar trabajo" no ejecuta ninguna lógica real (`onPublish` es una función vacía) — no existe todavía ningún `TRABAJOS`/lista de trabajos (Sprint futuro de Job Cards). Ver `docs/sprints/sprint-3.5.md` → "Problema encontrado".
 - [x] Validación best-effort (`tsc --noEmit` con stubs + `prettier --check`) — ver `docs/sprints/sprint-3.5.md` → "Validaciones ejecutadas". Nota transparente: se detectó y corrigió manualmente una limitación de los stubs ambientales (colapsan tipos de React a `any`, ocultando un error real de indexado estricto en `ZONAS`).
-- [ ] **Pendiente: validación real del usuario** (`npm install/lint/typecheck/build/dev`) sobre `feature/sprint-3-5-publish-modal`.
-- [ ] **Pendiente: validación visual del usuario** — confirmar que `PublishModal` aparece con el formulario completo y coincide con el HTML oficial.
+- [x] Validación real del usuario confirmada en verde (`npm run lint`/`typecheck`/`build`/`dev`) sobre `feature/sprint-3-5-publish-modal`.
+- [x] Validación visual del usuario confirmada — `PublishModal` coincide con el HTML oficial, sin diferencias visuales importantes; la integración temporal `showPublishModal=true` queda aprobada hasta que exista `Coordinator`/`QueueBar`.
+- [x] **Sprint 3.5 cerrado formalmente (✅ Completado)**. Sin pendientes técnicos.
 - [ ] **Detenido a propósito**: no se avanza a Sprint 3.6 sin aprobación explícita del usuario.
 
-## Fase 4 — Módulo Coordinator (no iniciada; ver Sprints 3.6 en adelante en `docs/SPRINTS_INDEX.md`)
+## Sprint 3.6 — `CoordinatorEmptyState` (completado ✅)
 
-- [ ] `DespachoPage` (QueueBar, JobCard, RadarPanel, JobStatsGrid, ResponsesFeed, AssignedPanel, NoResponsePanel) con datos mock locales.
-- [ ] Conectar `PublishModal` (Sprint 3.5) a lógica real de publicación (`onPublish` → `TRABAJOS`) y al botón real `onOpenPublish` de `QueueBar`.
+Migra exclusivamente el estado vacío de `function Coordinator(props)` (`if (jobs.length === 0) return <div className="mx-qempty">...`, líneas 2146-2163 del JSX fuente). Detalle completo en `docs/sprints/sprint-3.6.md`.
+
+- [x] Análisis previo obligatorio: se descartó explícitamente el nombre genérico "Job Cards" (placeholder original de `docs/SPRINTS_INDEX.md`) tras leer el cuerpo completo de `Coordinator(props)` (líneas 2132-2423) y confirmar que todo su contenido salvo el estado vacío depende de `jobs.length > 0` — y que `jobs` arranca en `[]` sin ningún seed/mock en el HTML fuente.
+- [x] `CoordinatorEmptyState` (`src/components/shared/coordinator-empty-state.tsx`) — reutiliza `EmptyState` (`size="page"`) y `Button` (`variant="ice"`), ambos de Fase 3, sin consumidor real hasta este Sprint.
+- [x] Cero CSS nuevo: `.mx-qempty`/`.mx-qempty-ic`/`.mx-btn`/`.mx-btn-ice` ya estaban portados en `globals.css` desde Fase 3 — verificado antes de implementar.
+- [x] Integrado visualmente desde el primer commit del Sprint en `RootLayout.tsx`, como último hijo del bloque `role === 'coordinador'`, después de `MxSubtabs` — misma posición relativa que `Coordinator` en el HTML fuente.
+- [x] Resuelto el pendiente documentado desde el Sprint 3.5: `showPublishModal` revertido de `useState(true)` (forzado) a `useState(false)` (valor real del HTML fuente), conectado a `onOpenPublish` del nuevo botón real — cambio explícitamente anticipado, no un fix fuera de alcance. Ver `docs/sprints/sprint-3.6.md` → "Problema encontrado / decisión".
+- [x] Validación best-effort (`tsc --noEmit` con stubs + `prettier --check`) — ver `docs/sprints/sprint-3.6.md` → "Validaciones ejecutadas".
+- [x] Validación real del usuario confirmada en verde (`npm run lint`/`typecheck`/`build`/`dev`) sobre `feature/sprint-3-6-coordinator-empty-state`.
+- [x] Validación visual del usuario confirmada — `CoordinatorEmptyState` coincide con el HTML oficial y el botón "Publicar trabajo" abre correctamente `PublishModal`.
+- [x] **Sprint 3.6 cerrado formalmente (✅ Completado)**. Sin pendientes técnicos.
+- [ ] **Detenido a propósito**: no se avanza a Sprint 3.7 sin aprobación explícita del usuario.
+
+## Fase 4 — Módulo Coordinator (parcialmente iniciada vía Sprint 3.6 — estado vacío; ver Sprints 3.7 en adelante en `docs/SPRINTS_INDEX.md`)
+
+- [ ] `DespachoPage` (QueueBar, JobCard, RadarPanel, JobStatsGrid, ResponsesFeed, AssignedPanel, NoResponsePanel) con datos mock locales — depende de `jobs`/`Trabajo` real (Sprint futuro).
+- [x] Estado vacío de `Coordinator` (`mx-qempty`) reconstruido — Sprint 3.6 (`CoordinatorEmptyState`).
+- [ ] Conectar `PublishModal` (Sprint 3.5) a lógica real de publicación (`onPublish` → `jobs`/`TRABAJOS`). El botón real `onOpenPublish` ya existe desde Sprint 3.6 (`CoordinatorEmptyState`), pendiente solo la lógica de `publishJob` en sí.
 - [ ] `TrabajosPage` / `TrabajoDetailPage` (historial, filtro, timeline) con datos mock locales.
 - [ ] `MasterCalendar` (grid, dots, leyenda) con datos mock locales.
 - [ ] `CountRing`/`LiveCountdown` (countdown circular de rondas/bids — movidos desde Fase 3, son feature-specific de Jobs/Radar).

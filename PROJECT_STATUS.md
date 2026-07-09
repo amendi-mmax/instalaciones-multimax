@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — HANDYMAX · Multimax Despacho
 
-Última actualización: 2026-07-09 — Sprint 3.5 (`PublishModal`) — 🟡 En revisión
+Última actualización: 2026-07-09 — Sprint 3.6 (`CoordinatorEmptyState`) — ✅ Completado
 
 ## Cambio de metodología (vigente desde el Sprint 3.1)
 
@@ -233,7 +233,7 @@ Análisis directo del HTML (sin asumir de antemano que correspondía a "Main Lay
 - No quedan pendientes técnicos del Sprint 3.4. La integración temporal en `RootLayout.tsx` queda aprobada tal cual hasta que exista `layouts/CoordinatorLayout.tsx` en un Sprint futuro.
 - **El siguiente Sprint a desarrollar es el Sprint 3.5** — no se inicia sin aprobación explícita del usuario.
 
-## Sprint 3.5 — `PublishModal` (2026-07-09) — 🟡 En revisión
+## Sprint 3.5 — `PublishModal` (2026-07-09) — ✅ Completado
 
 Se verificó que el nombre genérico "Publish Modal" de `docs/SPRINTS_INDEX.md` corresponde al bloque real (función `PublishModal()`, línea 2496 del script) — no hubo que corregirlo, a diferencia del Sprint 3.4. Se detectó y descartó un snapshot DOM obsoleto (`.mx-publishwrap`/`.mx-publish`) que no aparece en ningún `React.createElement` del script vigente. Objetivo/análisis/implementación completos en `docs/sprints/sprint-3.5.md`.
 
@@ -246,14 +246,40 @@ Se verificó que el nombre genérico "Publish Modal" de `docs/SPRINTS_INDEX.md` 
 - Validación best-effort: 0 diagnósticos de `tsc`; `prettier --check` en `.ts`/`.tsx` sin diferencias. Se detectó y corrigió manualmente una limitación de los stubs ambientales de este sandbox (colapsan tipos de React a `any`, ocultando un error real de indexado estricto en `ZONAS`) — ver `docs/sprints/sprint-3.5.md`.
 - Detalle completo: `docs/sprints/sprint-3.5.md`.
 
+### Sprint 3.5 finalizado (2026-07-09)
+
+- Validación local completada: el usuario confirmó en su máquina que `npm run lint`, `npm run typecheck`, `npm run build` y `npm run dev` finalizan las 4 sin errores sobre `feature/sprint-3-5-publish-modal`.
+- Validación visual completada: el usuario confirmó que `PublishModal` coincide con `Multimax_Despacho_v1.3.html`, sin diferencias visuales importantes, y que la integración temporal mediante `showPublishModal=true` es correcta hasta que exista `Coordinator`/`QueueBar`.
+- No quedan pendientes técnicos del Sprint 3.5. La integración temporal en `RootLayout.tsx` queda aprobada tal cual hasta que exista `layouts/CoordinatorLayout.tsx`/`Coordinator`/`QueueBar` en un Sprint futuro.
+- **El siguiente Sprint a desarrollar es el Sprint 3.6** — no se inicia sin aprobación explícita del usuario.
+
+## Sprint 3.6 — `CoordinatorEmptyState` (2026-07-09) — ✅ Completado
+
+El nombre genérico "Job Cards" que traía `docs/SPRINTS_INDEX.md` para este Sprint **no corresponde** al bloque real reconstruible ahora mismo — corrección de nombre análoga a la del Sprint 3.4. Análisis completo en `docs/sprints/sprint-3.6.md`.
+
+- Análisis previo: se leyó el cuerpo completo de `function Coordinator(props)` (líneas 2132-2423 del script). Solo su primera rama (`if (jobs.length === 0) return <div className="mx-qempty">...`, líneas 2146-2163) es reconstruible sin datos/lógica de negocio — `jobs` arranca en `useState([])` en `App()` y no existe ningún seed/mock en el HTML fuente. El resto de `Coordinator()` (`mx-jobcard`, `QueueBar`, Radar, `AssignedPanel`, respuestas) depende de `jobs.length > 0`, fuera de alcance.
+- Componente nuevo: `CoordinatorEmptyState` (`src/components/shared/coordinator-empty-state.tsx`) — reutiliza `EmptyState` (`size="page"`) y `Button` (`variant="ice"`), ambos de Fase 3, sin consumidor real hasta este Sprint.
+- Cero CSS nuevo: `.mx-qempty`/`.mx-qempty-ic`/`.mx-btn`/`.mx-btn-ice` ya estaban portados desde Fase 3.
+- `RootLayout.tsx`: se integra `CoordinatorEmptyState` después de `MxSubtabs` (misma posición relativa que `Coordinator` en el HTML fuente); se revierte `showPublishModal` de `useState(true)` (forzado, Sprint 3.5) a `useState(false)` (valor real del HTML fuente), conectando `onOpenPublish={() => setShowPublishModal(true)}` — resuelve el pendiente documentado desde el cierre del Sprint 3.5.
+- Validación best-effort: 0 diagnósticos de `tsc`; `prettier --check` sin diferencias; `git diff --stat` confirma que solo `RootLayout.tsx` (modificado) y `coordinator-empty-state.tsx` (nuevo) cambiaron, `globals.css` intacto.
+- Detalle completo: `docs/sprints/sprint-3.6.md`.
+
+### Sprint 3.6 finalizado (2026-07-09)
+
+- Validación local completada: el usuario confirmó en su máquina que `npm run lint`, `npm run typecheck`, `npm run build` y `npm run dev` finalizan las 4 sin errores sobre `feature/sprint-3-6-coordinator-empty-state`.
+- Validación visual completada: el usuario confirmó que `CoordinatorEmptyState` coincide con `Multimax_Despacho_v1.3.html` y que el botón "Publicar trabajo" abre correctamente `PublishModal`.
+- No quedan pendientes técnicos del Sprint 3.6. La integración temporal en `RootLayout.tsx` queda aprobada tal cual hasta que exista `layouts/CoordinatorLayout.tsx`/`Coordinator` real.
+- **El siguiente Sprint a desarrollar es el Sprint 3.7** — no se inicia sin aprobación explícita del usuario.
+
 ## Qué falta
 
-- **Bloqueante para cerrar el Sprint 3.5**: confirmar en el entorno del usuario `npm install && npm run lint && npm run typecheck && npm run build && npm run dev` en verde sobre la rama `feature/sprint-3-5-publish-modal`, y verificar visualmente que `PublishModal` aparece con el formulario completo y coincide con el HTML oficial.
+- **Sprint 3.6: cerrado, sin pendientes técnicos** (ver "Sprint 3.6 finalizado" arriba).
 - **Bloqueante para cerrar el Sprint 3.2**: confirmar en el entorno del usuario `npm install && npm run lint && npm run typecheck && npm run build && npm run dev` en verde sobre la rama `feature/sprint-3-2-mx-instside`.
 - A partir de aquí, el trabajo restante (antes descrito como "Fase 4 — Coordinator", "Fase 5 — Installer", "Fase 6 — Admin", etc.) se ejecuta Sprint a Sprint según `docs/SPRINTS_INDEX.md`, cada uno esperando aprobación explícita antes de iniciar el siguiente. La integración con Supabase, Realtime, eliminación de mocks y pruebas finales (antes Fases 7–10) siguen vigentes como trabajo futuro, a re-planificar en Sprints una vez completado el bloque 3.x.
 - `CountRing`/`LiveCountdown` (countdown circular de rondas/bids) y los layouts por rol (`CoordinatorLayout`/`InstallerLayout`/`AdminLayout`) siguen fuera de alcance hasta el Sprint que corresponda. Ver `MIGRATION_STATUS.md`.
 - Sincronización pendiente entre `SucursalSelect` y el badge de sucursal del Header (reportado, no corregido) — ver "Problema encontrado" en `docs/sprints/sprint-3.4.md`; queda como trabajo futuro, no bloquea el cierre de ningún Sprint.
-- `onPublish` sin lógica real en `PublishModal` (reportado, no corregido) — ver "Problema encontrado" en `docs/sprints/sprint-3.5.md`; pendiente para el Sprint que implemente Job Cards/`TRABAJOS`.
+- `onPublish` sin lógica real en `PublishModal` (reportado, no corregido) — ver "Problema encontrado" en `docs/sprints/sprint-3.5.md`; pendiente para el Sprint que implemente `jobs`/`Trabajo` real.
+- El resto de `Coordinator()` (`mx-jobcard`, `QueueBar`, Radar, `AssignedPanel`, `NoResponsePanel`, respuestas, indicadores) queda pendiente de un Sprint que también implemente `jobs`/`publishJob` real — ver "Problema encontrado / decisión" en `docs/sprints/sprint-3.6.md`.
 
 ## Problemas encontrados (heredados de Fase 1, siguen sin resolver)
 
@@ -274,4 +300,4 @@ Ninguno de estos bloquea el scaffold de esta fase; sí bloquearán las fases 7 (
 
 ## Próximos pasos
 
-Esperar validación local + visual del usuario sobre `feature/sprint-3-5-publish-modal` y aprobación explícita antes de iniciar el Sprint 3.6. No se avanza automáticamente a ningún Sprint siguiente.
+Esperar aprobación explícita del usuario antes de iniciar el Sprint 3.7. No se avanza automáticamente a ningún Sprint siguiente.

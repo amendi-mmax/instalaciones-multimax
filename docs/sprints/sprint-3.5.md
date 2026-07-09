@@ -1,7 +1,7 @@
 # Sprint 3.5 - Migración del bloque `PublishModal`
 
 Rama: `feature/sprint-3-5-publish-modal` (creada desde la punta de `feature/sprint-3-4-mx-suc-sel`, que ya incluye Sprint 3.1, 3.2 + sub-iteraciones + 3.3 + su fix de integración visual + 3.4 + su cierre documental)
-Estado: 🟡 En revisión — implementación y validación best-effort completas; falta que el usuario confirme localmente `npm run lint`/`npm run typecheck`/`npm run build`/`npm run dev` en verde, y valide visualmente el resultado, para pasar a ✅ Completado.
+Estado: ✅ Completado — el usuario confirmó localmente `npm run lint`/`npm run typecheck`/`npm run build`/`npm run dev` en verde sobre `feature/sprint-3-5-publish-modal`, y validó visualmente que `PublishModal` coincide con `Multimax_Despacho_v1.3.html`.
 
 ## Objetivo
 
@@ -177,3 +177,17 @@ Esta sesión en la nube sigue sin acceso a `registry.npmjs.org` (confirmado de n
 ## Próximo Sprint
 
 A definir por el usuario. No se avanza automáticamente al Sprint 3.6.
+
+## Cierre del Sprint
+
+Estado: ✅ Completado
+
+Validaciones aprobadas:
+- npm run lint
+- npm run typecheck
+- npm run build
+- npm run dev
+
+Validación visual: Aprobada — `PublishModal` coincide con `Multimax_Despacho_v1.3.html`, sin diferencias visuales importantes; la integración temporal mediante `showPublishModal=true` es correcta hasta que exista `Coordinator`/`QueueBar`.
+
+Aprobado por el usuario.
