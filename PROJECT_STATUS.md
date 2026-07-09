@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — HANDYMAX · Multimax Despacho
 
-Última actualización: 2026-07-08 — Sprint 3.3 (`mx-subtabs`) — ✅ Completado (cierre documental)
+Última actualización: 2026-07-08 — Sprint 3.4 (`mx-suc-sel`) — ✅ Completado
 
 ## Cambio de metodología (vigente desde el Sprint 3.1)
 
@@ -214,13 +214,32 @@ El usuario confirmó localmente que `npm run lint`/`typecheck`/`build`/`dev` pas
 - No quedan pendientes técnicos del Sprint 3.3. La integración temporal en `RootLayout.tsx` queda aprobada tal cual hasta que exista `layouts/CoordinatorLayout.tsx` en un Sprint futuro.
 - **El siguiente Sprint a desarrollar es el Sprint 3.4** — no se inicia sin aprobación explícita del usuario.
 
+## Sprint 3.4 — `mx-suc-sel` (2026-07-08) — ✅ Completado
+
+Análisis directo del HTML (sin asumir de antemano que correspondía a "Main Layout", nombre genérico que traía `docs/SPRINTS_INDEX.md`) determinó que el siguiente bloque estructural pendiente después de `mx-subtabs` es `.mx-suc-sel` — el selector "Sucursal activa", hermano de `.mx-subtabs-wrap` dentro de la rama `role === "coord"` de `App()`, sin CSS ni componente creados hasta ahora. Objetivo/análisis/implementación completos en `docs/sprints/sprint-3.4.md`.
+
+- Componente nuevo: `SucursalSelect` — reconstruye `<div class="mx-suc-sel">` (label + select + 9 opciones), puramente controlado (`value`/`onChange`, sin `useState` interno, mismo criterio que el estado vive en `App()` en el HTML fuente).
+- `SUCURSALES` (9 sucursales, transcritas verbatim del HTML fuente) agregada a `src/constants/index.ts` — es el contenido estático necesario para reconstruir las opciones exactas del `<select>`, no lógica de negocio ni un mock nuevo.
+- `.mx-suc-sel` (+ `label`/`select`/`select:focus`) agregada a `globals.css`, verbatim — no existía CSS para este bloque antes de este Sprint.
+- `RootLayout.tsx`: nuevo estado `sucursalCoord` (mismo nivel que `role`, valor inicial `"Multiplaza"` idéntico al HTML fuente); `SucursalSelect` se renderiza como primer hijo de un nuevo `<div>` (sin clase, igual que el contenedor anónimo del HTML fuente) que ahora envuelve también a `MxSubtabs` (Sprint 3.3, sin tocar su contenido interno).
+- Se detectó y **reportó sin corregir**: el badge de sucursal del Header (`sucursalActiva`, default `"Multiplaza"` desde Sprint 3.1) no recibe el nuevo `sucursalCoord` — quedan desincronizados si se cambia la sucursal en el selector. No se modificó la invocación de `Header` porque este Sprint prohíbe explícitamente tocar su integración más allá de lo mínimo necesario para el nuevo bloque.
+- Validación best-effort: 0 diagnósticos de `tsc`; `prettier --check` en `.ts`/`.tsx` sin diferencias; en `globals.css` el archivo completo reporta diferencias de estilo preexistentes (comillas, wrapping de gradientes) ajenas a este Sprint — confirmado con `diff` que el bloque nuevo no genera ninguna.
+- Detalle completo: `docs/sprints/sprint-3.4.md`.
+
+### Sprint 3.4 finalizado (2026-07-08)
+
+- Validación local completada: el usuario confirmó en su máquina que `npm run lint`, `npm run typecheck`, `npm run build` y `npm run dev` finalizan las 4 sin errores sobre `feature/sprint-3-4-mx-suc-sel`.
+- Validación visual completada: el usuario confirmó que `SucursalSelect` es visible en la aplicación, en la posición correspondiente al bloque `mx-suc-sel` de `Multimax_Despacho_v1.3.html`.
+- No quedan pendientes técnicos del Sprint 3.4. La integración temporal en `RootLayout.tsx` queda aprobada tal cual hasta que exista `layouts/CoordinatorLayout.tsx` en un Sprint futuro.
+- **El siguiente Sprint a desarrollar es el Sprint 3.5** — no se inicia sin aprobación explícita del usuario.
+
 ## Qué falta
 
-- **Sprint 3.3: cerrado, sin pendientes técnicos** (ver "Sprint 3.3 finalizado" arriba).
+- **Sprint 3.4: cerrado, sin pendientes técnicos** (ver "Sprint 3.4 finalizado" arriba).
 - **Bloqueante para cerrar el Sprint 3.2**: confirmar en el entorno del usuario `npm install && npm run lint && npm run typecheck && npm run build && npm run dev` en verde sobre la rama `feature/sprint-3-2-mx-instside`.
 - A partir de aquí, el trabajo restante (antes descrito como "Fase 4 — Coordinator", "Fase 5 — Installer", "Fase 6 — Admin", etc.) se ejecuta Sprint a Sprint según `docs/SPRINTS_INDEX.md`, cada uno esperando aprobación explícita antes de iniciar el siguiente. La integración con Supabase, Realtime, eliminación de mocks y pruebas finales (antes Fases 7–10) siguen vigentes como trabajo futuro, a re-planificar en Sprints una vez completado el bloque 3.x.
 - `CountRing`/`LiveCountdown` (countdown circular de rondas/bids) y los layouts por rol (`CoordinatorLayout`/`InstallerLayout`/`AdminLayout`) siguen fuera de alcance hasta el Sprint que corresponda. Ver `MIGRATION_STATUS.md`.
-- Ambigüedad de alcance detectada para el Sprint 3.3 (Top Navigation) frente a la estructura real de este prototipo — ver notas en `docs/SPRINTS_INDEX.md` antes de iniciarlo. (La ambigüedad de 3.2 quedó resuelta este Sprint: el elemento real es `mx-instside`.)
+- Sincronización pendiente entre `SucursalSelect` y el badge de sucursal del Header (reportado, no corregido) — ver "Problema encontrado" en `docs/sprints/sprint-3.4.md`; queda como trabajo futuro, no bloquea el cierre de este Sprint.
 
 ## Problemas encontrados (heredados de Fase 1, siguen sin resolver)
 
@@ -241,4 +260,4 @@ Ninguno de estos bloquea el scaffold de esta fase; sí bloquearán las fases 7 (
 
 ## Próximos pasos
 
-Esperar validación local del usuario (`npm install && npm run lint && npm run typecheck && npm run build && npm run dev` sobre `feature/sprint-3-3-mx-subtabs`) y aprobación explícita antes de iniciar el Sprint 3.4. No se avanza automáticamente a ningún Sprint siguiente.
+Esperar aprobación explícita del usuario antes de iniciar el Sprint 3.5. No se avanza automáticamente a ningún Sprint siguiente.

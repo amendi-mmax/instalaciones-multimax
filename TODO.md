@@ -7,7 +7,8 @@ Checklist vivo. **Desde el Sprint 3.1, el checklist activo para el trabajo resta
 3. **Sprint 3.1 — Header ✅** (pendiente validación local — ver `docs/sprints/sprint-3.1.md`)
 4. **Sprint 3.2 — `mx-instside` 🟡** (pendiente validación local — ver `docs/sprints/sprint-3.2.md`)
 5. **Sprint 3.3 — `mx-subtabs` ✅** (validación local + visual aprobadas — ver `docs/sprints/sprint-3.3.md`)
-6. Sprints 3.4–3.16 — ver `docs/SPRINTS_INDEX.md`
+6. **Sprint 3.4 — `mx-suc-sel` ✅** (validación local + visual aprobadas — ver `docs/sprints/sprint-3.4.md`)
+7. Sprints 3.5–3.16 — ver `docs/SPRINTS_INDEX.md`
 5. (Futuro, a re-planificar en Sprints) Integración completa con Supabase, Realtime, eliminación de datos mock, pruebas finales
 
 ## Fase 1 — Arquitectura (completada)
@@ -92,7 +93,23 @@ Migra exclusivamente `.mx-subtabs-wrap`/`.mx-subtabs` (contenedor + botones de s
 - [x] **Sprint 3.3 cerrado formalmente (✅ Completado)**. Sin pendientes técnicos.
 - [ ] **Detenido a propósito**: no se avanza a Sprint 3.4 sin aprobación explícita del usuario.
 
-## Fase 4 — Módulo Coordinator (no iniciada; ver Sprints 3.4 en adelante en `docs/SPRINTS_INDEX.md`)
+## Sprint 3.4 — `mx-suc-sel` (completado ✅)
+
+Migra exclusivamente `<div class="mx-suc-sel">` (selector de sucursal activa), líneas 2071-2079 del JSX fuente, hermano de `.mx-subtabs-wrap` (migrado en Sprint 3.3) dentro de la misma rama `role === "coord"` de `App()`. Detalle completo en `docs/sprints/sprint-3.4.md`.
+
+- [x] Análisis previo obligatorio: se descartó explícitamente el nombre genérico "Main Layout" (placeholder original de `docs/SPRINTS_INDEX.md`) tras confirmar que `.mx-grid`/`.mx-col` ya estaban migrados en Fase 3 (`TwoColumnLayout`); se determinó por inspección directa del HTML/CSS que el bloque real pendiente es `.mx-suc-sel`.
+- [x] `SucursalSelect` (`src/components/shared/sucursal-select.tsx`) — componente controlado (`value`/`onChange`, sin `useState` interno), mismo patrón que `role` en `RootLayout`.
+- [x] Constante `SUCURSALES` agregada a `src/constants/index.ts` (lista verbatim del HTML fuente, línea 1116 — no es dato mock de negocio).
+- [x] Bloque CSS `.mx-suc-sel` agregado a `globals.css` verbatim (líneas 412-415 del `<style>` original); no existía antes de este Sprint.
+- [x] Integrado visualmente desde el primer commit del Sprint en `RootLayout.tsx`, como primer hijo del `<div>` anónimo que ya contenía `MxSubtabs` (Sprint 3.3), cuando `role === 'coordinador'` — respeta el orden exacto del HTML fuente (`mx-suc-sel` antes de `mx-subtabs`).
+- [x] Detectado y **reportado sin corregir**: `HeaderStatus.sucursalActiva` (badge del Header) queda desincronizado del nuevo `sucursalCoord` real, porque pasar el prop a `Header` está fuera del alcance mínimo permitido ("no modificar Header"). Ver `docs/sprints/sprint-3.4.md` → "Problema encontrado".
+- [x] Validación best-effort (`tsc --noEmit` con stubs + `prettier --check`) — ver `docs/sprints/sprint-3.4.md` → "Validaciones ejecutadas". Nota transparente: se detectó y corrigió un intento accidental de `prettier --write` sobre todo `globals.css` (revertido con `git checkout --`, solo se re-aplicó a mano el bloque nuevo).
+- [x] Validación real del usuario confirmada en verde (`npm run lint`/`typecheck`/`build`/`dev`) sobre `feature/sprint-3-4-mx-suc-sel`.
+- [x] Validación visual del usuario confirmada — `SucursalSelect` aparece en la posición correcta y coincide con el HTML oficial.
+- [x] **Sprint 3.4 cerrado formalmente (✅ Completado)**. Sin pendientes técnicos.
+- [ ] **Detenido a propósito**: no se avanza a Sprint 3.5 sin aprobación explícita del usuario.
+
+## Fase 4 — Módulo Coordinator (no iniciada; ver Sprints 3.5 en adelante en `docs/SPRINTS_INDEX.md`)
 
 - [ ] `DespachoPage` (QueueBar, JobCard, RadarPanel, JobStatsGrid, ResponsesFeed, AssignedPanel, NoResponsePanel) con datos mock locales.
 - [ ] `PublishModal` con React Hook Form + Zod.

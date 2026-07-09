@@ -7,6 +7,7 @@ import { Header } from '@/components/shared/header';
 import { InstallerSidebar } from '@/components/shared/installer-sidebar';
 import { MxSubtabButton } from '@/components/shared/mx-subtab-button';
 import { MxSubtabs } from '@/components/shared/mx-subtabs';
+import { SucursalSelect } from '@/components/shared/sucursal-select';
 import type { Rol } from '@/types/enums';
 
 /**
@@ -95,12 +96,12 @@ import type { Rol } from '@/types/enums';
  * por aprobado (ver docs/sprints/sprint-3.3.md → sección de corrección).
  *
  * En el HTML fuente, `.mx-subtabs` solo existe dentro de `App()`, rama
- * `role === "coord"` (línea ~2079), como el primer elemento después del
- * selector "Sucursal activa" (`mx-suc-sel`, no migrado todavía) y antes
- * de `Coordinator`/`CoordinatorJobs` (no existen todavía). Aquí se monta
- * cuando `role === 'coordinador'`, como primer hijo de `<main>` — mismo
- * criterio que `InstallerSidebar` para `role === 'instalador'`: no hay
- * ninguna otra pieza de Coordinator que preceda a `mx-subtabs` en este
+ * `role === "coord"` (línea ~2079), como el segundo elemento después del
+ * selector "Sucursal activa" (`mx-suc-sel`, migrado en el Sprint 3.4) y
+ * antes de `Coordinator`/`CoordinatorJobs` (no existen todavía). Aquí se
+ * monta cuando `role === 'coordinador'`, como primer hijo de `<main>` —
+ * mismo criterio que `InstallerSidebar` para `role === 'instalador'`: no
+ * hay ninguna otra pieza de Coordinator que preceda a este bloque en este
  * proyecto todavía, así que no hay nada más que anteponerle sin salirse
  * de alcance.
  *
@@ -111,24 +112,52 @@ import type { Rol } from '@/types/enums';
  * fijos, igual que los valores de `InstallerSidebar` en el Sprint 3.2.1.
  * Se retira de aquí en cuanto exista el Sprint que construya
  * `Coordinator`/`layouts/CoordinatorLayout.tsx` real.
+ *
+ * ---------------------------------------------------------------------
+ * TEMPORARY INTEGRATION — Sprint 3.4 (`mx-suc-sel`)
+ * ---------------------------------------------------------------------
+ * `SucursalSelect` reconstruye `<div class="mx-suc-sel">` (líneas 2071-2079
+ * del HTML fuente), hermano de `.mx-subtabs-wrap` dentro de la misma rama
+ * `role === "coord"` de `App()` — precede a `mx-subtabs`, exactamente el
+ * mismo orden reproducido aquí. En el HTML fuente ambos hermanos comparten
+ * un `<div>` contenedor anónimo (sin clase); se reproduce aquí con un
+ * `<div>` sin clase envolviendo ambos, por fidelidad exacta de jerarquía.
+ *
+ * El estado (`sucursalCoord`/`setSucursalCoord`) vive en `RootLayout`, al
+ * mismo nivel que `role` — igual que en el HTML fuente, donde ambos son
+ * `useState` de `App()`. Valor inicial `"Multiplaza"`, idéntico al del
+ * HTML fuente (línea 1906).
+ *
+ * Problema encontrado (reportado, no corregido): `HeaderStatus` ya muestra
+ * un badge de sucursal (`sucursalActiva`, prop opcional con default
+ * `"Multiplaza"` fijado en el Sprint 3.1 — ver `components/shared/header-
+ * status.tsx`), pero `RootLayout` no se lo pasa. Ahora que existe un
+ * `sucursalCoord` real, cambiar el `SucursalSelect` NO actualiza ese badge
+ * — quedan desincronizados. No se corrige aquí: pasar `sucursalCoord` a
+ * `Header` cuenta como modificar su integración fuera del alcance mínimo
+ * de este Sprint ("No modificar Header"). Ver docs/sprints/sprint-3.4.md.
  */
 export function RootLayout() {
   const [role, setRole] = useState<Rol>('coordinador');
+  const [sucursalCoord, setSucursalCoord] = useState('Multiplaza');
 
   return (
     <div className="flex min-h-screen flex-col">
       <Header role={role} onRoleChange={setRole} />
       <main className="flex-1">
-        {/* TEMPORARY INTEGRATION — Sprint 3.3 (fix de integración visual): ver comentario de la función. */}
+        {/* TEMPORARY INTEGRATION — Sprint 3.3 (fix de integración visual) + Sprint 3.4 (mx-suc-sel): ver comentario de la función. */}
         {role === 'coordinador' && (
-          <MxSubtabs>
-            <MxSubtabButton active icon={<Crosshair size={14} />}>
-              Despacho en vivo
-            </MxSubtabButton>
-            <MxSubtabButton active={false} icon={<ClipboardList size={14} />}>
-              Mis trabajos
-            </MxSubtabButton>
-          </MxSubtabs>
+          <div>
+            <SucursalSelect value={sucursalCoord} onChange={setSucursalCoord} />
+            <MxSubtabs>
+              <MxSubtabButton active icon={<Crosshair size={14} />}>
+                Despacho en vivo
+              </MxSubtabButton>
+              <MxSubtabButton active={false} icon={<ClipboardList size={14} />}>
+                Mis trabajos
+              </MxSubtabButton>
+            </MxSubtabs>
+          </div>
         )}
         {/* TEMPORARY INTEGRATION — Sprint 3.2.1, corregida en 3.2.2: ver comentario de la función. */}
         {role === 'instalador' && (

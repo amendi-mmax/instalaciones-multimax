@@ -2,6 +2,43 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Sprint 3.4 — Cierre del Sprint] — 2026-07-08
+
+Cierre administrativo. Sin cambios de código en esta entrada — únicamente documentación.
+
+- ✅ Validación local aprobada por el usuario (`npm run lint`, `npm run typecheck`, `npm run build`, `npm run dev`) sobre `feature/sprint-3-4-mx-suc-sel`.
+- ✅ Validación visual aprobada por el usuario: `SucursalSelect` es visible en la posición correcta y coincide con `Multimax_Despacho_v1.3.html`.
+- ✅ Sprint 3.4 cerrado.
+- Siguiente Sprint a desarrollar: **Sprint 3.5** (no se inicia sin aprobación explícita).
+
+## [Sprint 3.4 — `mx-suc-sel`] — 2026-07-08
+
+Continúa la migración incremental. Análisis directo del HTML (no asumido) determinó que el siguiente bloque estructural pendiente después de `mx-subtabs` es `.mx-suc-sel` (Selector de "Sucursal activa"), hermano de `.mx-subtabs-wrap` dentro de la rama `role === "coord"` de `App()`.
+
+### Añadido
+
+- `src/components/shared/sucursal-select.tsx` (`SucursalSelect`) — reconstruye `<div class="mx-suc-sel">` (label + select + 9 options), componente único y puramente controlado (`value`/`onChange`, sin `useState` interno).
+- `SUCURSALES` en `src/constants/index.ts` — arreglo literal de 9 sucursales, transcrito verbatim del HTML fuente (línea 1116).
+- `.mx-suc-sel` (+ `label`, `select`, `select:focus`) en `src/styles/globals.css` — CSS verbatim de las líneas 412-415 del HTML fuente, no portado antes de este Sprint.
+- `docs/sprints/sprint-3.4.md`.
+
+### Cambiado
+
+- `src/layouts/RootLayout.tsx`: nuevo estado `sucursalCoord`/`setSucursalCoord` (mismo nivel que `role`, valor inicial `"Multiplaza"` idéntico al HTML fuente); `SucursalSelect` se renderiza como primer hijo de un nuevo `<div>` (sin clase, igual que el contenedor anónimo del HTML fuente) que ahora envuelve también a `MxSubtabs` (Sprint 3.3, sin modificar su contenido).
+
+### Reportado (sin corregir)
+
+- El badge de sucursal del Header (`HeaderStatus`, prop `sucursalActiva`, default `"Multiplaza"` desde Sprint 3.1) no recibe el nuevo `sucursalCoord` — quedan desincronizados si el usuario cambia la sucursal en `SucursalSelect`. No se pasó la prop a `Header` porque este Sprint prohíbe explícitamente modificar su integración más allá de lo mínimo.
+
+### Sin cambios
+
+- No se modificó `Header`, `mx-instside`/`InstallerSidebar`, `mx-subtabs`/`MxSubtabs`/`MxSubtabButton`, `Footer`, `AppRouter.tsx` ni `ARCHITECTURE.md`. No se implementó Coordinator, Job Cards, Publish Modal ni ningún otro bloque de Sprints posteriores.
+
+### Validación
+
+- `tsc --noEmit` (stubs ambientales): 0 diagnósticos. `prettier --check` sobre `.ts`/`.tsx`: cero diferencias. `prettier --check` sobre `globals.css`: el archivo completo reporta diferencias de estilo preexistentes (comillas, wrapping de gradientes) ajenas a este Sprint — verificado con `diff` que el bloque nuevo `.mx-suc-sel` no genera ninguna de esas diferencias.
+- Las cuatro validaciones reales (`npm run lint`/`typecheck`/`build`/`dev`) y la validación visual siguen pendientes de confirmación del usuario en su máquina.
+
 ## [Sprint 3.3 — Cierre del Sprint] — 2026-07-08
 
 Cierre administrativo. Sin cambios de código en esta entrada — únicamente documentación.

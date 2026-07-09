@@ -583,6 +583,41 @@
   background: rgba(255, 92, 122, 0.08);
 }
 
+/* ---- Selector de sucursal (mx-suc-sel, Sprint 3.4) ----
+   Fuente: <style> original, líneas 412-415 (comentario fuente:
+   "Selector de sucursal"), portado verbatim. No existía en globals.css
+   antes de este Sprint. */
+.mx-suc-sel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  max-width: 1240px;
+  margin: 0 auto;
+  border-bottom: 1px solid var(--line);
+  background: rgba(10, 15, 28, 0.4);
+}
+.mx-suc-sel label {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.mx-suc-sel select {
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  padding: 7px 10px;
+  flex: 1;
+  max-width: 240px;
+}
+.mx-suc-sel select:focus {
+  outline: none;
+  border-color: var(--ice);
+}
+
 /* ---- Tabs (mx-subtabs genérico + mx-phonetabs para PhoneFrame) ---- */
 .mx-subtabs-wrap {
   max-width: 1240px;
