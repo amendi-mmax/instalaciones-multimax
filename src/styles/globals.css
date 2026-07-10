@@ -140,6 +140,24 @@
   }
 }
 
+/* El HTML fuente (línea 267-269) aplica `prefers-reduced-motion` a las
+ * clases planas (no las utilidades Tailwind de arriba), pero esa regla no
+ * se había portado. Sprint 3.7 la agrega solo para las clases que ya existen
+ * como reglas planas en este archivo (`.mx-sweep`/`.mx-ping`, nuevas en este
+ * Sprint; `.mx-blink`/`.mx-spin`, ya portadas en Fase 3 pero sin esta
+ * cobertura — gap detectado y corregido de paso, mismo criterio de fidelidad
+ * verbatim). `.mx-resp` (línea 269 del HTML fuente) no se agrega todavía:
+ * esa clase no existe aún en este archivo (pertenece al feed de respuestas
+ * de Coordinator, fuera de alcance de este Sprint). */
+@media (prefers-reduced-motion: reduce) {
+  .mx-sweep,
+  .mx-ping,
+  .mx-blink,
+  .mx-spin {
+    animation: none !important;
+  }
+}
+
 /* ==========================================================================
  * Fase 3 · Layout general y componentes compartidos
  * --------------------------------------------------------------------------
@@ -438,6 +456,47 @@
   color: var(--muted);
   line-height: 1.6;
   max-width: 360px;
+}
+
+/* ---- Radar (mx-radar) — Sprint 3.7 ----
+ * `.mx-sweep`/`.mx-ping` reutilizan los `@keyframes mxsweep`/`mxping`
+ * definidos más arriba (ver "Utilidades de animación", ya portados en
+ * Fase 3 como `animate-mx-sweep`/`animate-mx-ping`); aquí solo se agregan
+ * las clases planas que el JSX de `Radar` usa vía `className` literal.
+ */
+.mx-radar-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.mx-radar {
+  max-width: 220px;
+}
+.mx-sweep {
+  animation: mxsweep 4.5s linear infinite;
+}
+.mx-ping {
+  animation: mxping 2s ease-out infinite;
+}
+.mx-radar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 8px;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.mx-radar-legend span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.mx-radar-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
 }
 
 /* ---- Input / Textarea / Select / Label (mx-fields) ----

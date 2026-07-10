@@ -9,8 +9,27 @@ import { InstallerSidebar } from '@/components/shared/installer-sidebar';
 import { MxSubtabButton } from '@/components/shared/mx-subtab-button';
 import { MxSubtabs } from '@/components/shared/mx-subtabs';
 import { PublishModal } from '@/components/shared/publish-modal';
+import { Radar, type RadarInstallerState } from '@/components/shared/radar';
 import { SucursalSelect } from '@/components/shared/sucursal-select';
+import { ELIGIBLE_ORDER } from '@/constants';
 import type { Rol } from '@/types/enums';
+
+/**
+ * Props mock de `Radar` para la integración temporal del Sprint 3.7 (ver
+ * bloque de documentación más abajo). NO son datos reales de trabajos/bids
+ * — son valores fijos de ejemplo, uno por cada color de la leyenda
+ * ("Notificado"/"Abrió"/"Respondiendo"/"Respondió"/"Seleccionado"), para
+ * poder validar visualmente el componente sin depender de `jobs`/lógica de
+ * negocio real (que no existe todavía — ver docs/sprints/sprint-3.7.md).
+ */
+const RADAR_DEMO_NOTIFIED = ['pty', 'climatech', 'frio', 'airepro', 'cool'] as const;
+const RADAR_DEMO_INST_STATE: Record<string, RadarInstallerState> = {
+  pty: { state: 'notified' },
+  climatech: { state: 'opened' },
+  frio: { state: 'responding' },
+  airepro: { state: 'responded' },
+  cool: { state: 'selected' },
+};
 
 /**
  * RootLayout — equivalente de "AppShell" pedido en el listado de Layout de
@@ -199,6 +218,36 @@ import type { Rol } from '@/types/enums';
  * showPublishModal forzado por el botón real onOpenPublish cuando exista
  * Coordinator/QueueBar") — por eso `showPublishModal` vuelve a arrancar en
  * `false` en este Sprint.
+ *
+ * ---------------------------------------------------------------------
+ * TEMPORARY INTEGRATION — Sprint 3.7 (`Radar`)
+ * ---------------------------------------------------------------------
+ * `Radar` reconstruye `function Radar({ notified, instState, eligibleIds })`
+ * (líneas 1492-1745 del HTML fuente) — un único componente SVG (círculos
+ * concéntricos, sweep animado, pines de instaladores, leyenda), sin ninguna
+ * librería de mapas. En el HTML fuente, `Radar` solo se monta dentro de la
+ * tarjeta "Despacho en vivo" de `Coordinator()` (líneas 2291-2295), que a su
+ * vez solo se alcanza cuando `jobs.length > 0` — el mismo bloqueo ya
+ * documentado en el Sprint 3.6 para `CoordinatorEmptyState` (`jobs` arranca
+ * en `[]`, sin ningún seed/mock en el HTML fuente).
+ *
+ * Como esa tarjeta real todavía no existe, `Radar` no tiene consumidor real
+ * dentro del flujo de la aplicación. Se consultó explícitamente al usuario
+ * cómo proceder dado que el brief de este Sprint prohibía crear "navegación
+ * temporal" y no existe ninguna página de showcase (eliminada en el Sprint
+ * 3.1) — el usuario aprobó una excepción explícita: integrar temporalmente
+ * en `RootLayout.tsx`, sin crear rutas nuevas, sin modificar React Router,
+ * sin alterar arquitectura ni introducir lógica de negocio, documentado como
+ * temporal. Aquí se aplica ese criterio: `Radar` se monta dentro de `role
+ * === 'coordinador'`, después de `CoordinatorEmptyState`, con las props mock
+ * `RADAR_DEMO_NOTIFIED`/`RADAR_DEMO_INST_STATE` definidas arriba (una
+ * combinación fija que ejercita los 5 colores de la leyenda) y
+ * `eligibleIds={ELIGIBLE_ORDER}` (constante real del HTML fuente, no
+ * inventada). Se retirará de aquí — junto con `CoordinatorEmptyState` — en
+ * el Sprint que construya la tarjeta real "Despacho en vivo" de
+ * `Coordinator`, donde `Radar` recibirá props derivadas del `job` activo en
+ * vez de este mock. Ver "Problema encontrado / decisión de integración
+ * temporal" en docs/sprints/sprint-3.7.md.
  */
 export function RootLayout() {
   const [role, setRole] = useState<Rol>('coordinador');
@@ -223,6 +272,12 @@ export function RootLayout() {
             </MxSubtabs>
             {/* TEMPORARY INTEGRATION — Sprint 3.6 (CoordinatorEmptyState): ver comentario de la función. */}
             <CoordinatorEmptyState onOpenPublish={() => setShowPublishModal(true)} />
+            {/* TEMPORARY INTEGRATION — Sprint 3.7 (Radar): ver comentario de la función. */}
+            <Radar
+              notified={RADAR_DEMO_NOTIFIED}
+              instState={RADAR_DEMO_INST_STATE}
+              eligibleIds={ELIGIBLE_ORDER}
+            />
           </div>
         )}
         {/* TEMPORARY INTEGRATION — Sprint 3.2.1, corregida en 3.2.2: ver comentario de la función. */}

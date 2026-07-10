@@ -10,7 +10,8 @@ Checklist vivo. **Desde el Sprint 3.1, el checklist activo para el trabajo resta
 6. **Sprint 3.4 — `mx-suc-sel` ✅** (validación local + visual aprobadas — ver `docs/sprints/sprint-3.4.md`)
 7. **Sprint 3.5 — `PublishModal` ✅** (validación local + visual aprobadas — ver `docs/sprints/sprint-3.5.md`)
 8. **Sprint 3.6 — `CoordinatorEmptyState` ✅** (validación local + visual aprobadas — ver `docs/sprints/sprint-3.6.md`)
-9. Sprints 3.7–3.16 — ver `docs/SPRINTS_INDEX.md`
+9. **Sprint 3.7 — `Radar` ✅** (validación local + visual aprobadas — ver `docs/sprints/sprint-3.7.md`)
+10. Sprints 3.8–3.16 — ver `docs/SPRINTS_INDEX.md`
 5. (Futuro, a re-planificar en Sprints) Integración completa con Supabase, Realtime, eliminación de datos mock, pruebas finales
 
 ## Fase 1 — Arquitectura (completada)
@@ -140,12 +141,26 @@ Migra exclusivamente el estado vacío de `function Coordinator(props)` (`if (job
 - [x] Validación real del usuario confirmada en verde (`npm run lint`/`typecheck`/`build`/`dev`) sobre `feature/sprint-3-6-coordinator-empty-state`.
 - [x] Validación visual del usuario confirmada — `CoordinatorEmptyState` coincide con el HTML oficial y el botón "Publicar trabajo" abre correctamente `PublishModal`.
 - [x] **Sprint 3.6 cerrado formalmente (✅ Completado)**. Sin pendientes técnicos.
-- [ ] **Detenido a propósito**: no se avanza a Sprint 3.7 sin aprobación explícita del usuario.
 
-## Fase 4 — Módulo Coordinator (parcialmente iniciada vía Sprint 3.6 — estado vacío; ver Sprints 3.7 en adelante en `docs/SPRINTS_INDEX.md`)
+## Sprint 3.7 — `Radar` (completado ✅)
 
-- [ ] `DespachoPage` (QueueBar, JobCard, RadarPanel, JobStatsGrid, ResponsesFeed, AssignedPanel, NoResponsePanel) con datos mock locales — depende de `jobs`/`Trabajo` real (Sprint futuro).
+Migra exclusivamente `function Radar({ notified, instState, eligibleIds })` (líneas 1492-1745 del JSX fuente) — único componente SVG autocontenido (círculos concéntricos, grilla, sector de sweep animado, pines de instaladores, leyenda de 5 colores). Detalle completo en `docs/sprints/sprint-3.7.md`.
+
+- [x] Análisis previo obligatorio: se confirmó que "Radar" es un nombre real (`function Radar`), pero se descartó la arquitectura multi-componente sugerida en el brief (`RadarMap`/`RadarMarker`/`RadarLegend`/`RadarOverlay`/`RadarControls`/etc.) — no corresponde a nada real del HTML fuente, que tiene un único componente sin sub-componentes propios.
+- [x] Se excluyó explícitamente `CountRing` (líneas 1437-1491, vecino en el archivo fuente) de este Sprint — es un anillo de countdown sin relación visual con el radar, reservado para el Sprint 3.8 ("Countdown").
+- [x] `Radar` (`src/components/shared/radar.tsx`) — componente nuevo, sin sub-componentes; usa datos mock nuevos `INSTALLERS`/`ELIGIBLE_ORDER` (`src/constants/index.ts`) y la utilidad `hashAngle` (`src/lib/utils.ts`).
+- [x] CSS agregado en `globals.css`: `.mx-radar-wrap`, `.mx-radar`, `.mx-sweep`, `.mx-ping`, `.mx-radar-legend` (+ nested `span`/`i`), verbatim del HTML fuente; más una regla adicional (aditiva) de `prefers-reduced-motion` para las clases crudas `.mx-sweep`/`.mx-ping`/`.mx-blink`/`.mx-spin` (gap detectado y corregido de Fase 3).
+- [x] Excepción explícita del usuario para integración temporal en `RootLayout.tsx` (no App.tsx, no Router, no rutas nuevas, sin lógica de negocio) — documentada en `docs/sprints/sprint-3.7.md`. `Radar` se integró como último hijo del bloque `role === 'coordinador'`, con datos mock de demostración (`RADAR_DEMO_NOTIFIED`/`RADAR_DEMO_INST_STATE`).
+- [x] Validación local confirmada por el usuario (`npm install`/`lint`/`typecheck`/`build`/`dev`).
+- [x] Validación visual confirmada por el usuario — `Radar` coincide con `Multimax_Despacho_v1.3.html`.
+- [x] **Sprint 3.7 cerrado formalmente (✅ Completado)**. Sin pendientes técnicos.
+- [ ] **Detenido a propósito**: no se avanza a Sprint 3.8 sin el análisis previo obligatorio de su propio bloque HTML.
+
+## Fase 4 — Módulo Coordinator (parcialmente iniciada vía Sprints 3.6/3.7 — estado vacío + Radar; ver Sprints 3.8 en adelante en `docs/SPRINTS_INDEX.md`)
+
+- [ ] `DespachoPage` (QueueBar, JobCard, JobStatsGrid, ResponsesFeed, AssignedPanel, NoResponsePanel) con datos mock locales — depende de `jobs`/`Trabajo` real (Sprint futuro).
 - [x] Estado vacío de `Coordinator` (`mx-qempty`) reconstruido — Sprint 3.6 (`CoordinatorEmptyState`).
+- [x] `Radar` (panel SVG de instaladores) reconstruido — Sprint 3.7, integrado temporalmente en `RootLayout`.
 - [ ] Conectar `PublishModal` (Sprint 3.5) a lógica real de publicación (`onPublish` → `jobs`/`TRABAJOS`). El botón real `onOpenPublish` ya existe desde Sprint 3.6 (`CoordinatorEmptyState`), pendiente solo la lógica de `publishJob` en sí.
 - [ ] `TrabajosPage` / `TrabajoDetailPage` (historial, filtro, timeline) con datos mock locales.
 - [ ] `MasterCalendar` (grid, dots, leyenda) con datos mock locales.

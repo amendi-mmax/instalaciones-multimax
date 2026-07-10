@@ -145,3 +145,194 @@ export function buildTimeSlots(startH: number, endH: number): string[] {
 }
 
 export const SLOTS_COORD: readonly string[] = buildTimeSlots(7, 20);
+
+/**
+ * INSTALLERS / ELIGIBLE_ORDER — mock de instaladores del prototipo
+ * (`Multimax_Despacho_v1.3.html`, línea 887: `const INSTALLERS = [...]`, 11
+ * instaladores; línea 1020: `const ELIGIBLE_ORDER = [...]`, 9 ids),
+ * transcritos verbatim. Alimentan el posicionamiento de pines de `Radar`
+ * (Sprint 3.7, `src/components/shared/radar.tsx`): `Radar` itera
+ * `INSTALLERS.filter(i => eligibleIds.includes(i.id))` y usa `i.km` para la
+ * distancia radial de cada pin.
+ *
+ * Nota de fidelidad: los campos usan los nombres literales del prototipo
+ * (`zona`, `km`, `cumpl`, `acept`, `prom`, `disp`, `docs`, `susp`), distintos
+ * de los del tipo de dominio `Usuario`/`Instalador` (`types/domain.ts`:
+ * `rating`, `cumplimiento`, `aceptacion`, etc. en camelCase completo) — misma
+ * discrepancia ya reportada para `km` en el Sprint 3.2
+ * (`InstallerProfileSummary`). No se unifican aquí: `INSTALLERS` es el mock
+ * literal del prototipo, no una fuente de verdad de dominio. La fuente real
+ * de instaladores en producción vendrá de Supabase (tabla `usuarios`, ver
+ * `types/database.ts`) en una fase de integración futura.
+ */
+export interface InstallerMock {
+  id: string;
+  nombre: string;
+  zona: string;
+  rating: number;
+  km: number;
+  cumpl: number;
+  acept: number;
+  prom: number;
+  disp: 'ahora' | 'hoy' | 'semana' | 'ocupado';
+  docs: boolean;
+  susp: boolean;
+}
+
+export const INSTALLERS: readonly InstallerMock[] = [
+  {
+    id: 'pty',
+    nombre: 'Instalaciones PTY',
+    zona: 'Paitilla',
+    rating: 4.9,
+    km: 1.8,
+    cumpl: 98,
+    acept: 92,
+    prom: 41,
+    disp: 'ahora',
+    docs: true,
+    susp: false,
+  },
+  {
+    id: 'climatech',
+    nombre: 'ClimaTech Panamá',
+    zona: 'Punta Pacífica',
+    rating: 4.8,
+    km: 2.6,
+    cumpl: 95,
+    acept: 88,
+    prom: 55,
+    disp: 'ahora',
+    docs: true,
+    susp: false,
+  },
+  {
+    id: 'frio',
+    nombre: 'Frío Express PTY',
+    zona: 'San Francisco',
+    rating: 4.7,
+    km: 3.4,
+    cumpl: 93,
+    acept: 81,
+    prom: 70,
+    disp: 'hoy',
+    docs: true,
+    susp: false,
+  },
+  {
+    id: 'airepro',
+    nombre: 'AirePro Paitilla',
+    zona: 'Paitilla',
+    rating: 4.6,
+    km: 2.1,
+    cumpl: 90,
+    acept: 74,
+    prom: 62,
+    disp: 'hoy',
+    docs: true,
+    susp: false,
+  },
+  {
+    id: 'cool',
+    nombre: 'CoolMaster Panamá',
+    zona: 'Costa del Este',
+    rating: 4.5,
+    km: 4.9,
+    cumpl: 88,
+    acept: 69,
+    prom: 95,
+    disp: 'semana',
+    docs: true,
+    susp: false,
+  },
+  {
+    id: 'servifrio',
+    nombre: 'Servifrío',
+    zona: 'Bella Vista',
+    rating: 4.4,
+    km: 5.6,
+    cumpl: 86,
+    acept: 65,
+    prom: 110,
+    disp: 'hoy',
+    docs: true,
+    susp: false,
+  },
+  {
+    id: 'andes',
+    nombre: 'Andes Clima',
+    zona: 'El Cangrejo',
+    rating: 4.3,
+    km: 6.8,
+    cumpl: 84,
+    acept: 60,
+    prom: 130,
+    disp: 'semana',
+    docs: true,
+    susp: false,
+  },
+  {
+    id: 'tecno',
+    nombre: 'TecnoAire',
+    zona: 'Obarrio',
+    rating: 4.2,
+    km: 7.9,
+    cumpl: 82,
+    acept: 58,
+    prom: 140,
+    disp: 'hoy',
+    docs: true,
+    susp: false,
+  },
+  {
+    id: 'polar',
+    nombre: 'Polar Service',
+    zona: 'Vía España',
+    rating: 4.1,
+    km: 9.2,
+    cumpl: 80,
+    acept: 55,
+    prom: 160,
+    disp: 'semana',
+    docs: true,
+    susp: false,
+  },
+  {
+    id: 'susp',
+    nombre: 'RapiClima',
+    zona: 'Tocumen',
+    rating: 3.6,
+    km: 11.0,
+    cumpl: 61,
+    acept: 40,
+    prom: 220,
+    disp: 'ocupado',
+    docs: true,
+    susp: true,
+  },
+  {
+    id: 'vencido',
+    nombre: 'Aire Total',
+    zona: 'Juan Díaz',
+    rating: 4.0,
+    km: 8.4,
+    cumpl: 78,
+    acept: 52,
+    prom: 150,
+    disp: 'hoy',
+    docs: false,
+    susp: false,
+  },
+] as const;
+
+export const ELIGIBLE_ORDER: readonly string[] = [
+  'pty',
+  'climatech',
+  'frio',
+  'airepro',
+  'cool',
+  'servifrio',
+  'andes',
+  'tecno',
+  'polar',
+] as const;

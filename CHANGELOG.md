@@ -2,6 +2,44 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Sprint 3.7 — Cierre del Sprint] — 2026-07-09
+
+Cierre administrativo. Sin cambios de código en esta entrada — únicamente documentación.
+
+- ✅ Validación local aprobada por el usuario (`npm install`, `npm run lint`, `npm run typecheck`, `npm run build`, `npm run dev`) sobre `feature/sprint-3-7-radar`.
+- ✅ Validación visual aprobada por el usuario: `Radar` coincide con `Multimax_Despacho_v1.3.html`.
+- ✅ Sprint 3.7 cerrado.
+- Siguiente Sprint a desarrollar: **Sprint 3.8** (`Countdown`/`CountRing`) (no se inicia sin el análisis previo obligatorio de su propio bloque HTML).
+
+## [Sprint 3.7 — `Radar`] — 2026-07-09
+
+Continúa la migración incremental. El brief de este Sprint llamaba al bloque "Radar / Mapa de Instaladores" y sugería una arquitectura multi-componente (`RadarMap`/`RadarMarker`/`RadarOverlay`/`RadarControls`/etc.) que **no corresponde a nada real del HTML**: el análisis obligatorio confirmó que `Radar` es un único componente SVG autocontenido (líneas 1492-1745 del script), sin librería de mapas ni sub-componentes propios. Se descartó explícitamente `CountRing` (vecino en el archivo, líneas 1437-1491) — es un anillo de countdown sin relación con el radar, reservado para el Sprint 3.8.
+
+### Añadido
+
+- `src/components/shared/radar.tsx` (`Radar`) — reconstruye el panel SVG completo: círculos concéntricos, grilla, sweep animado, pines de instaladores (posición determinística vía `hashAngle` + km), líneas de "ruta" y leyenda de 5 colores.
+- `INSTALLERS` (11 instaladores) y `ELIGIBLE_ORDER` (9 ids) en `src/constants/index.ts` — mocks verbatim del HTML fuente.
+- `hashAngle` en `src/lib/utils.ts` — utilidad pura de hash determinístico, verbatim.
+- `.mx-radar-wrap`/`.mx-radar`/`.mx-sweep`/`.mx-ping`/`.mx-radar-legend` en `src/styles/globals.css`, verbatim; más un segundo bloque `@media (prefers-reduced-motion: reduce)` para las clases planas `.mx-sweep`/`.mx-ping`/`.mx-blink`/`.mx-spin` (gap de Fase 3 detectado y corregido de paso, adición pura).
+- `docs/sprints/sprint-3.7.md`.
+
+### Cambiado
+
+- `src/layouts/RootLayout.tsx`: integración TEMPORAL de `Radar` (props mock, aprobada explícitamente por el usuario tras consulta directa) como último hijo del bloque `role === 'coordinador'`, después de `CoordinatorEmptyState`.
+
+### Reportado (sin corregir)
+
+- `Radar` no tiene todavía consumidor real: en el HTML fuente solo se monta dentro de la tarjeta "Despacho en vivo" de `Coordinator()`, que requiere `jobs.length > 0` (sin datos reales todavía). Se deja documentado, con integración temporal aprobada para validación visual — ver `docs/sprints/sprint-3.7.md`.
+
+### Sin cambios
+
+- No se modificó `Header`, `mx-instside`/`InstallerSidebar`, `mx-subtabs`, `SucursalSelect`, `PublishModal`, `CoordinatorEmptyState`, `Footer` ni `AppRouter.tsx`. No se creó ninguna ruta nueva ni se modificó React Router. No se implementó `CountRing`, `mx-jobcard`, QueueBar, Indicadores reales, Timeline, Calendar, ni ningún módulo de Installer/Admin. No se integró ninguna librería de mapas ni API/Supabase.
+
+### Validación
+
+- `tsc --noEmit` (stubs ambientales): 0 diagnósticos. `prettier --check` sobre `.ts`/`.tsx`: cero diferencias (tras `--write` sobre el archivo nuevo). `git diff --stat` confirma el alcance exacto.
+- **Sprint 3.7 queda en 🟡 En revisión** — pendiente de que el usuario confirme localmente las 4 validaciones reales y la validación visual.
+
 ## [Sprint 3.6 — Cierre del Sprint] — 2026-07-09
 
 Cierre administrativo. Sin cambios de código en esta entrada — únicamente documentación.

@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — HANDYMAX · Multimax Despacho
 
-Última actualización: 2026-07-09 — Sprint 3.6 (`CoordinatorEmptyState`) — ✅ Completado
+Última actualización: 2026-07-09 — Sprint 3.7 (`Radar`) — ✅ Completado
 
 ## Cambio de metodología (vigente desde el Sprint 3.1)
 
@@ -271,15 +271,35 @@ El nombre genérico "Job Cards" que traía `docs/SPRINTS_INDEX.md` para este Spr
 - No quedan pendientes técnicos del Sprint 3.6. La integración temporal en `RootLayout.tsx` queda aprobada tal cual hasta que exista `layouts/CoordinatorLayout.tsx`/`Coordinator` real.
 - **El siguiente Sprint a desarrollar es el Sprint 3.7** — no se inicia sin aprobación explícita del usuario.
 
+## Sprint 3.7 — `Radar` (2026-07-09) — ✅ Completado
+
+El brief de este Sprint llamaba al bloque "Radar / Mapa de Instaladores" y sugería una arquitectura multi-componente (`RadarMap`/`RadarMarker`/`RadarOverlay`/`RadarControls`/etc.) que **no corresponde a nada real del HTML**. Análisis completo en `docs/sprints/sprint-3.7.md`.
+
+- Análisis previo: se confirmó que `Radar` (líneas 1492-1745 del script) es un único componente SVG autocontenido — círculos concéntricos, sweep animado, pines de instaladores, leyenda — sin ninguna librería de mapas ni sub-componentes propios reutilizables. Se descartó `CountRing` (vecino en el archivo) del alcance: es un anillo de countdown sin relación con el radar, reservado para el Sprint 3.8.
+- Componente nuevo: `Radar` (`src/components/shared/radar.tsx`).
+- Datos/utilidades agregadas: `INSTALLERS`/`ELIGIBLE_ORDER` (`src/constants/index.ts`, mocks verbatim) y `hashAngle` (`src/lib/utils.ts`, utilidad pura verbatim). `fmt` (vecino en el HTML fuente) se dejó fuera deliberadamente — `Radar` no lo usa.
+- CSS agregado: `.mx-radar-wrap`/`.mx-radar`/`.mx-sweep`/`.mx-ping`/`.mx-radar-legend`, verbatim; más un gap de Fase 3 corregido de paso (`prefers-reduced-motion` para las clases planas `.mx-sweep`/`.mx-ping`/`.mx-blink`/`.mx-spin`).
+- Integración temporal en `RootLayout.tsx`: `Radar` no tiene todavía consumidor real (depende de la tarjeta "Despacho en vivo" de `Coordinator`, que requiere `jobs.length > 0`, sin datos reales todavía). Se consultó al usuario, que aprobó explícitamente montar `Radar` temporalmente en `RootLayout.tsx` con props mock, sin rutas nuevas ni cambios a React Router, para permitir su validación visual.
+- Validación best-effort: 0 diagnósticos de `tsc`; `prettier --check` sin diferencias; `git diff --stat` confirma el alcance exacto.
+- Detalle completo: `docs/sprints/sprint-3.7.md`.
+
+### Sprint 3.7 finalizado (2026-07-09)
+
+- Validación local completada: el usuario confirmó en su máquina que `npm install`, `npm run lint`, `npm run typecheck`, `npm run build` y `npm run dev` finalizan sin errores sobre `feature/sprint-3-7-radar`.
+- Validación visual completada: el usuario confirmó que `Radar` coincide con `Multimax_Despacho_v1.3.html`.
+- No quedan pendientes técnicos del Sprint 3.7. La integración temporal en `RootLayout.tsx` queda aprobada tal cual hasta que exista la tarjeta real "Despacho en vivo"/`Coordinator` real.
+- **El siguiente Sprint a desarrollar es el Sprint 3.8** (`Countdown`/`CountRing`) — no se inicia sin el análisis previo obligatorio de su propio bloque HTML.
+
 ## Qué falta
 
-- **Sprint 3.6: cerrado, sin pendientes técnicos** (ver "Sprint 3.6 finalizado" arriba).
+- **Sprint 3.8 (`Countdown`/`CountRing`): sin iniciar** — próximo Sprint a desarrollar, pendiente de análisis previo obligatorio.
 - **Bloqueante para cerrar el Sprint 3.2**: confirmar en el entorno del usuario `npm install && npm run lint && npm run typecheck && npm run build && npm run dev` en verde sobre la rama `feature/sprint-3-2-mx-instside`.
 - A partir de aquí, el trabajo restante (antes descrito como "Fase 4 — Coordinator", "Fase 5 — Installer", "Fase 6 — Admin", etc.) se ejecuta Sprint a Sprint según `docs/SPRINTS_INDEX.md`, cada uno esperando aprobación explícita antes de iniciar el siguiente. La integración con Supabase, Realtime, eliminación de mocks y pruebas finales (antes Fases 7–10) siguen vigentes como trabajo futuro, a re-planificar en Sprints una vez completado el bloque 3.x.
 - `CountRing`/`LiveCountdown` (countdown circular de rondas/bids) y los layouts por rol (`CoordinatorLayout`/`InstallerLayout`/`AdminLayout`) siguen fuera de alcance hasta el Sprint que corresponda. Ver `MIGRATION_STATUS.md`.
 - Sincronización pendiente entre `SucursalSelect` y el badge de sucursal del Header (reportado, no corregido) — ver "Problema encontrado" en `docs/sprints/sprint-3.4.md`; queda como trabajo futuro, no bloquea el cierre de ningún Sprint.
 - `onPublish` sin lógica real en `PublishModal` (reportado, no corregido) — ver "Problema encontrado" en `docs/sprints/sprint-3.5.md`; pendiente para el Sprint que implemente `jobs`/`Trabajo` real.
-- El resto de `Coordinator()` (`mx-jobcard`, `QueueBar`, Radar, `AssignedPanel`, `NoResponsePanel`, respuestas, indicadores) queda pendiente de un Sprint que también implemente `jobs`/`publishJob` real — ver "Problema encontrado / decisión" en `docs/sprints/sprint-3.6.md`.
+- El resto de `Coordinator()` (`mx-jobcard`, `QueueBar`, `AssignedPanel`, `NoResponsePanel`, respuestas, indicadores) queda pendiente de un Sprint que también implemente `jobs`/`publishJob` real — ver "Problema encontrado / decisión" en `docs/sprints/sprint-3.6.md`. `Radar` (Sprint 3.7, ✅ completado) ya está reconstruido pero también depende de esa misma base para su integración definitiva.
+- `CountRing` queda pendiente para el Sprint 3.8 — ver `docs/sprints/sprint-3.7.md`.
 
 ## Problemas encontrados (heredados de Fase 1, siguen sin resolver)
 
@@ -300,4 +320,4 @@ Ninguno de estos bloquea el scaffold de esta fase; sí bloquearán las fases 7 (
 
 ## Próximos pasos
 
-Esperar aprobación explícita del usuario antes de iniciar el Sprint 3.7. No se avanza automáticamente a ningún Sprint siguiente.
+Sprint 3.7 cerrado (✅ Completado). El próximo Sprint a desarrollar es el 3.8 (`Countdown`/`CountRing`), que requiere su propio análisis previo obligatorio (lectura de `function CountRing(...)`, líneas 1437-1491 del script) antes de escribir cualquier código. No se inicia sin aprobación explícita del usuario.
