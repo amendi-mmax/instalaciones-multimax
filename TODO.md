@@ -11,7 +11,9 @@ Checklist vivo. **Desde el Sprint 3.1, el checklist activo para el trabajo resta
 7. **Sprint 3.5 — `PublishModal` ✅** (validación local + visual aprobadas — ver `docs/sprints/sprint-3.5.md`)
 8. **Sprint 3.6 — `CoordinatorEmptyState` ✅** (validación local + visual aprobadas — ver `docs/sprints/sprint-3.6.md`)
 9. **Sprint 3.7 — `Radar` ✅** (validación local + visual aprobadas — ver `docs/sprints/sprint-3.7.md`)
-10. Sprints 3.8–3.16 — ver `docs/SPRINTS_INDEX.md`
+10. **Sprint 3.8 — `CountRing` ✅** (validación local + visual aprobadas — ver `docs/sprints/sprint-3.8.md`)
+11. **Sprint 3.9 — 🔜 Pendiente de implementación** (análisis previo obligatorio todavía no iniciado — ver `docs/SPRINTS_INDEX.md`)
+12. Sprints 3.10–3.16 — ver `docs/SPRINTS_INDEX.md`
 5. (Futuro, a re-planificar en Sprints) Integración completa con Supabase, Realtime, eliminación de datos mock, pruebas finales
 
 ## Fase 1 — Arquitectura (completada)
@@ -154,9 +156,25 @@ Migra exclusivamente `function Radar({ notified, instState, eligibleIds })` (lí
 - [x] Validación local confirmada por el usuario (`npm install`/`lint`/`typecheck`/`build`/`dev`).
 - [x] Validación visual confirmada por el usuario — `Radar` coincide con `Multimax_Despacho_v1.3.html`.
 - [x] **Sprint 3.7 cerrado formalmente (✅ Completado)**. Sin pendientes técnicos.
-- [ ] **Detenido a propósito**: no se avanza a Sprint 3.8 sin el análisis previo obligatorio de su propio bloque HTML.
 
-## Fase 4 — Módulo Coordinator (parcialmente iniciada vía Sprints 3.6/3.7 — estado vacío + Radar; ver Sprints 3.8 en adelante en `docs/SPRINTS_INDEX.md`)
+## Sprint 3.8 — `CountRing` (completado ✅)
+
+Migra exclusivamente `function CountRing({ remaining, total, size, color })` (líneas 1437-1491 del JSX fuente) — anillo SVG de countdown, sin clases CSS propias, sin estado/efectos/timers internos. Detalle completo en `docs/sprints/sprint-3.8.md`.
+
+- [x] Análisis previo obligatorio (20 preguntas exigidas por el brief): se confirmó que `CountRing` es un componente puro, sin CSS propio, sin dependencia de `Coordinator`/`mx-jobcard`/`Radar`/Timeline. Se detectó y reportó un segundo componente real distinto, `LiveCountdown` (línea 2473, con timer propio, usado dentro de `Coordinator`/`mx-jobcard`) — fuera de alcance de este Sprint.
+- [x] `CountRing` (`src/components/shared/countring.tsx`) — componente nuevo, sin sub-componentes.
+- [x] `fmt` reincorporada a `src/lib/utils.ts` (retirada en el Sprint 3.7, ahora con consumidora real confirmada).
+- [x] Cero CSS nuevo en `globals.css` — `CountRing` no usa ninguna clase `.mx-*`.
+- [x] Autorización explícita del usuario para integración temporal en `RootLayout.tsx` (mismo patrón de Sprints 3.5/3.6/3.7) — documentada en `docs/sprints/sprint-3.8.md`. `CountRing` se integró dentro de `role === 'instalador'` (su rol real, a diferencia de `Radar`/`CoordinatorEmptyState`), con props mock estáticas (`COUNTRING_DEMO_REMAINING`/`COUNTRING_DEMO_TOTAL`).
+- [x] Validación local confirmada por el usuario (`npm install`/`lint`/`typecheck`/`build`/`dev`).
+- [x] Validación visual confirmada por el usuario — `CountRing` coincide con `Multimax_Despacho_v1.3.html`.
+- [x] **Sprint 3.8 cerrado formalmente (✅ Completado)**. Sin pendientes técnicos.
+
+## Sprint 3.9 — Pendiente de implementación
+
+- [ ] Análisis previo obligatorio todavía no iniciado (lectura del bloque HTML correspondiente antes de escribir cualquier código).
+
+## Fase 4 — Módulo Coordinator (parcialmente iniciada vía Sprints 3.6/3.7 — estado vacío + Radar; ver Sprints 3.9 en adelante en `docs/SPRINTS_INDEX.md`)
 
 - [ ] `DespachoPage` (QueueBar, JobCard, JobStatsGrid, ResponsesFeed, AssignedPanel, NoResponsePanel) con datos mock locales — depende de `jobs`/`Trabajo` real (Sprint futuro).
 - [x] Estado vacío de `Coordinator` (`mx-qempty`) reconstruido — Sprint 3.6 (`CoordinatorEmptyState`).
@@ -164,12 +182,13 @@ Migra exclusivamente `function Radar({ notified, instState, eligibleIds })` (lí
 - [ ] Conectar `PublishModal` (Sprint 3.5) a lógica real de publicación (`onPublish` → `jobs`/`TRABAJOS`). El botón real `onOpenPublish` ya existe desde Sprint 3.6 (`CoordinatorEmptyState`), pendiente solo la lógica de `publishJob` en sí.
 - [ ] `TrabajosPage` / `TrabajoDetailPage` (historial, filtro, timeline) con datos mock locales.
 - [ ] `MasterCalendar` (grid, dots, leyenda) con datos mock locales.
-- [ ] `CountRing`/`LiveCountdown` (countdown circular de rondas/bids — movidos desde Fase 3, son feature-specific de Jobs/Radar).
+- [ ] `LiveCountdown` (countdown de texto con timer propio, usado en `mx-jobcard`/QueueBar — distinto de `CountRing`, ya migrado en Sprint 3.8).
 - [ ] `ConfirmDialog` de Fase 3 conectado al flujo real `requestCancel`/`doCancel`.
 
-## Fase 5 — Módulo Installer (no iniciada)
+## Fase 5 — Módulo Installer (parcialmente iniciada vía Sprint 3.8 — `CountRing`)
 
 - [ ] `SolicitudesPage` (AlertScreen, OfferForm, DisponibilidadChips, ResponseSentScreen, AssignedScreen, LostScreen, DeclinedScreen, ClosedScreen) con datos mock locales.
+- [x] `CountRing` (anillo de countdown usado en AlertScreen/OfferForm) reconstruido — Sprint 3.8, integrado temporalmente en `RootLayout`.
 - [ ] `MisTrabajosPage` con datos mock locales.
 - [ ] `PerfilPage` con datos mock locales.
 - [ ] `PhoneFrame`/`Sidebar` de Fase 3 conectados con datos reales del instalador seleccionado.

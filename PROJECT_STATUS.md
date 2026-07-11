@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — HANDYMAX · Multimax Despacho
 
-Última actualización: 2026-07-09 — Sprint 3.7 (`Radar`) — ✅ Completado
+Última actualización: 2026-07-10 — Sprint 3.8 (`CountRing`) — ✅ Completado. Sprint actual: 3.9.
 
 ## Cambio de metodología (vigente desde el Sprint 3.1)
 
@@ -290,16 +290,36 @@ El brief de este Sprint llamaba al bloque "Radar / Mapa de Instaladores" y suger
 - No quedan pendientes técnicos del Sprint 3.7. La integración temporal en `RootLayout.tsx` queda aprobada tal cual hasta que exista la tarjeta real "Despacho en vivo"/`Coordinator` real.
 - **El siguiente Sprint a desarrollar es el Sprint 3.8** (`Countdown`/`CountRing`) — no se inicia sin el análisis previo obligatorio de su propio bloque HTML.
 
+## Sprint 3.8 — `CountRing` (2026-07-10) — ✅ Completado
+
+El brief de este Sprint exigió un análisis previo exhaustivo (20 preguntas obligatorias) y una segunda aprobación explícita del usuario antes de implementar. Análisis completo en `docs/sprints/sprint-3.8.md`.
+
+- Análisis previo: se confirmó que `CountRing` (líneas 1437-1491 del script) es un anillo SVG de countdown, sin ninguna clase CSS propia (todo inline) y sin estado/efectos/timers internos — función pura derivada de sus props (`remaining`/`total`/`size`/`color`). No depende de `Coordinator`, `mx-jobcard`, `Radar` ni "Timeline". Sus dos únicos usos reales están dentro de `Installer(props)` (rol Instalador).
+- Hallazgo reportado: existe un segundo componente real de countdown, `LiveCountdown` (línea 2473, con timer propio, usado dentro de `Coordinator`/`mx-jobcard`) — distinto de `CountRing` y fuera de alcance de este Sprint.
+- Componente nuevo: `CountRing` (`src/components/shared/countring.tsx`).
+- Utilidad reincorporada: `fmt` (`src/lib/utils.ts`) — retirada en el Sprint 3.7, ahora con consumidora real confirmada.
+- Cero CSS nuevo: `CountRing` no usa ninguna clase `.mx-*`.
+- Integración temporal en `RootLayout.tsx`: `CountRing` no tenía consumidor real disponible (depende del flujo del Instalador — `mx-phone`/`mx-alert`/`mx-offer` — que no existe todavía). Se detuvo el trabajo, se explicó el motivo y se propuso la integración temporal antes de aplicarla, tal como exigía el brief; el usuario la autorizó explícitamente. Se montó dentro de `role === 'instalador'`, con props mock estáticas.
+- Validación best-effort: 0 diagnósticos de `tsc`; `prettier --check` sin diferencias; `git diff --stat` confirma el alcance exacto (3 archivos).
+- Detalle completo: `docs/sprints/sprint-3.8.md`.
+
+### Sprint 3.8 finalizado (2026-07-10)
+
+- Validación local completada: el usuario confirmó en su máquina que `npm install`, `npm run lint`, `npm run typecheck`, `npm run build` y `npm run dev` finalizan sin errores sobre `feature/sprint-3-8-countdown`.
+- Validación visual completada: el usuario confirmó que `CountRing` coincide con `Multimax_Despacho_v1.3.html`.
+- Sprint 3.8 aprobado por validación técnica y visual del usuario. No quedan pendientes técnicos. La integración temporal en `RootLayout.tsx` queda aprobada tal cual hasta que exista el flujo real del Instalador (`mx-phone`/`mx-alert`/`mx-offer`).
+- **El siguiente Sprint a desarrollar es el Sprint 3.9** — no se inicia sin el análisis previo obligatorio de su propio bloque HTML ni sin aprobación explícita del usuario.
+
 ## Qué falta
 
-- **Sprint 3.8 (`Countdown`/`CountRing`): sin iniciar** — próximo Sprint a desarrollar, pendiente de análisis previo obligatorio.
+- **Sprint 3.9: sin iniciar** — próximo Sprint a desarrollar, pendiente de análisis previo obligatorio.
 - **Bloqueante para cerrar el Sprint 3.2**: confirmar en el entorno del usuario `npm install && npm run lint && npm run typecheck && npm run build && npm run dev` en verde sobre la rama `feature/sprint-3-2-mx-instside`.
 - A partir de aquí, el trabajo restante (antes descrito como "Fase 4 — Coordinator", "Fase 5 — Installer", "Fase 6 — Admin", etc.) se ejecuta Sprint a Sprint según `docs/SPRINTS_INDEX.md`, cada uno esperando aprobación explícita antes de iniciar el siguiente. La integración con Supabase, Realtime, eliminación de mocks y pruebas finales (antes Fases 7–10) siguen vigentes como trabajo futuro, a re-planificar en Sprints una vez completado el bloque 3.x.
-- `CountRing`/`LiveCountdown` (countdown circular de rondas/bids) y los layouts por rol (`CoordinatorLayout`/`InstallerLayout`/`AdminLayout`) siguen fuera de alcance hasta el Sprint que corresponda. Ver `MIGRATION_STATUS.md`.
+- `LiveCountdown` (countdown de texto con timer propio, usado dentro de `Coordinator`/`mx-jobcard`) y los layouts por rol (`CoordinatorLayout`/`InstallerLayout`/`AdminLayout`) siguen fuera de alcance hasta el Sprint que corresponda. Ver `MIGRATION_STATUS.md`.
 - Sincronización pendiente entre `SucursalSelect` y el badge de sucursal del Header (reportado, no corregido) — ver "Problema encontrado" en `docs/sprints/sprint-3.4.md`; queda como trabajo futuro, no bloquea el cierre de ningún Sprint.
 - `onPublish` sin lógica real en `PublishModal` (reportado, no corregido) — ver "Problema encontrado" en `docs/sprints/sprint-3.5.md`; pendiente para el Sprint que implemente `jobs`/`Trabajo` real.
 - El resto de `Coordinator()` (`mx-jobcard`, `QueueBar`, `AssignedPanel`, `NoResponsePanel`, respuestas, indicadores) queda pendiente de un Sprint que también implemente `jobs`/`publishJob` real — ver "Problema encontrado / decisión" en `docs/sprints/sprint-3.6.md`. `Radar` (Sprint 3.7, ✅ completado) ya está reconstruido pero también depende de esa misma base para su integración definitiva.
-- `CountRing` queda pendiente para el Sprint 3.8 — ver `docs/sprints/sprint-3.7.md`.
+- El consumidor real de `CountRing` (Sprint 3.8, ✅ completado) — pantallas "alerta"/"oferta" del teléfono del Instalador — queda pendiente de un Sprint futuro que implemente `mx-phone`/`Installer` real. `LiveCountdown` sigue sin Sprint numerado — ver `docs/sprints/sprint-3.8.md`.
 
 ## Problemas encontrados (heredados de Fase 1, siguen sin resolver)
 
@@ -320,4 +340,4 @@ Ninguno de estos bloquea el scaffold de esta fase; sí bloquearán las fases 7 (
 
 ## Próximos pasos
 
-Sprint 3.7 cerrado (✅ Completado). El próximo Sprint a desarrollar es el 3.8 (`Countdown`/`CountRing`), que requiere su propio análisis previo obligatorio (lectura de `function CountRing(...)`, líneas 1437-1491 del script) antes de escribir cualquier código. No se inicia sin aprobación explícita del usuario.
+Sprint 3.8 cerrado (✅ Completado). El próximo Sprint a desarrollar es el 3.9, que requiere su propio análisis previo obligatorio antes de escribir cualquier código. No se inicia sin aprobación explícita del usuario.

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 
 import { CoordinatorEmptyState } from '@/components/shared/coordinator-empty-state';
+import { CountRing } from '@/components/shared/countring';
 import { Footer } from '@/components/shared/footer';
 import { Header } from '@/components/shared/header';
 import { InstallerSidebar } from '@/components/shared/installer-sidebar';
@@ -30,6 +31,18 @@ const RADAR_DEMO_INST_STATE: Record<string, RadarInstallerState> = {
   airepro: { state: 'responded' },
   cool: { state: 'selected' },
 };
+
+/**
+ * Props mock de `CountRing` para la integración temporal del Sprint 3.8 (ver
+ * bloque de documentación más abajo). NO son datos reales de una ronda de
+ * bid — en el HTML fuente `remaining`/`total` provienen de `jobView` (motor
+ * de trabajos, todavía no portado). `COUNTRING_DEMO_TOTAL` reproduce el
+ * default real `(j.bidMins || 5) * 60` con `bidMins = 5`; `COUNTRING_DEMO_
+ * REMAINING` es un valor fijo intermedio (no crítico, no vencido) solo para
+ * poder validar visualmente el anillo sin depender de ningún timer/estado.
+ */
+const COUNTRING_DEMO_TOTAL = 300;
+const COUNTRING_DEMO_REMAINING = 172;
 
 /**
  * RootLayout — equivalente de "AppShell" pedido en el listado de Layout de
@@ -248,6 +261,40 @@ const RADAR_DEMO_INST_STATE: Record<string, RadarInstallerState> = {
  * `Coordinator`, donde `Radar` recibirá props derivadas del `job` activo en
  * vez de este mock. Ver "Problema encontrado / decisión de integración
  * temporal" en docs/sprints/sprint-3.7.md.
+ *
+ * ---------------------------------------------------------------------
+ * TEMPORARY INTEGRATION — Sprint 3.8 (`CountRing`)
+ * ---------------------------------------------------------------------
+ * `CountRing` reconstruye `function CountRing({ remaining, total, size,
+ * color })` (líneas 1437-1491 del HTML fuente) — un anillo SVG de countdown
+ * sin ninguna clase CSS propia y sin estado/efectos/timers internos (función
+ * pura derivada de sus props). En el HTML fuente, sus dos únicos usos reales
+ * (líneas 3276 y 3317) están dentro de `Installer(props)` — pasos "alerta de
+ * nueva solicitud" y "tu propuesta" del teléfono del Instalador (`mx-phone`/
+ * `mx-alert`/`mx-offer`) — no dentro de `Coordinator`.
+ *
+ * Ese teléfono todavía no existe en el proyecto: el Sprint 3.2 solo migró
+ * `mx-instside` (el panel lateral); el "Phone Placeholder" de
+ * `.mx-instwrap` (ver bloque Sprint 3.2.1/3.2.2 arriba) sigue vacío a
+ * propósito. Tampoco existe el motor de trabajos (`jobs`/`jobView`) que
+ * alimentaría `remaining`/`total` con datos reales.
+ *
+ * Se consultó al usuario, que autorizó explícitamente esta integración
+ * temporal (mismo criterio ya aprobado en los Sprints 3.5/3.6/3.7): montar
+ * `CountRing` en `RootLayout.tsx`, sin rutas nuevas, sin cambios a React
+ * Router, sin lógica de negocio ni implementación del flujo del Instalador,
+ * únicamente para validación visual. Se monta dentro de `role ===
+ * 'instalador'` (su rol real en el HTML fuente, a diferencia de `Radar`/
+ * `CoordinatorEmptyState`, que sí pertenecen a `role === 'coordinador'`),
+ * como hermano de `.mx-instwrap` — no dentro de ese grid, ya que `CountRing`
+ * no forma parte de `mx-instside`/`InstallerSidebar` (que no se modifica) ni
+ * de su layout de 2 columnas; su posición real está dentro del futuro
+ * `mx-phone`, todavía no construido. Props mock `COUNTRING_DEMO_REMAINING`/
+ * `COUNTRING_DEMO_TOTAL` definidas arriba (valores fijos, sin timer propio —
+ * el timer real pertenece al motor de trabajos, fuera de alcance). Se
+ * retirará de aquí y se recolocará dentro del `mx-phone` real en el Sprint
+ * que implemente el flujo del Instalador. Ver "Problema encontrado /
+ * propuesta de integración temporal" en docs/sprints/sprint-3.8.md.
  */
 export function RootLayout() {
   const [role, setRole] = useState<Rol>('coordinador');
@@ -282,13 +329,17 @@ export function RootLayout() {
         )}
         {/* TEMPORARY INTEGRATION — Sprint 3.2.1, corregida en 3.2.2: ver comentario de la función. */}
         {role === 'instalador' && (
-          <div className="mx-instwrap">
-            {/* Phone Placeholder — reserva la primera columna del grid para
-                el futuro `layouts/InstallerLayout.tsx` (mx-phone). No se
-                implementa contenido/estilo de Phone en este Sprint. */}
-            <div />
-            <InstallerSidebar rating={4.9} km={1.8} cumplimiento={98} aceptacion={92} />
-          </div>
+          <>
+            <div className="mx-instwrap">
+              {/* Phone Placeholder — reserva la primera columna del grid para
+                  el futuro `layouts/InstallerLayout.tsx` (mx-phone). No se
+                  implementa contenido/estilo de Phone en este Sprint. */}
+              <div />
+              <InstallerSidebar rating={4.9} km={1.8} cumplimiento={98} aceptacion={92} />
+            </div>
+            {/* TEMPORARY INTEGRATION — Sprint 3.8 (CountRing): ver comentario de la función. */}
+            <CountRing remaining={COUNTRING_DEMO_REMAINING} total={COUNTRING_DEMO_TOTAL} />
+          </>
         )}
         {/* TEMPORARY INTEGRATION — Sprint 3.5 (PublishModal): ver comentario de la función. */}
         <PublishModal

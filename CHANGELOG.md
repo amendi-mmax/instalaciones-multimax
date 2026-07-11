@@ -2,6 +2,42 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## Sprint 3.8 — Cierre del Sprint
+
+- Validación técnica aprobada por el usuario (`npm install`, `npm run lint`, `npm run typecheck`, `npm run build`, `npm run dev`).
+- Validación visual aprobada — `CountRing` coincide con `Multimax_Despacho_v1.3.html`.
+- Integración temporal de `CountRing` en `RootLayout.tsx` aprobada.
+- Sprint 3.8 oficialmente completado (✅ Completado).
+- Próximo Sprint: Sprint 3.9.
+
+## [Sprint 3.8 — `CountRing`] — 2026-07-10
+
+Continúa la migración incremental. El brief de este Sprint exigió un análisis previo exhaustivo (20 preguntas) antes de escribir cualquier código, y una segunda aprobación explícita del usuario antes de implementar. `CountRing` (líneas 1437-1491 del script) es un anillo SVG de countdown, sin ninguna clase CSS propia (todo inline) y sin estado/efectos/timers internos — función pura derivada de sus props. Se detectó y reportó un hallazgo adicional: el script tiene un segundo componente real de countdown, `LiveCountdown` (línea 2473, con timer propio, usado dentro de `Coordinator`/`mx-jobcard`), distinto de `CountRing` y fuera de alcance de este Sprint.
+
+### Añadido
+
+- `src/components/shared/countring.tsx` (`CountRing`) — anillo SVG de countdown, sin sub-componentes.
+- `docs/sprints/sprint-3.8.md`.
+
+### Cambiado
+
+- `src/lib/utils.ts`: se reincorpora `fmt` (retirada en el Sprint 3.7 tras confirmar que `Radar` no la usaba; `CountRing` sí la usa genuinamente, línea 1482 del HTML).
+- `src/layouts/RootLayout.tsx`: integración TEMPORAL de `CountRing` (props mock estáticas, aprobada explícitamente por el usuario) dentro de `role === 'instalador'`, como hermano de `.mx-instwrap`.
+
+### Reportado (sin corregir)
+
+- `CountRing` no tiene todavía consumidor real: sus dos usos reales en el HTML están dentro de las pantallas "alerta"/"oferta" del teléfono del Instalador (`mx-phone`), que no existen en el proyecto. Se deja documentado, con integración temporal aprobada para validación visual — ver `docs/sprints/sprint-3.8.md`.
+- `LiveCountdown` (componente real distinto, línea 2473) no se implementó — queda para el Sprint que reconstruya `mx-jobcard`/QueueBar dentro de `Coordinator`, sin número asignado todavía.
+
+### Sin cambios
+
+- No se modificó `Header`, `mx-instside`/`InstallerSidebar`, `mx-subtabs`, `SucursalSelect`, `PublishModal`, `CoordinatorEmptyState`, `Radar`, `Footer` ni `AppRouter.tsx`. No se creó ninguna ruta nueva ni se modificó React Router. No se implementó `LiveCountdown` ni ninguna lógica real del flujo del Instalador. No se integró Supabase. Cero CSS nuevo en `globals.css`.
+
+### Validación
+
+- `tsc --noEmit` (stubs ambientales): 0 diagnósticos. `prettier --check` sobre `.ts`/`.tsx`: cero diferencias. `git diff --stat` confirma el alcance exacto (solo 3 archivos: 1 nuevo, 2 modificados).
+- **Sprint 3.8 — ✅ Completado** — validación real (`npm install`/`lint`/`typecheck`/`build`/`dev`) y validación visual confirmadas por el usuario (ver "Sprint 3.8 — Cierre del Sprint" arriba).
+
 ## [Sprint 3.7 — Cierre del Sprint] — 2026-07-09
 
 Cierre administrativo. Sin cambios de código en esta entrada — únicamente documentación.
