@@ -7,6 +7,7 @@ import { CountRing } from '@/components/shared/countring';
 import { Footer } from '@/components/shared/footer';
 import { Header } from '@/components/shared/header';
 import { InstallerSidebar } from '@/components/shared/installer-sidebar';
+import { LiveCountdown } from '@/components/shared/live-countdown';
 import { MxSubtabButton } from '@/components/shared/mx-subtab-button';
 import { MxSubtabs } from '@/components/shared/mx-subtabs';
 import { PublishModal } from '@/components/shared/publish-modal';
@@ -43,6 +44,20 @@ const RADAR_DEMO_INST_STATE: Record<string, RadarInstallerState> = {
  */
 const COUNTRING_DEMO_TOTAL = 300;
 const COUNTRING_DEMO_REMAINING = 172;
+
+/**
+ * Props mock de `LiveCountdown` para la integración temporal del Sprint 3.9
+ * (ver bloque de documentación más abajo). NO son datos reales de una ronda
+ * de bid — en el HTML fuente `publishedAt`/`bidMins` provienen de cada
+ * `job` de `jobs` dentro de `QueueBar` (motor de trabajos, todavía no
+ * portado). `LIVECOUNTDOWN_DEMO_PUBLISHED_AT` se calcula una única vez, al
+ * cargar este módulo, como "hace 60 segundos" (`Date.now() - 60_000`), para
+ * que el countdown arranque a mitad de camino en vez de en el valor inicial;
+ * `LIVECOUNTDOWN_DEMO_BID_MINS` reproduce el default real `j.bidMins || 5`
+ * con `bidMins = 5` (mismo valor usado por `COUNTRING_DEMO_TOTAL` arriba).
+ */
+const LIVECOUNTDOWN_DEMO_PUBLISHED_AT = Date.now() - 60_000;
+const LIVECOUNTDOWN_DEMO_BID_MINS = 5;
 
 /**
  * RootLayout — equivalente de "AppShell" pedido en el listado de Layout de
@@ -295,6 +310,36 @@ const COUNTRING_DEMO_REMAINING = 172;
  * retirará de aquí y se recolocará dentro del `mx-phone` real en el Sprint
  * que implemente el flujo del Instalador. Ver "Problema encontrado /
  * propuesta de integración temporal" en docs/sprints/sprint-3.8.md.
+ *
+ * ---------------------------------------------------------------------
+ * TEMPORARY INTEGRATION — Sprint 3.9 (`LiveCountdown`)
+ * ---------------------------------------------------------------------
+ * `LiveCountdown` reconstruye `function LiveCountdown({ publishedAt,
+ * bidMins })` (líneas 2473-2493 del HTML fuente) — un `<span>` de texto con
+ * su propio `useState`/`useEffect`/`setInterval`, sin ninguna clase CSS
+ * propia. En el HTML fuente su único uso real es dentro de `statusPill(jb)`,
+ * helper interno de `Coordinator(props)` (líneas 2171-2192), llamado una vez
+ * por trabajo dentro de `QueueBar` (líneas 2193-2210) — no dentro de
+ * `Installer`, a diferencia de `CountRing` (Sprint 3.8).
+ *
+ * Ese `QueueBar`/`statusPill` todavía no existe en el proyecto: el motor de
+ * trabajos (`jobs`/`jobView`) que lo alimentaría no ha sido portado (mismo
+ * bloqueo ya documentado para `CoordinatorEmptyState`/`Radar` en los
+ * Sprints 3.6/3.7 — `jobs` arranca en `[]`, sin ningún seed/mock en el HTML
+ * fuente).
+ *
+ * A partir de este Sprint aplica la nueva regla permanente del proyecto: la
+ * integración temporal forma parte del propio Sprint y no requiere
+ * autorización adicional (ver docs/sprints/sprint-3.9.md). Se monta aquí,
+ * dentro de `role === 'coordinador'` (su rol real en el HTML fuente, igual
+ * que `CoordinatorEmptyState`/`Radar`), como último elemento del bloque,
+ * con las props mock `LIVECOUNTDOWN_DEMO_PUBLISHED_AT`/
+ * `LIVECOUNTDOWN_DEMO_BID_MINS` definidas arriba — sin timer externo propio,
+ * el temporizador real es interno al propio componente (`setInterval` de
+ * 1000ms, tal como en el HTML fuente). Se retirará de aquí y se recolocará
+ * dentro del `QueueBar` real en el Sprint que implemente el motor de
+ * trabajos de `Coordinator`. Ver "Problema encontrado / decisión de
+ * integración temporal" en docs/sprints/sprint-3.9.md.
  */
 export function RootLayout() {
   const [role, setRole] = useState<Rol>('coordinador');
@@ -324,6 +369,11 @@ export function RootLayout() {
               notified={RADAR_DEMO_NOTIFIED}
               instState={RADAR_DEMO_INST_STATE}
               eligibleIds={ELIGIBLE_ORDER}
+            />
+            {/* TEMPORARY INTEGRATION — Sprint 3.9 (LiveCountdown): ver comentario de la función. */}
+            <LiveCountdown
+              publishedAt={LIVECOUNTDOWN_DEMO_PUBLISHED_AT}
+              bidMins={LIVECOUNTDOWN_DEMO_BID_MINS}
             />
           </div>
         )}

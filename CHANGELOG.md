@@ -2,6 +2,46 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## Sprint 3.9 — Cierre del Sprint
+
+- Validación técnica aprobada por el usuario (`npm install`, `npm run lint`, `npm run typecheck`, `npm run build`, `npm run dev`).
+- Validación visual aprobada — `LiveCountdown` coincide con `Multimax_Despacho_v1.3.html`.
+- Integración temporal de `LiveCountdown` en `RootLayout.tsx` aprobada.
+- Sprint 3.9 oficialmente completado (✅ Completado).
+- Próximo Sprint: Sprint 3.10.
+
+## [Sprint 3.9 — `LiveCountdown`] — 2026-07-11
+
+Continúa la migración incremental. El brief de este Sprint exigió, como los anteriores, un análisis previo obligatorio antes de escribir código (localización exacta, análisis completo del cuerpo de la función, determinación de consumidores, documentación en `docs/sprints/sprint-3.9.md`). `LiveCountdown` (líneas 2473-2493 del script) es un `<span>` de texto con countdown propio (`useState`+`useEffect`+`setInterval`), sin ninguna clase CSS propia. Se detectaron y reportaron dos discrepancias entre el brief y el HTML real: (1) `LiveCountdown` NO renderiza `CountRing` (Sprint 3.8) — son dos componentes de countdown independientes y sin relación en el HTML fuente; (2) `LiveCountdown` NO dispara ningún callback al expirar — no existe ninguna prop de tipo función en su firma real. A partir de este Sprint aplica la nueva regla permanente del proyecto: la integración temporal en `RootLayout.tsx` forma parte del propio Sprint y no requiere autorización adicional antes de aplicarla.
+
+### Añadido
+
+- `src/components/shared/live-countdown.tsx` (`LiveCountdown`) — `<span>` de countdown con timer propio, sin sub-componentes.
+- `docs/sprints/sprint-3.9.md`.
+
+### Cambiado
+
+- `src/lib/utils.ts`: JSDoc de `fmt` actualizado para documentar a `LiveCountdown` como su segundo consumidor real (sin cambio de lógica).
+- `src/layouts/RootLayout.tsx`: integración TEMPORAL de `LiveCountdown` (props mock `LIVECOUNTDOWN_DEMO_PUBLISHED_AT`/`LIVECOUNTDOWN_DEMO_BID_MINS`) dentro de `role === 'coordinador'`, como último elemento del bloque — su rol real en el HTML fuente (`statusPill`/`QueueBar` de `Coordinator`), a diferencia de `CountRing` (`role === 'instalador'`).
+
+### Adaptación técnica (no visual)
+
+- `calc` se envuelve en `useCallback(calc, [publishedAt, total])` para satisfacer la regla de ESLint `react-hooks/exhaustive-deps` (activa en este proyecto desde Fase 3), sin alterar el comportamiento de reinicio del timer del HTML original.
+
+### Reportado (sin corregir)
+
+- `LiveCountdown` no tiene todavía consumidor real dentro del flujo de la aplicación: su único uso real (`statusPill(jb)` dentro de `QueueBar`, dentro de `Coordinator`) depende de `jobs.length > 0`, sin datos reales todavía (mismo bloqueo documentado para `CoordinatorEmptyState`/`Radar` en los Sprints 3.6/3.7). Integración temporal aplicada directamente en `RootLayout.tsx`, sin pausa de aprobación, per la nueva regla permanente de este Sprint.
+- El brief asumía que `LiveCountdown` renderiza `CountRing` y que dispara callbacks al expirar — ambas asunciones son falsas contra el HTML real; se implementó la versión verificada, no la asumida. Ver `docs/sprints/sprint-3.9.md` → "Funcionalidad esperada — verificación punto por punto".
+
+### Sin cambios
+
+- No se modificó `Header`, `Sidebar`, `Main Layout`, `PublishModal`, `Radar`, `CountRing`, `MxSubtabs`/`MxSubtabButton`, `SucursalSelect` ni ningún otro componente previamente aprobado. No se reconstruyó `JobCard`, `Coordinator` (más allá de la integración temporal ya existente), `Installer` ni ninguna pantalla nueva. No se integró Supabase. Cero CSS nuevo en `globals.css`.
+
+### Validación
+
+- `tsc --noEmit` (stubs ambientales): 0 diagnósticos. `prettier --check` sobre `.ts`/`.tsx`: cero diferencias. `git diff --stat` confirma el alcance exacto (1 archivo nuevo de componente, 2 archivos de código modificados).
+- **Sprint 3.9 — ✅ Completado** — validación real (`npm install`/`lint`/`typecheck`/`build`/`dev`) y validación visual y funcional (timer corriendo en vivo) confirmadas por el usuario (ver "Sprint 3.9 — Cierre del Sprint" arriba).
+
 ## Sprint 3.8 — Cierre del Sprint
 
 - Validación técnica aprobada por el usuario (`npm install`, `npm run lint`, `npm run typecheck`, `npm run build`, `npm run dev`).

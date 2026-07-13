@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — HANDYMAX · Multimax Despacho
 
-Última actualización: 2026-07-10 — Sprint 3.8 (`CountRing`) — ✅ Completado. Sprint actual: 3.9.
+Última actualización: 2026-07-11 — Sprint 3.9 (`LiveCountdown`) — ✅ Completado. Sprint actual: 3.10.
 
 ## Cambio de metodología (vigente desde el Sprint 3.1)
 
@@ -310,16 +310,38 @@ El brief de este Sprint exigió un análisis previo exhaustivo (20 preguntas obl
 - Sprint 3.8 aprobado por validación técnica y visual del usuario. No quedan pendientes técnicos. La integración temporal en `RootLayout.tsx` queda aprobada tal cual hasta que exista el flujo real del Instalador (`mx-phone`/`mx-alert`/`mx-offer`).
 - **El siguiente Sprint a desarrollar es el Sprint 3.9** — no se inicia sin el análisis previo obligatorio de su propio bloque HTML ni sin aprobación explícita del usuario.
 
+## Sprint 3.9 — `LiveCountdown` (2026-07-11) — ✅ Completado
+
+El brief de este Sprint exigió el mismo análisis previo obligatorio de los Sprints anteriores (localización exacta del bloque, análisis completo de HTML/JSX/lógica/props/dependencias, documentación previa a cualquier código). Análisis completo en `docs/sprints/sprint-3.9.md`.
+
+- Análisis previo: se confirmó que `LiveCountdown` (líneas 2473-2493 del script) es un `<span>` de texto con countdown propio (`useState`+`useEffect`+`setInterval`, `Date.now()` en tiempo real, sin la aceleración de `CONF.speed` que sí aplica al motor de `jobView`), sin ninguna clase CSS propia. Su único consumidor real es `statusPill(jb)`, helper interno de `Coordinator(props)`, usado dentro de `QueueBar`.
+- Hallazgos reportados (discrepancias entre el brief y el HTML real, no asumidas): (1) `LiveCountdown` **no** renderiza `CountRing` (Sprint 3.8) — son dos componentes de countdown completamente independientes en el HTML fuente, sin relación entre sí, con el único punto en común de reutilizar `fmt`; (2) `LiveCountdown` **no** dispara ningún callback al llegar a cero — no existe ninguna prop de tipo función en su firma real; al expirar simplemente sigue mostrando "0:00 restante" en rojo.
+- Componente nuevo: `LiveCountdown` (`src/components/shared/live-countdown.tsx`).
+- Utilidad reutilizada, sin duplicar: `fmt` (`src/lib/utils.ts`) — JSDoc actualizado para documentar este segundo consumidor real.
+- Cero CSS nuevo: `LiveCountdown` no usa ninguna clase `.mx-*`.
+- Adaptación técnica (no visual): `calc` se envuelve en `useCallback` para satisfacer `react-hooks/exhaustive-deps`, sin alterar el comportamiento de reinicio del timer.
+- Integración temporal en `RootLayout.tsx`: a partir de este Sprint aplica la nueva regla permanente del proyecto — la integración temporal forma parte del propio Sprint y no requiere pausar para pedir autorización. Se montó directamente dentro de `role === 'coordinador'` (su rol real, distinto de `CountRing`/`role === 'instalador'`), como último elemento del bloque, con props mock estáticas (`LIVECOUNTDOWN_DEMO_PUBLISHED_AT`/`LIVECOUNTDOWN_DEMO_BID_MINS`).
+- Validación best-effort: 0 diagnósticos de `tsc`; `prettier --check` sin diferencias; `git diff --stat` confirma el alcance exacto.
+- Detalle completo: `docs/sprints/sprint-3.9.md`.
+
+### Sprint 3.9 finalizado (2026-07-11)
+
+- Validación local completada: el usuario confirmó en su máquina que `npm install`, `npm run lint`, `npm run typecheck`, `npm run build` y `npm run dev` finalizan sin errores (solo warnings históricos ya aceptados) sobre la rama activa.
+- Validación visual completada: el usuario confirmó que `LiveCountdown` coincide con `Multimax_Despacho_v1.3.html`.
+- Validación funcional completada: el usuario confirmó el comportamiento del timer en vivo, sin regresiones sobre componentes previamente aprobados.
+- Sprint 3.9 aprobado por validación técnica, visual y funcional del usuario. No quedan pendientes técnicos. La integración temporal en `RootLayout.tsx` queda aprobada tal cual hasta que exista el `QueueBar` real de `Coordinator`.
+- **El siguiente Sprint a desarrollar es el Sprint 3.10** — no se inicia sin el análisis previo obligatorio de su propio bloque HTML ni sin aprobación explícita del usuario.
+
 ## Qué falta
 
-- **Sprint 3.9: sin iniciar** — próximo Sprint a desarrollar, pendiente de análisis previo obligatorio.
+- **Sprint 3.10: sin iniciar** — próximo Sprint a desarrollar, pendiente de análisis previo obligatorio.
 - **Bloqueante para cerrar el Sprint 3.2**: confirmar en el entorno del usuario `npm install && npm run lint && npm run typecheck && npm run build && npm run dev` en verde sobre la rama `feature/sprint-3-2-mx-instside`.
 - A partir de aquí, el trabajo restante (antes descrito como "Fase 4 — Coordinator", "Fase 5 — Installer", "Fase 6 — Admin", etc.) se ejecuta Sprint a Sprint según `docs/SPRINTS_INDEX.md`, cada uno esperando aprobación explícita antes de iniciar el siguiente. La integración con Supabase, Realtime, eliminación de mocks y pruebas finales (antes Fases 7–10) siguen vigentes como trabajo futuro, a re-planificar en Sprints una vez completado el bloque 3.x.
-- `LiveCountdown` (countdown de texto con timer propio, usado dentro de `Coordinator`/`mx-jobcard`) y los layouts por rol (`CoordinatorLayout`/`InstallerLayout`/`AdminLayout`) siguen fuera de alcance hasta el Sprint que corresponda. Ver `MIGRATION_STATUS.md`.
+- Los layouts por rol (`CoordinatorLayout`/`InstallerLayout`/`AdminLayout`) siguen fuera de alcance hasta el Sprint que corresponda. Ver `MIGRATION_STATUS.md`.
 - Sincronización pendiente entre `SucursalSelect` y el badge de sucursal del Header (reportado, no corregido) — ver "Problema encontrado" en `docs/sprints/sprint-3.4.md`; queda como trabajo futuro, no bloquea el cierre de ningún Sprint.
 - `onPublish` sin lógica real en `PublishModal` (reportado, no corregido) — ver "Problema encontrado" en `docs/sprints/sprint-3.5.md`; pendiente para el Sprint que implemente `jobs`/`Trabajo` real.
 - El resto de `Coordinator()` (`mx-jobcard`, `QueueBar`, `AssignedPanel`, `NoResponsePanel`, respuestas, indicadores) queda pendiente de un Sprint que también implemente `jobs`/`publishJob` real — ver "Problema encontrado / decisión" en `docs/sprints/sprint-3.6.md`. `Radar` (Sprint 3.7, ✅ completado) ya está reconstruido pero también depende de esa misma base para su integración definitiva.
-- El consumidor real de `CountRing` (Sprint 3.8, ✅ completado) — pantallas "alerta"/"oferta" del teléfono del Instalador — queda pendiente de un Sprint futuro que implemente `mx-phone`/`Installer` real. `LiveCountdown` sigue sin Sprint numerado — ver `docs/sprints/sprint-3.8.md`.
+- El consumidor real de `CountRing` (Sprint 3.8, ✅ completado) — pantallas "alerta"/"oferta" del teléfono del Instalador — queda pendiente de un Sprint futuro que implemente `mx-phone`/`Installer` real. El consumidor real de `LiveCountdown` (Sprint 3.9, ✅ completado) — `statusPill`/`QueueBar` de `Coordinator` — queda pendiente de un Sprint futuro que implemente el motor de trabajos (`jobs`/`publishJob`) real. Ver `docs/sprints/sprint-3.9.md`.
 
 ## Problemas encontrados (heredados de Fase 1, siguen sin resolver)
 
@@ -340,4 +362,4 @@ Ninguno de estos bloquea el scaffold de esta fase; sí bloquearán las fases 7 (
 
 ## Próximos pasos
 
-Sprint 3.8 cerrado (✅ Completado). El próximo Sprint a desarrollar es el 3.9, que requiere su propio análisis previo obligatorio antes de escribir cualquier código. No se inicia sin aprobación explícita del usuario.
+Sprint 3.9 cerrado (✅ Completado). El próximo Sprint a desarrollar es el 3.10, que requiere su propio análisis previo obligatorio antes de escribir cualquier código. No se inicia sin aprobación explícita del usuario. No se ejecuta ninguna operación Git — el flujo Git es exclusivamente manual, a cargo del usuario.

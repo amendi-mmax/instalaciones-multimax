@@ -29,7 +29,8 @@ export function hashAngle(id: string): number {
  * fmt — formatea segundos a `m:ss` (`Multimax_Despacho_v1.3.html`, línea
  * 878: `const fmt = s => {...}`), transcrita verbatim. Usada por `CountRing`
  * (Sprint 3.8, línea 1482 del HTML fuente) para el texto central del anillo
- * de countdown.
+ * de countdown, y por `LiveCountdown` (Sprint 3.9, línea 2488 del HTML
+ * fuente) para el texto de su `<span>` de countdown de cola.
  *
  * Nota: esta misma función se había agregado y luego retirado en el Sprint
  * 3.7 tras confirmar que `Radar` no la usa (solo usa `hashAngle`). Se
