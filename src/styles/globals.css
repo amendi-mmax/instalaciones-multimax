@@ -895,6 +895,37 @@
   outline: none;
   border-color: var(--ice);
 }
+/* Sprint 3.10 — estado vacío de "Solicitudes" (InstallerSolicitudesEmptyState).
+   El HTML fuente combina este selector con .mx-phone-done/.mx-phone-sent
+   (línea 181 del <style> original); se porta aquí únicamente .mx-phone-empty
+   con las mismas declaraciones exactas, porque .mx-phone-done/.mx-phone-sent
+   no tienen consumidor todavía (dependen del motor de trabajos real, fuera
+   de alcance de este Sprint — ver docs/sprints/sprint-3.10.md). */
+.mx-phone-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 30px 22px;
+  gap: 10px;
+  color: var(--muted);
+}
+.mx-phone-empty svg {
+  color: var(--muted);
+  opacity: 0.6;
+}
+.mx-phone-empty p {
+  font-size: 15px;
+  color: var(--text);
+  font-weight: 600;
+  font-family: var(--fd);
+}
+.mx-phone-empty span {
+  font-size: 12.5px;
+  line-height: 1.5;
+}
 .mx-instside {
   display: flex;
   flex-direction: column;

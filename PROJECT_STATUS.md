@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — HANDYMAX · Multimax Despacho
 
-Última actualización: 2026-07-11 — Sprint 3.9 (`LiveCountdown`) — ✅ Completado. Sprint actual: 3.10.
+Última actualización: 2026-07-13 — Sprint 3.10 (`InstallerDashboard`) — ✅ Completado. Sprint actual: 3.11.
 
 ## Cambio de metodología (vigente desde el Sprint 3.1)
 
@@ -332,16 +332,37 @@ El brief de este Sprint exigió el mismo análisis previo obligatorio de los Spr
 - Sprint 3.9 aprobado por validación técnica, visual y funcional del usuario. No quedan pendientes técnicos. La integración temporal en `RootLayout.tsx` queda aprobada tal cual hasta que exista el `QueueBar` real de `Coordinator`.
 - **El siguiente Sprint a desarrollar es el Sprint 3.10** — no se inicia sin el análisis previo obligatorio de su propio bloque HTML ni sin aprobación explícita del usuario.
 
+## Sprint 3.10 — `InstallerDashboard` (2026-07-13) — ✅ Completado
+
+"Installer Dashboard" (nombre genérico del brief) no corresponde a ninguna función real del HTML — la función real es `Installer(props)` (líneas 3169-3452 del script), montada por `App()` cuando `role === "inst"`. Análisis completo en `docs/sprints/sprint-3.10.md`.
+
+- Análisis previo: `InstallerJobs()` (`.mx-myjobs`) e `InstallerProfile()` (`.mx-profscreen`), ambas funciones reales dentro de `Installer(props)`, ya estaban reservadas como Sprints independientes (3.12 y 3.11) en `docs/SPRINTS_INDEX.md` — no se invadió su alcance. Se reconstruyó únicamente el resto: `.mx-instwrap` completo, la barra del teléfono (`.mx-phone-bar`/`.mx-mesel`) y la navegación `.mx-phonetabs`, más el único estado de "Solicitudes" alcanzable sin motor de trabajos real (`mx-phone-empty`) — mismo criterio ya aplicado a `Coordinator()` en el Sprint 3.6.
+- Componentes nuevos: `InstallerDashboard` (`src/components/shared/installer-dashboard.tsx`), `InstallerSolicitudesEmptyState` (reconstruye `mx-phone-empty` verbatim) y `MxPhoneTabs` (contenedor `.mx-phonetabs`).
+- Reutilizados sin duplicar: `TwoColumnLayout` y `PhoneFrame` (Fase 3, primer consumidor real de ambos), `InstallerSidebar` (Sprint 3.2, ahora en su posición estructural real por primera vez) y `MxSubtabButton` (Sprint 3.3, reutilizado tal cual para los botones de `.mx-phonetabs`).
+- CSS agregado: `.mx-phone-empty` (+ `svg`/`p`/`span`), verbatim — gap no portado desde Fase 3.
+- Integración temporal en `RootLayout.tsx`: reemplaza la integración ad-hoc del Sprint 3.2.1/3.2.2 (`InstallerSidebar` con un Phone Placeholder vacío) por la composición real `InstallerDashboard`, aplicada directamente per la regla permanente vigente desde el Sprint 3.9. Nuevo estado `meId`/`setMeId` en `RootLayout` (reproduce el `useState("pty")` real de `App()`). La integración de `CountRing` (Sprint 3.8) no se tocó.
+- Se detectó y **reportó sin corregir**: al activar las pestañas "Mis trabajos"/"Perfil", la navegación es real y funcional pero no se renderiza contenido — reservado a los Sprints 3.12/3.11.
+- Validación best-effort: 0 diagnósticos de `tsc` (incluida una pasada con `noUnusedLocals`/`noUnusedParameters`); `prettier --check` sin diferencias; `git diff --stat` confirma el alcance exacto.
+- Detalle completo: `docs/sprints/sprint-3.10.md`.
+
+### Sprint 3.10 finalizado (2026-07-13)
+
+- Validación local completada: el usuario confirmó en su máquina que `npm install`, `npm run lint`, `npm run typecheck`, `npm run build` y `npm run dev` finalizan sin errores (solo warnings históricos ya aceptados) sobre la rama activa.
+- Validación visual completada: el usuario confirmó que el layout de `InstallerDashboard` en React coincide con `Multimax_Despacho_v1.3.html`.
+- Sprint 3.10 aprobado por validación técnica y visual del usuario. No quedan pendientes técnicos. La integración temporal en `RootLayout.tsx` queda aprobada tal cual hasta que exista `layouts/InstallerLayout.tsx`/una ruta real para el Instalador.
+- **El siguiente Sprint a desarrollar es el Sprint 3.11** (`InstallerProfile`) — no se inicia sin el análisis previo obligatorio de su propio bloque HTML ni sin aprobación explícita del usuario.
+
 ## Qué falta
 
-- **Sprint 3.10: sin iniciar** — próximo Sprint a desarrollar, pendiente de análisis previo obligatorio.
+- **Sprint 3.11: sin iniciar** — próximo Sprint a desarrollar, pendiente de análisis previo obligatorio.
 - **Bloqueante para cerrar el Sprint 3.2**: confirmar en el entorno del usuario `npm install && npm run lint && npm run typecheck && npm run build && npm run dev` en verde sobre la rama `feature/sprint-3-2-mx-instside`.
 - A partir de aquí, el trabajo restante (antes descrito como "Fase 4 — Coordinator", "Fase 5 — Installer", "Fase 6 — Admin", etc.) se ejecuta Sprint a Sprint según `docs/SPRINTS_INDEX.md`, cada uno esperando aprobación explícita antes de iniciar el siguiente. La integración con Supabase, Realtime, eliminación de mocks y pruebas finales (antes Fases 7–10) siguen vigentes como trabajo futuro, a re-planificar en Sprints una vez completado el bloque 3.x.
 - Los layouts por rol (`CoordinatorLayout`/`InstallerLayout`/`AdminLayout`) siguen fuera de alcance hasta el Sprint que corresponda. Ver `MIGRATION_STATUS.md`.
 - Sincronización pendiente entre `SucursalSelect` y el badge de sucursal del Header (reportado, no corregido) — ver "Problema encontrado" en `docs/sprints/sprint-3.4.md`; queda como trabajo futuro, no bloquea el cierre de ningún Sprint.
 - `onPublish` sin lógica real en `PublishModal` (reportado, no corregido) — ver "Problema encontrado" en `docs/sprints/sprint-3.5.md`; pendiente para el Sprint que implemente `jobs`/`Trabajo` real.
 - El resto de `Coordinator()` (`mx-jobcard`, `QueueBar`, `AssignedPanel`, `NoResponsePanel`, respuestas, indicadores) queda pendiente de un Sprint que también implemente `jobs`/`publishJob` real — ver "Problema encontrado / decisión" en `docs/sprints/sprint-3.6.md`. `Radar` (Sprint 3.7, ✅ completado) ya está reconstruido pero también depende de esa misma base para su integración definitiva.
-- El consumidor real de `CountRing` (Sprint 3.8, ✅ completado) — pantallas "alerta"/"oferta" del teléfono del Instalador — queda pendiente de un Sprint futuro que implemente `mx-phone`/`Installer` real. El consumidor real de `LiveCountdown` (Sprint 3.9, ✅ completado) — `statusPill`/`QueueBar` de `Coordinator` — queda pendiente de un Sprint futuro que implemente el motor de trabajos (`jobs`/`publishJob`) real. Ver `docs/sprints/sprint-3.9.md`.
+- El consumidor real de `CountRing` (Sprint 3.8, ✅ completado) — pantallas "alerta"/"oferta" del teléfono del Instalador — queda pendiente de un Sprint futuro que implemente el resto de "Solicitudes" (`mx-alert`/`mx-offer`) con motor de trabajos real. El consumidor real de `LiveCountdown` (Sprint 3.9, ✅ completado) — `statusPill`/`QueueBar` de `Coordinator` — queda pendiente de un Sprint futuro que implemente el motor de trabajos (`jobs`/`publishJob`) real. Ver `docs/sprints/sprint-3.9.md`.
+- `InstallerDashboard` (Sprint 3.10, ✅ completado) reconstruyó únicamente el estado vacío de "Solicitudes" (`mx-phone-empty`) y la navegación del teléfono — el contenido de las pestañas "Mis trabajos"/"Perfil" queda pendiente de los Sprints 3.12/3.11 respectivamente, y las 7 ramas restantes de "Solicitudes" dependen del mismo motor de trabajos real que bloquea `Coordinator()`. Ver `docs/sprints/sprint-3.10.md`.
 
 ## Problemas encontrados (heredados de Fase 1, siguen sin resolver)
 
@@ -362,4 +383,4 @@ Ninguno de estos bloquea el scaffold de esta fase; sí bloquearán las fases 7 (
 
 ## Próximos pasos
 
-Sprint 3.9 cerrado (✅ Completado). El próximo Sprint a desarrollar es el 3.10, que requiere su propio análisis previo obligatorio antes de escribir cualquier código. No se inicia sin aprobación explícita del usuario. No se ejecuta ninguna operación Git — el flujo Git es exclusivamente manual, a cargo del usuario.
+Sprint 3.10 cerrado (✅ Completado). El próximo Sprint a desarrollar es el 3.11 (`InstallerProfile`), que requiere su propio análisis previo obligatorio antes de escribir cualquier código. No se inicia sin aprobación explícita del usuario. No se ejecuta ninguna operación Git — el flujo Git es exclusivamente manual, a cargo del usuario.

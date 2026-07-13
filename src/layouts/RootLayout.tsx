@@ -6,7 +6,7 @@ import { CoordinatorEmptyState } from '@/components/shared/coordinator-empty-sta
 import { CountRing } from '@/components/shared/countring';
 import { Footer } from '@/components/shared/footer';
 import { Header } from '@/components/shared/header';
-import { InstallerSidebar } from '@/components/shared/installer-sidebar';
+import { InstallerDashboard } from '@/components/shared/installer-dashboard';
 import { LiveCountdown } from '@/components/shared/live-countdown';
 import { MxSubtabButton } from '@/components/shared/mx-subtab-button';
 import { MxSubtabs } from '@/components/shared/mx-subtabs';
@@ -82,6 +82,15 @@ const LIVECOUNTDOWN_DEMO_BID_MINS = 5;
  * ---------------------------------------------------------------------
  * TEMPORARY INTEGRATION — Sprint 3.2.1 (corregida en Sprint 3.2.2)
  * ---------------------------------------------------------------------
+ * SUPERSEDIDO por el Sprint 3.10 (`InstallerDashboard`, ver bloque más
+ * abajo): la estructura `<div className="mx-instwrap"><div/>
+ * (placeholder)<InstallerSidebar/></div>` descrita en este bloque ya NO
+ * existe en el código — se reemplazó por la composición real `.mx-instwrap`
+ * (teléfono + panel lateral) que este mismo Sprint 3.2.1/3.2.2 anticipaba.
+ * Se conserva este comentario histórico íntegro, sin editarlo, como registro
+ * de la decisión original; `InstallerSidebar` en sí NO se modificó en el
+ * Sprint 3.10, solo cambió su contexto de integración en este archivo.
+ *
  * `InstallerSidebar` (creado en el Sprint 3.2, `mx-instside`) todavía no
  * tiene ningún layout/página real que lo monte (`layouts/InstallerLayout.tsx`
  * no existe — ver ARCHITECTURE.md §3 y docs/sprints/sprint-3.2.md). Para
@@ -340,11 +349,50 @@ const LIVECOUNTDOWN_DEMO_BID_MINS = 5;
  * dentro del `QueueBar` real en el Sprint que implemente el motor de
  * trabajos de `Coordinator`. Ver "Problema encontrado / decisión de
  * integración temporal" en docs/sprints/sprint-3.9.md.
+ *
+ * ---------------------------------------------------------------------
+ * TEMPORARY INTEGRATION — Sprint 3.10 (`InstallerDashboard`)
+ * ---------------------------------------------------------------------
+ * `InstallerDashboard` reconstruye el subconjunto reconstruible de
+ * `function Installer(props)` (líneas 3169-3452 del HTML fuente): la
+ * composición `.mx-instwrap` completa (teléfono + panel lateral), la barra
+ * del teléfono con el selector `.mx-mesel`, la navegación `.mx-phonetabs`
+ * y el estado vacío de "Solicitudes" (`mx-phone-empty`) — ver JSDoc de
+ * `installer-dashboard.tsx` y `docs/sprints/sprint-3.10.md` para el detalle
+ * completo del alcance.
+ *
+ * Esta integración REEMPLAZA la del Sprint 3.2.1/3.2.2 (ver bloque
+ * superseído más arriba): `InstallerDashboard` ya compone `InstallerSidebar`
+ * internamente en su posición estructural real (columna derecha de
+ * `.mx-instwrap`, junto al teléfono), así que el `<div className="mx-
+ * instwrap">` ad-hoc con el Phone Placeholder vacío deja de ser necesario.
+ * `InstallerSidebar` en sí no se modifica — solo cambia desde dónde se
+ * monta.
+ *
+ * `meId`/`setMeId` reconstruyen el `useState("pty")` real de `App()` (línea
+ * 1901) — en el HTML fuente este estado vive en `App()`, no dentro de
+ * `Installer()`, y se pasa como prop; aquí se replica ese mismo reparto,
+ * exactamente igual que `role`/`sucursalCoord`.
+ *
+ * La integración de `CountRing` (Sprint 3.8) NO se modifica ni se mueve en
+ * este Sprint: su lugar real (`mx-alert-h`/`mx-offer-h`, dentro de la rama
+ * `mx-alert`/`mx-offer` de "Solicitudes") sigue fuera de alcance — depende
+ * del motor de trabajos real, igual que antes. Permanece como hermano
+ * independiente de `InstallerDashboard`, con sus mismas props mock del
+ * Sprint 3.8, hasta que exista esa rama real.
+ *
+ * Alcance NO cubierto por este Sprint, documentado y reportado: el resto de
+ * "Solicitudes" (`mx-alert`/`mx-offer`/`mx-phone-sent`/`mx-phone-done`,
+ * requieren `job`/motor de trabajos real) y el contenido de las pestañas
+ * "Mis trabajos"/"Perfil" (`InstallerJobs()`/`InstallerProfile()`, Sprints
+ * 3.12/3.11 respectivamente, ya reservados en `docs/SPRINTS_INDEX.md`) — ver
+ * "Problema encontrado / decisiones de alcance" en `docs/sprints/sprint-3.10.md`.
  */
 export function RootLayout() {
   const [role, setRole] = useState<Rol>('coordinador');
   const [sucursalCoord, setSucursalCoord] = useState('Multiplaza');
   const [showPublishModal, setShowPublishModal] = useState(false);
+  const [meId, setMeId] = useState('pty');
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -377,16 +425,10 @@ export function RootLayout() {
             />
           </div>
         )}
-        {/* TEMPORARY INTEGRATION — Sprint 3.2.1, corregida en 3.2.2: ver comentario de la función. */}
+        {/* TEMPORARY INTEGRATION — Sprint 3.10 (InstallerDashboard, reemplaza la integración de Sprint 3.2.1/3.2.2): ver comentario de la función. */}
         {role === 'instalador' && (
           <>
-            <div className="mx-instwrap">
-              {/* Phone Placeholder — reserva la primera columna del grid para
-                  el futuro `layouts/InstallerLayout.tsx` (mx-phone). No se
-                  implementa contenido/estilo de Phone en este Sprint. */}
-              <div />
-              <InstallerSidebar rating={4.9} km={1.8} cumplimiento={98} aceptacion={92} />
-            </div>
+            <InstallerDashboard meId={meId} onMeIdChange={setMeId} />
             {/* TEMPORARY INTEGRATION — Sprint 3.8 (CountRing): ver comentario de la función. */}
             <CountRing remaining={COUNTRING_DEMO_REMAINING} total={COUNTRING_DEMO_TOTAL} />
           </>

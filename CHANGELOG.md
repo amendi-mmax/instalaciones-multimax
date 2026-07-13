@@ -2,6 +2,51 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## Sprint 3.10 — Cierre del Sprint
+
+- Validación técnica aprobada por el usuario (`npm install`, `npm run lint`, `npm run typecheck`, `npm run build`, `npm run dev`).
+- Validación visual aprobada — el layout de `InstallerDashboard` en React coincide con `Multimax_Despacho_v1.3.html`.
+- Integración temporal de `InstallerDashboard` en `RootLayout.tsx` aprobada.
+- Sprint 3.10 oficialmente completado (✅ Completado).
+- Próximo Sprint: Sprint 3.11.
+
+## [Sprint 3.10 — `InstallerDashboard`] — 2026-07-13
+
+Continúa la migración incremental. "Installer Dashboard" (nombre genérico del brief) no corresponde a ninguna función real del HTML — la función real y equivalente es `function Installer(props)` (líneas 3169-3452), montada por `App()` cuando `role === "inst"`. Dentro de ella, `InstallerJobs()` (`.mx-myjobs`) e `InstallerProfile()` (`.mx-profscreen`) son funciones reales con selector propio, ya reservadas como Sprints independientes (3.12 y 3.11 respectivamente) — este Sprint reconstruye únicamente el resto: la composición `.mx-instwrap`, la barra del teléfono (`.mx-phone-bar`/`.mx-mesel`), la navegación `.mx-phonetabs` y el único estado de "Solicitudes" alcanzable sin motor de trabajos real (`mx-phone-empty`), mismo criterio ya aplicado a `Coordinator()` en el Sprint 3.6.
+
+### Añadido
+
+- `src/components/shared/installer-dashboard.tsx` (`InstallerDashboard`) — orquestador de la pantalla principal del Instalador.
+- `src/components/shared/installer-solicitudes-empty-state.tsx` (`InstallerSolicitudesEmptyState`) — reconstruye `mx-phone-empty` verbatim.
+- `src/components/shared/mx-phone-tabs.tsx` (`MxPhoneTabs`) — contenedor `.mx-phonetabs`.
+- `docs/sprints/sprint-3.10.md`.
+
+### Cambiado
+
+- `src/styles/globals.css`: se agregó `.mx-phone-empty` (+ `svg`/`p`/`span`), verbatim (gap no portado desde Fase 3).
+- `src/layouts/RootLayout.tsx`: nuevo estado `meId`/`setMeId` (reproduce el `useState("pty")` real de `App()`); la integración temporal de `InstallerSidebar` del Sprint 3.2.1/3.2.2 (ad-hoc, con un Phone Placeholder vacío) se reemplaza por la composición real `<InstallerDashboard meId={meId} onMeIdChange={setMeId} />`, dentro de `role === 'instalador'`. `InstallerSidebar` no se modifica — solo cambia su contexto de integración.
+
+### Reutilizado (sin duplicar)
+
+- `TwoColumnLayout` y `PhoneFrame` (Fase 3) — primer consumidor real de ambos.
+- `InstallerSidebar` (Sprint 3.2) — ahora en su posición estructural real por primera vez.
+- `MxSubtabButton` (Sprint 3.3) — reutilizado tal cual para los botones de `.mx-phonetabs` (implementación agnóstica de la clase del contenedor padre).
+
+### Reportado (sin corregir)
+
+- Al activar las pestañas "Mis trabajos"/"Perfil", la navegación es real y funcional (resaltado de la pestaña activa), pero no se renderiza contenido — `InstallerJobs`/`InstallerProfile` están reservados a los Sprints 3.12/3.11.
+- Las 7 ramas restantes de "Solicitudes" (`mx-alert`/`mx-offer`/`mx-phone-sent`/`mx-phone-done`×3) y el consumo de `CountRing` dentro de ellas dependen del motor de trabajos real, todavía inexistente.
+- El `onChange` de `.mx-mesel` en el HTML fuente también reinicia `step` a `"alert"` — `step` no existe en este subconjunto reconstruido (pertenece a las ramas fuera de alcance); se omite esa parte del handler.
+
+### Sin cambios
+
+- No se modificó `Header`, `Footer`, `SucursalSelect`, `MxSubtabs` (versión "subtabs"), `PublishModal`, `CoordinatorEmptyState`, `Radar`, `CountRing`, `LiveCountdown`. No se creó ninguna ruta nueva ni se modificó React Router. No se usaron datos reales ni se integró Supabase.
+
+### Validación
+
+- `tsc --noEmit` (stubs ambientales, incluida una pasada con `noUnusedLocals`/`noUnusedParameters`): 0 diagnósticos. `prettier --check` sobre `.ts`/`.tsx`: cero diferencias. `git diff --stat` confirma el alcance exacto (3 archivos nuevos, 2 modificados en `src/`).
+- **Sprint 3.10 — ✅ Completado** — validación real (`npm install`/`lint`/`typecheck`/`build`/`dev`) y validación visual (comparación contra `Multimax_Despacho_v1.3.html`) confirmadas por el usuario (ver "Sprint 3.10 — Cierre del Sprint" arriba).
+
 ## Sprint 3.9 — Cierre del Sprint
 
 - Validación técnica aprobada por el usuario (`npm install`, `npm run lint`, `npm run typecheck`, `npm run build`, `npm run dev`).
