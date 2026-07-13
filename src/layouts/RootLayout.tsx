@@ -387,6 +387,40 @@ const LIVECOUNTDOWN_DEMO_BID_MINS = 5;
  * "Mis trabajos"/"Perfil" (`InstallerJobs()`/`InstallerProfile()`, Sprints
  * 3.12/3.11 respectivamente, ya reservados en `docs/SPRINTS_INDEX.md`) — ver
  * "Problema encontrado / decisiones de alcance" en `docs/sprints/sprint-3.10.md`.
+ *
+ * ---------------------------------------------------------------------
+ * TEMPORARY INTEGRATION — Sprint 3.11 (`InstallerProfile`) [SUPERSEDIDA]
+ * ---------------------------------------------------------------------
+ * SUPERSEDIDA por un ajuste posterior al cierre visual del Sprint 3.11: el
+ * mount independiente de `InstallerProfile` que este bloque describía ya NO
+ * existe en el código — se retiró de `RootLayout.tsx`. El componente
+ * (implementación, lógica, estilos y estructura, todos sin cambios) ahora
+ * se renderiza directamente dentro de `InstallerDashboard`, en su rama real
+ * `instTab === 'perfil'` (ver JSDoc de `installer-dashboard.tsx`, sección
+ * "AJUSTE DE INTEGRACIÓN"), reutilizando el `meInfo` que ese componente ya
+ * deriva de `INSTALLERS`/`meId` — en vez del `meInfo` mock fijo
+ * (`INSTALLERS[0]`) que usaba este mount temporal.
+ *
+ * Se conserva íntegro el razonamiento original de esta decisión, como
+ * registro histórico de por qué en el momento del Sprint 3.11 se optó por
+ * un hermano independiente en `RootLayout.tsx` en vez de la integración
+ * real: `InstallerProfile` reconstruye verbatim `function InstallerProfile({
+ * meInfo })` (líneas ~3491-3524 del HTML fuente, `.mx-profscreen`). En el
+ * HTML fuente, su único uso real es dentro de `Installer(props)`, cuando
+ * `instTab === "perfil"` (línea ~3427) — el mismo lugar que, en este
+ * proyecto, corresponde a la rama `instTab === 'perfil'` de
+ * `InstallerDashboard` (Sprint 3.10). En ese momento, el brief del Sprint
+ * 3.11 exigía integración temporal obligatoria en `RootLayout.tsx` para
+ * validación visual, pero también prohibía modificar "InstallerDashboard
+ * aprobado en Sprint 3.10" — por lo que conectar `InstallerProfile` a su
+ * destino real habría requerido editar `installer-dashboard.tsx`, fuera de
+ * lo permitido en ese brief. Se resolvió entonces con el mismo criterio ya
+ * aplicado a `CountRing` (Sprint 3.8): montar `InstallerProfile` como
+ * hermano independiente de `InstallerDashboard`. Tras la validación visual
+ * del Sprint 3.11, el usuario autorizó explícitamente mover el punto de
+ * integración al contenedor real (este ajuste), sin modificar el
+ * componente en sí. Ver "Problema encontrado / decisión de integración
+ * temporal" en `docs/sprints/sprint-3.11.md` para el detalle original.
  */
 export function RootLayout() {
   const [role, setRole] = useState<Rol>('coordinador');

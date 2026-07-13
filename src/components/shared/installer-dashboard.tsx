@@ -1,6 +1,7 @@
 import { Bell, Briefcase, User } from 'lucide-react';
 import { useState } from 'react';
 
+import { InstallerProfile } from '@/components/shared/installer-profile';
 import { InstallerSidebar } from '@/components/shared/installer-sidebar';
 import { InstallerSolicitudesEmptyState } from '@/components/shared/installer-solicitudes-empty-state';
 import { MxPhoneTabs } from '@/components/shared/mx-phone-tabs';
@@ -41,16 +42,31 @@ import { INSTALLERS } from '@/constants';
  *   `mx-phone-sent`/`mx-phone-done` en sus 3 variantes) depende de
  *   `job`/`me`/`step` — motor de trabajos real, todavía inexistente, mismo
  *   bloqueo que `Coordinator()` (Sprint 3.6). El contenido de la pestaña
- *   "Mis trabajos" (`InstallerJobs()`, línea 3453) y de la pestaña "Perfil"
- *   (`InstallerProfile()`, línea 3491) NO se implementan en este Sprint —
- *   son funciones reales, propias, con selector propio (`.mx-myjobs`/
- *   `.mx-profscreen`), ya reservadas como Sprints numerados independientes
- *   (`docs/SPRINTS_INDEX.md`: 3.11 "Installer Profile", 3.12 "Installer
- *   Jobs") — implementarlas aquí invadiría su alcance. Al activar esas dos
- *   pestañas, `InstallerDashboard` no renderiza ningún contenido (`null`) —
- *   la navegación (resaltado de la pestaña activa) sí es real y funcional,
- *   pero su destino queda pendiente de esos Sprints futuros. Ver "Problema
- *   encontrado / decisiones de alcance" en docs/sprints/sprint-3.10.md.
+ *   "Mis trabajos" (`InstallerJobs()`, línea 3453) NO se implementa en este
+ *   Sprint — es una función real, propia, con selector propio
+ *   (`.mx-myjobs`), ya reservada como Sprint numerado independiente
+ *   (`docs/SPRINTS_INDEX.md`: 3.12 "Installer Jobs") — implementarla aquí
+ *   invadiría su alcance. Al activar esa pestaña, `InstallerDashboard` no
+ *   renderiza ningún contenido (`null`) — la navegación (resaltado de la
+ *   pestaña activa) sí es real y funcional, pero su destino queda pendiente
+ *   de ese Sprint futuro. Ver "Problema encontrado / decisiones de alcance"
+ *   en docs/sprints/sprint-3.10.md.
+ *
+ * AJUSTE DE INTEGRACIÓN (post-Sprint 3.11): la pestaña "Perfil" SÍ renderiza
+ * contenido real desde este ajuste — `InstallerProfile({ meInfo })`
+ * (`.mx-profscreen`, Sprint 3.11, componente ya implementado y validado
+ * visualmente en ese Sprint sin conexión real todavía). Este componente NO
+ * se modifica aquí (ni su lógica, ni sus estilos, ni su estructura): se
+ * reutiliza tal cual, reusando el mismo `meInfo` ya derivado arriba (línea
+ * `INSTALLERS.find(...) ?? INSTALLERS[0]`) — el mismo dato que ya recibe
+ * `InstallerSidebar`. Esto reemplaza la integración temporal previa del
+ * Sprint 3.11, que montaba `InstallerProfile` como hermano independiente en
+ * `RootLayout.tsx` (con un `meInfo` mock fijo, `INSTALLERS[0]`) por no
+ * existir todavía, en ese momento, autorización para modificar este
+ * componente. A partir de este ajuste, `RootLayout.tsx` únicamente renderiza
+ * `InstallerDashboard` para `role === 'instalador'` — coincide exactamente
+ * con `Installer(props)` en el HTML fuente (línea ~3427:
+ * `instTab === "perfil" && React.createElement(InstallerProfile, { meInfo })`).
  *
  * Estado: `instTab` reconstruye el `useState("solicitudes")` real, interno
  * de `Installer(props)` en el HTML fuente. `meId`/`onMeIdChange` NO son
@@ -123,6 +139,7 @@ export function InstallerDashboard({ meId, onMeIdChange }: InstallerDashboardPro
           }
         >
           {instTab === 'solicitudes' ? <InstallerSolicitudesEmptyState /> : null}
+          {instTab === 'perfil' ? <InstallerProfile meInfo={meInfo} /> : null}
         </PhoneFrame>
       }
       right={

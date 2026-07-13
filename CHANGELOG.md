@@ -2,6 +2,53 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## Sprint 3.11 — Cierre del Sprint
+
+- Validación técnica aprobada por el usuario (`npm install`, `npm run lint` [únicamente warnings conocidos], `npm run typecheck`, `npm run build`, `npm run dev`).
+- Validación visual aprobada — la implementación de `InstallerProfile` en React coincide con `Multimax_Despacho_v1.3.html`.
+- Integración temporal de `InstallerProfile` aprobada, con un ajuste posterior: el punto de integración se movió de un mount independiente en `RootLayout.tsx` a la rama real `instTab === 'perfil'` de `InstallerDashboard` (Sprint 3.10), sin modificar el componente `InstallerProfile` (misma implementación, misma lógica, mismos estilos, misma estructura).
+- Sin incidencias bloqueantes.
+- Sprint 3.11 oficialmente completado (✅ Completado).
+- Próximo Sprint: Sprint 3.12.
+
+## [Sprint 3.11 — `InstallerProfile`] — 2026-07-13
+
+Continúa la migración incremental. El brief exigió confirmar, antes de escribir código, que el nombre "Installer Profile" de `docs/SPRINTS_INDEX.md` correspondiera a una función real — a diferencia de la mayoría de los Sprints anteriores de esta fase, aquí el nombre **sí coincide exactamente**: `function InstallerProfile({ meInfo })` (líneas ~3491-3524 del script, selector `.mx-profscreen`).
+
+### Añadido
+
+- `src/components/shared/installer-profile.tsx` (`InstallerProfile`) — reconstrucción verbatim de la pantalla "Perfil" del teléfono del Instalador (avatar, nombre, zona, Pill "Instalador verificado", 4 estadísticas, "Reglas de prioridad" de 4 ítems).
+- `docs/sprints/sprint-3.11.md`.
+
+### Cambiado
+
+- `src/styles/globals.css`: se agregó el bloque `.mx-prof*` (12 reglas: `.mx-profscreen`, `.mx-profhero`, `.mx-profava`, `.mx-profname`, `.mx-profzone`, `.mx-profstats`, `.mx-profstat` + `b`/`span`, `.mx-profblock` + `h4`/`h4 svg`), verbatim.
+- `src/components/shared/installer-dashboard.tsx`: la rama `instTab === 'perfil'` (antes `null`) ahora renderiza `<InstallerProfile meInfo={meInfo} />`, reutilizando el mismo `meInfo` que ese componente ya deriva de `INSTALLERS`/`meId` — integración real, coincide exactamente con el HTML fuente (`instTab === "perfil" && InstallerProfile({ meInfo })`). Ajuste solicitado por el usuario tras la validación visual inicial (ver "Integración temporal" abajo).
+- `src/layouts/RootLayout.tsx`: se retiró el mount temporal independiente de `InstallerProfile` (import, constante mock `INSTALLERPROFILE_DEMO_MEINFO`, JSX) — ya no es necesario porque `InstallerDashboard` lo renderiza internamente. El bloque JSDoc que documentaba esa integración se marcó `[SUPERSEDIDA]`, conservando el razonamiento original como registro histórico.
+
+### Reutilizado (sin duplicar)
+
+- `Badge` (`.mx-pill`, Fase 3) con `tone="green"` — reconstruye el helper interno `Pill` del HTML; se descartó `StatusBadge` por agregar una capa semántica que no existe en el uso original.
+- `INSTALLERS`/`InstallerMock` (`src/constants/index.ts`, ya existentes) para el prop `meInfo`.
+
+### Reportado (sin corregir)
+
+- La lista "Reglas de prioridad" de este bloque tiene 4 ítems, no 5 — no se unificó con la versión de 5 ítems de `mx-instside` (`InstallerPriorityRules`, Sprint 3.2); ambas se mantienen tal cual su bloque de origen en el HTML.
+
+### Integración temporal
+
+- Entrega inicial: `InstallerProfile` se montó como hermano independiente de `InstallerDashboard` en `RootLayout.tsx` (con `meInfo` mock fijo, `INSTALLERS[0]`), porque el brief de este Sprint prohibía modificar `InstallerDashboard` — mismo criterio ya usado para `CountRing` en el Sprint 3.8.
+- Ajuste posterior (mismo día, aprobado explícitamente por el usuario tras la validación visual): el punto de integración se movió a la rama real `instTab === 'perfil'` de `InstallerDashboard`, sin modificar `InstallerProfile` (componente, lógica, estilos y estructura intactos). `RootLayout.tsx` ya no monta `InstallerProfile` directamente — solo renderiza `InstallerDashboard` (más `CountRing`, integración temporal separada del Sprint 3.8) dentro de `role === 'instalador'`.
+
+### Sin cambios
+
+- No se modificó `Header`, `Footer`, `SucursalSelect`, `MxSubtabs`, `PublishModal`, `CoordinatorEmptyState`, `Radar`, `CountRing`, `LiveCountdown`. No se creó ninguna ruta nueva ni se modificó React Router. No se usaron datos reales ni se integró Supabase.
+
+### Validación
+
+- `tsc --noEmit` (stubs ambientales, básico + estricto): 0 diagnósticos, tanto en la entrega inicial como tras el ajuste de integración. `prettier --check` sobre `.ts`/`.tsx`: cero diferencias. `git diff --stat` confirma el alcance exacto.
+- **Sprint 3.11 — ✅ Completado** — validación real (`npm install`/`lint`/`typecheck`/`build`/`dev`) y validación visual (comparación contra `Multimax_Despacho_v1.3.html`) confirmadas por el usuario (ver "Sprint 3.11 — Cierre del Sprint" arriba).
+
 ## Sprint 3.10 — Cierre del Sprint
 
 - Validación técnica aprobada por el usuario (`npm install`, `npm run lint`, `npm run typecheck`, `npm run build`, `npm run dev`).

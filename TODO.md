@@ -14,8 +14,9 @@ Checklist vivo. **Desde el Sprint 3.1, el checklist activo para el trabajo resta
 10. **Sprint 3.8 — `CountRing` ✅** (validación local + visual aprobadas — ver `docs/sprints/sprint-3.8.md`)
 11. **Sprint 3.9 — `LiveCountdown` ✅** (validación local + visual + funcional aprobadas — ver `docs/sprints/sprint-3.9.md`)
 12. **Sprint 3.10 — `InstallerDashboard` ✅** (validación local + visual aprobadas — ver `docs/sprints/sprint-3.10.md`)
-13. **Sprint 3.11 — 🔜 Pendiente de implementación** (análisis previo obligatorio todavía no iniciado — ver `docs/SPRINTS_INDEX.md`)
-14. Sprints 3.12–3.16 — ver `docs/SPRINTS_INDEX.md`
+13. **Sprint 3.11 — `InstallerProfile` ✅** (validación local + visual aprobadas, incluido el ajuste de punto de integración — ver `docs/sprints/sprint-3.11.md`)
+14. **Sprint 3.12 — 🔜 Pendiente de implementación** (análisis previo obligatorio todavía no iniciado — ver `docs/SPRINTS_INDEX.md`)
+15. Sprints 3.13–3.16 — ver `docs/SPRINTS_INDEX.md`
 5. (Futuro, a re-planificar en Sprints) Integración completa con Supabase, Realtime, eliminación de datos mock, pruebas finales
 
 ## Fase 1 — Arquitectura (completada)
@@ -205,6 +206,23 @@ Migra el subconjunto reconstruible de `function Installer(props)` (líneas 3169-
 - [x] **Sprint 3.10 cerrado formalmente (✅ Completado)**. Sin pendientes técnicos.
 - [ ] **Detenido a propósito**: no se avanza al Sprint 3.11 sin aprobación explícita del usuario. No se ejecuta ninguna operación Git — el flujo Git es exclusivamente manual, a cargo del usuario.
 
+## Sprint 3.11 — `InstallerProfile` (completado ✅)
+
+Migra `function InstallerProfile({ meInfo })` (líneas ~3491-3524 del JSX fuente, `.mx-profscreen`) — pantalla "Perfil" del teléfono del Instalador. A diferencia de la mayoría de los Sprints anteriores de esta fase, el nombre "Installer Profile" del brief coincide exactamente con esta función real. Detalle completo en `docs/sprints/sprint-3.11.md`.
+
+- [x] Análisis previo obligatorio: se confirmó, por inspección directa del HTML (no asumida a partir de la documentación), que el nombre del brief corresponde exactamente a la función real — sin discrepancia que reportar.
+- [x] `InstallerProfile` (`src/components/shared/installer-profile.tsx`) — componente nuevo, reconstrucción verbatim, sin estado ni efectos propios.
+- [x] Reutilizados sin duplicar: `Badge` (`tone="green"`, Fase 3) para el helper `Pill` del HTML; `INSTALLERS`/`InstallerMock` (ya existentes) para el prop `meInfo`.
+- [x] CSS agregado: bloque `.mx-prof*` (12 reglas), verbatim de las líneas 363-374 del `<style>` original.
+- [x] Detectado y **reportado sin corregir**: la lista "Reglas de prioridad" de este bloque tiene 4 ítems, no 5 (versión de `mx-instside`, Sprint 3.2, ya migrada) — no se unificaron.
+- [x] Integración temporal — entrega inicial: hermano independiente de `InstallerDashboard` en `RootLayout.tsx` (con `meInfo` mock fijo), porque el brief prohibía modificar `InstallerDashboard`.
+- [x] **Ajuste de integración** (aprobado explícitamente por el usuario tras la validación visual): el punto de integración se movió a la rama real `instTab === 'perfil'` de `InstallerDashboard`, sin modificar `InstallerProfile` (componente, lógica, estilos y estructura intactos); `RootLayout.tsx` ya no monta `InstallerProfile` directamente.
+- [x] Validación best-effort (`tsc --noEmit` con stubs básico + estricto, + `prettier --check`) — antes y después del ajuste, ambas en verde.
+- [x] Validación real del usuario confirmada en verde (`npm install`/`lint`/`typecheck`/`build`/`dev`, solo warnings conocidos).
+- [x] Validación visual del usuario confirmada — la implementación de `InstallerProfile` coincide con `Multimax_Despacho_v1.3.html`.
+- [x] **Sprint 3.11 cerrado formalmente (✅ Completado)**. Sin pendientes técnicos.
+- [ ] **Detenido a propósito**: no se avanza al Sprint 3.12 sin aprobación explícita del usuario. No se ejecuta ninguna operación Git — el flujo Git es exclusivamente manual, a cargo del usuario.
+
 ## Fase 4 — Módulo Coordinator (parcialmente iniciada vía Sprints 3.6/3.7 — estado vacío + Radar; ver Sprints 3.9 en adelante en `docs/SPRINTS_INDEX.md`)
 
 - [ ] `DespachoPage` (QueueBar, JobCard, JobStatsGrid, ResponsesFeed, AssignedPanel, NoResponsePanel) con datos mock locales — depende de `jobs`/`Trabajo` real (Sprint futuro).
@@ -216,13 +234,13 @@ Migra el subconjunto reconstruible de `function Installer(props)` (líneas 3169-
 - [x] `LiveCountdown` (countdown de texto con timer propio, usado en `mx-jobcard`/QueueBar — distinto de `CountRing`, ya migrado en Sprint 3.8) reconstruido — Sprint 3.9, ✅ Completado, integrado temporalmente en `RootLayout`.
 - [ ] `ConfirmDialog` de Fase 3 conectado al flujo real `requestCancel`/`doCancel`.
 
-## Fase 5 — Módulo Installer (parcialmente iniciada vía Sprints 3.8/3.10 — `CountRing` + `InstallerDashboard`)
+## Fase 5 — Módulo Installer (parcialmente iniciada vía Sprints 3.8/3.10/3.11 — `CountRing` + `InstallerDashboard` + `InstallerProfile`)
 
 - [x] Barra del teléfono, navegación `.mx-phonetabs` y estado vacío de "Solicitudes" (`mx-phone-empty`) reconstruidos — Sprint 3.10 (`InstallerDashboard`), integrado temporalmente en `RootLayout`.
 - [ ] `SolicitudesPage` real (AlertScreen, OfferForm, DisponibilidadChips, ResponseSentScreen, AssignedScreen, LostScreen, DeclinedScreen, ClosedScreen) con datos mock locales — depende de motor de trabajos real.
 - [x] `CountRing` (anillo de countdown usado en AlertScreen/OfferForm) reconstruido — Sprint 3.8, integrado temporalmente en `RootLayout`.
 - [ ] `MisTrabajosPage` (`InstallerJobs()`, `.mx-myjobs`) con datos mock locales — reservado Sprint 3.12.
-- [ ] `PerfilPage` (`InstallerProfile()`, `.mx-profscreen`) con datos mock locales — reservado Sprint 3.11.
+- [x] `PerfilPage` (`InstallerProfile()`, `.mx-profscreen`) reconstruida — Sprint 3.11 (`InstallerProfile`), integrada dentro de `InstallerDashboard` (rama real `instTab === 'perfil'`).
 - [ ] `PhoneFrame`/`Sidebar` de Fase 3 conectados con datos reales del instalador seleccionado.
 
 ## Fase 6 — Módulo Admin (no iniciada)

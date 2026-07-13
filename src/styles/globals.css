@@ -926,6 +926,91 @@
   font-size: 12.5px;
   line-height: 1.5;
 }
+/* Sprint 3.11 — pantalla "Perfil" del teléfono del Instalador
+   (InstallerProfile, .mx-profscreen). Portado verbatim de las líneas
+   363-374 del <style> original del HTML fuente. Distinto de .mx-profile
+   (línea 937 de este archivo), que es la tarjeta resumen de mx-instside
+   migrada en el Sprint 3.2 (InstallerProfileSummary) — selectores
+   distintos, sin relación entre sí. */
+.mx-profscreen {
+  flex: 1;
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+}
+.mx-profhero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  padding: 6px 0;
+}
+.mx-profava {
+  width: 62px;
+  height: 62px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  background: linear-gradient(135deg, var(--ice), #1fb6bd);
+  box-shadow: 0 0 22px rgba(52, 225, 232, 0.35);
+  font-family: var(--fd);
+  font-weight: 700;
+  font-size: 24px;
+}
+.mx-profname {
+  font-family: var(--fd);
+  font-weight: 700;
+  font-size: 16px;
+}
+.mx-profzone {
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.mx-profstats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+.mx-profstat {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 11px;
+}
+.mx-profstat b {
+  font-family: var(--fm);
+  font-size: 18px;
+  display: block;
+  line-height: 1.1;
+}
+.mx-profstat span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.mx-profblock {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 13px;
+}
+.mx-profblock h4 {
+  font-family: var(--fd);
+  font-size: 12.5px;
+  margin-bottom: 9px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.mx-profblock h4 svg {
+  color: var(--ice);
+}
 .mx-instside {
   display: flex;
   flex-direction: column;

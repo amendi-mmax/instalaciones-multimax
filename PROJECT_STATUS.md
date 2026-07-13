@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — HANDYMAX · Multimax Despacho
 
-Última actualización: 2026-07-13 — Sprint 3.10 (`InstallerDashboard`) — ✅ Completado. Sprint actual: 3.11.
+Última actualización: 2026-07-13 — Sprint 3.11 (`InstallerProfile`) — ✅ Completado. Sprint actual: 3.12.
 
 ## Cambio de metodología (vigente desde el Sprint 3.1)
 
@@ -352,9 +352,29 @@ El brief de este Sprint exigió el mismo análisis previo obligatorio de los Spr
 - Sprint 3.10 aprobado por validación técnica y visual del usuario. No quedan pendientes técnicos. La integración temporal en `RootLayout.tsx` queda aprobada tal cual hasta que exista `layouts/InstallerLayout.tsx`/una ruta real para el Instalador.
 - **El siguiente Sprint a desarrollar es el Sprint 3.11** (`InstallerProfile`) — no se inicia sin el análisis previo obligatorio de su propio bloque HTML ni sin aprobación explícita del usuario.
 
+## Sprint 3.11 — `InstallerProfile` (2026-07-13) — ✅ Completado
+
+"Installer Profile" (nombre del brief) **sí corresponde exactamente** a una función real del HTML — a diferencia de la mayoría de los Sprints anteriores de esta fase, aquí no hubo que corregir el nombre: `function InstallerProfile({ meInfo })` (líneas ~3491-3524 del script, selector `.mx-profscreen`). Análisis completo en `docs/sprints/sprint-3.11.md`.
+
+- Análisis previo: confirmación directa sobre el HTML fuente (no asumida a partir de la documentación) de que el nombre del brief coincide con la función real. Sin discrepancia que reportar como bloqueo — se procedió con la reconstrucción.
+- Componente nuevo: `InstallerProfile` (`src/components/shared/installer-profile.tsx`) — reconstrucción verbatim, sin estado ni efectos propios.
+- Reutilizados sin duplicar: `Badge` (`tone="green"`, Fase 3) para el helper `Pill` del HTML; `INSTALLERS`/`InstallerMock` (ya existentes) para el prop `meInfo`.
+- CSS agregado: bloque `.mx-prof*` (12 reglas), verbatim de las líneas 363-374 del `<style>` original.
+- Se detectó y **reportó sin corregir**: la lista "Reglas de prioridad" de este bloque tiene 4 ítems, no 5 (la versión de `mx-instside`, Sprint 3.2, ya migrada) — no se unificaron.
+- Integración temporal — entrega inicial: `InstallerProfile` se montó como hermano independiente de `InstallerDashboard` en `RootLayout.tsx` (con `meInfo` mock fijo), porque el brief de este Sprint prohibía modificar `InstallerDashboard`. Ajuste posterior, aprobado explícitamente por el usuario tras la validación visual: la integración se movió a la rama real `instTab === 'perfil'` de `InstallerDashboard`, sin modificar `InstallerProfile` (componente, lógica, estilos y estructura intactos); `RootLayout.tsx` ya no monta `InstallerProfile` directamente.
+- Validación best-effort: 0 diagnósticos de `tsc` (básico + estricto), antes y después del ajuste; `prettier --check` sin diferencias; `git diff --stat` confirma el alcance exacto.
+- Detalle completo: `docs/sprints/sprint-3.11.md`.
+
+### Sprint 3.11 finalizado (2026-07-13)
+
+- Validación local completada: el usuario confirmó en su máquina que `npm install`, `npm run lint`, `npm run typecheck`, `npm run build` y `npm run dev` finalizan sin errores (solo warnings conocidos) sobre la rama activa.
+- Validación visual completada: el usuario confirmó que la implementación de `InstallerProfile` en React coincide con `Multimax_Despacho_v1.3.html`.
+- Sprint 3.11 aprobado por validación técnica y visual del usuario, incluido el ajuste de punto de integración. No quedan pendientes técnicos.
+- **El siguiente Sprint a desarrollar es el Sprint 3.12** (`InstallerJobs`) — no se inicia sin el análisis previo obligatorio de su propio bloque HTML ni sin aprobación explícita del usuario.
+
 ## Qué falta
 
-- **Sprint 3.11: sin iniciar** — próximo Sprint a desarrollar, pendiente de análisis previo obligatorio.
+- **Sprint 3.12: sin iniciar** — próximo Sprint a desarrollar, pendiente de análisis previo obligatorio.
 - **Bloqueante para cerrar el Sprint 3.2**: confirmar en el entorno del usuario `npm install && npm run lint && npm run typecheck && npm run build && npm run dev` en verde sobre la rama `feature/sprint-3-2-mx-instside`.
 - A partir de aquí, el trabajo restante (antes descrito como "Fase 4 — Coordinator", "Fase 5 — Installer", "Fase 6 — Admin", etc.) se ejecuta Sprint a Sprint según `docs/SPRINTS_INDEX.md`, cada uno esperando aprobación explícita antes de iniciar el siguiente. La integración con Supabase, Realtime, eliminación de mocks y pruebas finales (antes Fases 7–10) siguen vigentes como trabajo futuro, a re-planificar en Sprints una vez completado el bloque 3.x.
 - Los layouts por rol (`CoordinatorLayout`/`InstallerLayout`/`AdminLayout`) siguen fuera de alcance hasta el Sprint que corresponda. Ver `MIGRATION_STATUS.md`.
@@ -362,7 +382,7 @@ El brief de este Sprint exigió el mismo análisis previo obligatorio de los Spr
 - `onPublish` sin lógica real en `PublishModal` (reportado, no corregido) — ver "Problema encontrado" en `docs/sprints/sprint-3.5.md`; pendiente para el Sprint que implemente `jobs`/`Trabajo` real.
 - El resto de `Coordinator()` (`mx-jobcard`, `QueueBar`, `AssignedPanel`, `NoResponsePanel`, respuestas, indicadores) queda pendiente de un Sprint que también implemente `jobs`/`publishJob` real — ver "Problema encontrado / decisión" en `docs/sprints/sprint-3.6.md`. `Radar` (Sprint 3.7, ✅ completado) ya está reconstruido pero también depende de esa misma base para su integración definitiva.
 - El consumidor real de `CountRing` (Sprint 3.8, ✅ completado) — pantallas "alerta"/"oferta" del teléfono del Instalador — queda pendiente de un Sprint futuro que implemente el resto de "Solicitudes" (`mx-alert`/`mx-offer`) con motor de trabajos real. El consumidor real de `LiveCountdown` (Sprint 3.9, ✅ completado) — `statusPill`/`QueueBar` de `Coordinator` — queda pendiente de un Sprint futuro que implemente el motor de trabajos (`jobs`/`publishJob`) real. Ver `docs/sprints/sprint-3.9.md`.
-- `InstallerDashboard` (Sprint 3.10, ✅ completado) reconstruyó únicamente el estado vacío de "Solicitudes" (`mx-phone-empty`) y la navegación del teléfono — el contenido de las pestañas "Mis trabajos"/"Perfil" queda pendiente de los Sprints 3.12/3.11 respectivamente, y las 7 ramas restantes de "Solicitudes" dependen del mismo motor de trabajos real que bloquea `Coordinator()`. Ver `docs/sprints/sprint-3.10.md`.
+- `InstallerDashboard` (Sprint 3.10, ✅ completado) reconstruyó únicamente el estado vacío de "Solicitudes" (`mx-phone-empty`) y la navegación del teléfono — el contenido de la pestaña "Perfil" ya se resolvió en el Sprint 3.11 (`InstallerProfile`, ✅ completado, integrado dentro de la rama real `instTab === 'perfil'`); la pestaña "Mis trabajos" queda pendiente del Sprint 3.12, y las 7 ramas restantes de "Solicitudes" dependen del mismo motor de trabajos real que bloquea `Coordinator()`. Ver `docs/sprints/sprint-3.10.md` y `docs/sprints/sprint-3.11.md`.
 
 ## Problemas encontrados (heredados de Fase 1, siguen sin resolver)
 
@@ -383,4 +403,4 @@ Ninguno de estos bloquea el scaffold de esta fase; sí bloquearán las fases 7 (
 
 ## Próximos pasos
 
-Sprint 3.10 cerrado (✅ Completado). El próximo Sprint a desarrollar es el 3.11 (`InstallerProfile`), que requiere su propio análisis previo obligatorio antes de escribir cualquier código. No se inicia sin aprobación explícita del usuario. No se ejecuta ninguna operación Git — el flujo Git es exclusivamente manual, a cargo del usuario.
+Sprint 3.11 cerrado (✅ Completado). El próximo Sprint a desarrollar es el 3.12 (`InstallerJobs`), que requiere su propio análisis previo obligatorio antes de escribir cualquier código. No se inicia sin aprobación explícita del usuario. No se ejecuta ninguna operación Git — el flujo Git es exclusivamente manual, a cargo del usuario.
