@@ -2,6 +2,103 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## Sprint 3.13 — Cierre del Sprint
+
+- Validación técnica aprobada por el usuario (`npm install`, `npm run lint`, `npm run typecheck`, `npm run build`, `npm run dev`).
+- Validación visual y funcional aprobada — la implementación de `AdminPanel`/`AdminInstaladores` en React coincide con `Multimax_Despacho_v1.3.html`.
+- Integración real de `AdminPanel` dentro de `RootLayout.tsx` (`role === 'admin'`) aprobada — misma posición estructural que `App()` en el HTML fuente, sin ningún mount temporal.
+- Sin incidencias bloqueantes.
+- Sin decisiones arquitectónicas permanentes nuevas que requieran actualizar `ARCHITECTURE.md` — las decisiones de este Sprint (reutilización de `MxSubtabs`, no usar `Input`/`Select` genéricos en `AdminInstaladores`) son decisiones de implementación a nivel de componente, ya documentadas en `docs/sprints/sprint-3.13.md` y en este mismo archivo, no cambios al diseño arquitectónico general del proyecto.
+- Sprint 3.13 oficialmente completado (✅ Completado).
+- Próximo Sprint: Sprint 3.14 (`MasterCalendar`, "Calendar").
+
+## [Sprint 3.13 — `AdminPanel`] — 2026-07-13 — ✅ Completado
+
+Continúa la migración incremental. El brief llamaba a este Sprint "Admin Dashboard" (nombre genérico de `docs/SPRINTS_INDEX.md`) y exigía explícitamente **no asumir** que ese nombre correspondía a una función real. Verificado por inspección directa del HTML (`grep -n "function Admin"`): no existe ninguna función `AdminDashboard`; el componente raíz real es `function AdminPanel()` (líneas 3031-3048 del script), montado por `App()` cuando `role === "admin"` (línea 2121). `AdminPanel()` compone sub-tabs (`.mx-subtabs-wrap`/`.mx-subtabs`, ya migrado en el Sprint 3.3) con dos pestañas: "Calendario maestro" → `MasterCalendar` (función real, no construida, reservada para el Sprint 3.14 "Calendar") e "Instaladores" → `AdminInstaladores()` (líneas 3049-3160, `.mx-page`/`.mx-pagehead`/`.mx-admingrid`), esta última sí reconstruible ahora (solo depende de `INSTALLERS`/`ZONAS`, ya migrados).
+
+Este Sprint aplica también, por primera vez en un componente del rol Admin, la regla de "preparación para Supabase" (vigente desde el Sprint 3.12): ninguna colección de datos se genera dentro del componente, todo proviene de constantes ya existentes (`INSTALLERS`/`ZONAS`).
+
+**Actualización de cierre**: el usuario confirmó la validación real (`npm install`/`lint`/`typecheck`/`build`/`dev`) y la validación visual/funcional contra `Multimax_Despacho_v1.3.html` — ver "Sprint 3.13 — Cierre del Sprint" arriba.
+
+### Añadido
+
+- `src/components/shared/admin-panel.tsx` (`AdminPanel`) — raíz del panel de Administrador: sub-tabs "Calendario maestro"/"Instaladores" (`useState('calendario')`, valor inicial idéntico al HTML fuente). La rama "Calendario maestro" renderiza `null` en este Sprint (`MasterCalendar` no existe todavía, reservado para el Sprint 3.14) — misma limitación documentada ya usada en `InstallerDashboard` (Sprint 3.10) para sus pestañas no implementadas.
+- `src/components/shared/admin-instaladores.tsx` (`AdminInstaladores`) — reconstrucción verbatim de la pestaña "Instaladores": tabla de instaladores (nombre, Pill de estado dinámico Activo/Docs pendientes/Suspendido, zona, rating, cumplimiento, botón Suspender/Reactivar) + formulario "Invitar instalador" (nombre, empresa, zona, correo, teléfono, aviso de confirmación tras enviar).
+- `docs/sprints/sprint-3.13.md` — análisis obligatorio de 10 puntos (función encontrada, selector HTML, líneas del HTML, dependencias, componentes reutilizables/nuevos, CSS requerido, diferencias encontradas, riesgos, estrategia de integración), implementación, preparación para Supabase, validaciones.
+
+### Cambiado
+
+- `src/styles/globals.css`: se agregó el bloque `.mx-admingrid`/`.mx-admintable`/`.mx-adminrow*`/`.mx-admin-act`/`.mx-invite*` (15 selectores + 1 media query), verbatim de las líneas 324-342 y 376 del `<style>` original.
+- `src/layouts/RootLayout.tsx`: se agregó `import { AdminPanel } from '@/components/shared/admin-panel';` y `{role === 'admin' && <AdminPanel />}`, en la misma posición relativa que usa el HTML fuente dentro de `App()` (después del bloque `role === 'instalador'`, antes de `PublishModal`). **Integración real y directa, no temporal**: `RootLayout.tsx` es el equivalente de `App()` desde el Sprint 3.1, y ya contiene las ramas `role === 'coordinador'`/`role === 'instalador'` en esa misma posición estructural — agregar `role === 'admin'` ahí coincide 1:1 con `role === "admin" && React.createElement(AdminPanel, null)` del script fuente.
+
+### Reutilizado (sin duplicar)
+
+- `MxSubtabs`/`MxSubtabButton` (Sprint 3.3) para las sub-tabs de `AdminPanel` — su propio JSDoc ya anticipaba este momento ("el Sprint que construya Coordinator/AdminPanel decide cuál de los dos usar").
+- `PageContainer`/`PageHead`, `Card`/`CardHeader`, `Badge`, `Button` (Fase 3) y `INSTALLERS`/`ZONAS` (Sprints 3.7/3.5) para `AdminInstaladores` — ninguna constante nueva en este Sprint.
+
+### Decisión de reutilización documentada
+
+- **No se usan `Input`/`Select` (`components/ui/`) en `AdminInstaladores`**: el HTML fuente estiliza los `<input>`/`<select>` del formulario de invitación exclusivamente vía el selector descendiente `.mx-invite input,.mx-invite select` (no existe ninguna clase `.mx-input`/`.mx-select-native` en este bloque) — usar los componentes genéricos habría aplicado una clase adicional ausente en el HTML. Se reconstruyeron como elementos nativos, a diferencia de `PublishModal` (Sprint 3.5), que sí usa `Input`/`Select` porque ese bloque sí usa las clases genéricas.
+- `susp`/`form`/`sent` (estado interno de `AdminInstaladores`) son estado de interacción de UI, no datos de negocio — mismo criterio ya aplicado a `PublishModal` (Sprint 3.5), no sujetos a la regla de preparación para Supabase.
+
+### Preparación para Supabase (regla vigente desde el Sprint 3.12)
+
+- `AdminPanel`/`AdminInstaladores` son puramente de presentación respecto a datos de negocio: `INSTALLERS`/`ZONAS` ya vivían en `src/constants/index.ts`, ninguna colección nueva se generó dentro de los componentes.
+- Detalle completo en `docs/sprints/sprint-3.13.md` → "Preparación para integración con Supabase".
+
+### Sin cambios
+
+- No se modificó `Header`, `Sidebar`, `InstallerSidebar`, `InstallerDashboard`, `InstallerProfile`, `InstallerJobs`, `Coordinator`, `CoordinatorEmptyState`, `PublishModal`, `Radar`, `CountRing`, `LiveCountdown`, `MxSubtabs`/`MxSubtabButton` (reutilizados tal cual). No se creó ninguna ruta nueva ni se modificó React Router/Context/Hooks. No se integró Supabase (fetch/servicios/queries/mutations/realtime/auth/storage) — exclusivamente visual, con datos mock.
+
+### Validación
+
+- `tsc --noEmit` (stubs ambientales, básico + estricto): 0 diagnósticos. `prettier --check` sobre `.ts`/`.tsx`/`.css`: cero diferencias tras una corrección de formato en `admin-instaladores.tsx`. `git diff --stat` confirma el alcance exacto.
+- **Sprint 3.13 — ✅ Completado** — validación real (`npm install`/`lint`/`typecheck`/`build`/`dev`) y validación visual/funcional (comparación contra `Multimax_Despacho_v1.3.html`) confirmadas por el usuario (ver "Sprint 3.13 — Cierre del Sprint" arriba). Sin pendientes técnicos para cerrar este Sprint.
+
+## Sprint 3.12 — Cierre del Sprint
+
+- Validación técnica aprobada por el usuario (`npm install`, `npm run lint` [únicamente warnings conocidos], `npm run typecheck`, `npm run build`, `npm run dev`).
+- Validación visual aprobada — la implementación de `InstallerJobs` en React coincide con `Multimax_Despacho_v1.3.html`.
+- Validación funcional aprobada — sin regresiones sobre componentes previamente aprobados.
+- Integración real de `InstallerJobs` dentro de la rama `instTab === 'trabajos'` de `InstallerDashboard` aprobada — sin ningún mount temporal en `RootLayout.tsx`, per la regla de integración vigente desde el Sprint 3.11.
+- Sin incidencias bloqueantes.
+- Sprint 3.12 oficialmente completado (✅ Completado).
+- Próximo Sprint: Sprint 3.13.
+
+## [Sprint 3.12 — `InstallerJobs`] — 2026-07-13
+
+Continúa la migración incremental. El brief exigió confirmar, antes de escribir código, que el nombre "InstallerJobs" correspondiera a una función real — coincide exactamente: `function InstallerJobs()` (líneas 3453-3484 del script, selector `.mx-myjobs`, sin props). A partir de este Sprint rige además la nueva regla permanente de "preparación para Supabase": los datos deben provenir de props o constantes reutilizables, nunca generados dentro del componente.
+
+### Añadido
+
+- `src/components/shared/installer-jobs.tsx` (`InstallerJobs`) — reconstrucción verbatim de la pantalla "Mis trabajos" del teléfono del Instalador (agrupación "Próximos"/"Historial", tarjetas con tipo, Pill de estado, zona, fecha/hora y precio).
+- `docs/sprints/sprint-3.12.md`.
+
+### Cambiado
+
+- `src/constants/index.ts`: se agregaron `ESTADO` (mapeo completo de 6 estados→tono/etiqueta, verbatim de `const ESTADO`, línea 1155 del script — se portó completo, no solo el subconjunto usado por `MISJOBS`, para no reabrir este archivo cuando se migre `Coordinator()`/`TRABAJOS`) y `MISJOBS` (mock de 4 trabajos, verbatim de `const MISJOBS`, línea 1327).
+- `src/styles/globals.css`: se agregó el bloque `.mx-phonehdr`/`.mx-myjobs`/`.mx-myjob*` (8 selectores, 10 reglas), verbatim.
+- `src/components/shared/installer-dashboard.tsx`: la rama `instTab === 'trabajos'` (antes `null`) ahora renderiza `<InstallerJobs />`. Integración real y directa dentro del contenedor existente — a diferencia de `InstallerProfile` en su entrega inicial (Sprint 3.11), `InstallerJobs` no requirió ningún mount temporal en `RootLayout.tsx`, ya que la nueva regla de integración (vigente desde el Sprint 3.11) exige integrar directamente en el contenedor real cuando este ya existe.
+
+### Reutilizado (sin duplicar)
+
+- `Badge` (`.mx-pill`, Fase 3) para la Pill de estado — mismo criterio que `InstallerProfile` (Sprint 3.11): el mapeo estado→tono ya lo resuelve `ESTADO`, así que no hace falta `StatusBadge`.
+- `MISJOBS`/`ESTADO` como constantes reutilizables (no generadas dentro del componente), mismo patrón que `INSTALLERS`.
+
+### Preparación para Supabase (regla vigente desde este Sprint)
+
+- `InstallerJobs` es puramente de presentación: sin estado, sin efectos, sin lógica de negocio.
+- `MISJOBS`/`ESTADO` viven en `src/constants/index.ts`, no como literales dentro del componente — podrán sustituirse por datos reales de la tabla `trabajos` sin tocar JSX/estructura/estilos. Detalle completo en `docs/sprints/sprint-3.12.md` → "Preparación para integración con Supabase".
+
+### Sin cambios
+
+- No se modificó `Header`, `Sidebar`, `InstallerSidebar`, `InstallerDashboard` (más allá de activar su rama `trabajos`), `InstallerProfile`, `Coordinator`, `CoordinatorEmptyState`, `PublishModal`, `Radar`, `CountRing`, `LiveCountdown`, `MxSubtabs`, `SucursalSelect`. `RootLayout.tsx` no requirió ningún cambio. No se creó ninguna ruta nueva ni se modificó React Router. No se integró Supabase (fetch/servicios/queries/mutations/realtime/auth/storage) — exclusivamente visual, con datos mock.
+
+### Validación
+
+- `tsc --noEmit` (stubs ambientales, básico + estricto): 0 diagnósticos. `prettier --check` sobre `.ts`/`.tsx`/`.css`: cero diferencias. `git diff --stat` confirma el alcance exacto.
+- **Sprint 3.12 — ✅ Completado** — validación real (`npm install`/`lint`/`typecheck`/`build`/`dev`) y validación visual y funcional (comparación contra `Multimax_Despacho_v1.3.html`, sin regresiones) confirmadas por el usuario (ver "Sprint 3.12 — Cierre del Sprint" arriba).
+
 ## Sprint 3.11 — Cierre del Sprint
 
 - Validación técnica aprobada por el usuario (`npm install`, `npm run lint` [únicamente warnings conocidos], `npm run typecheck`, `npm run build`, `npm run dev`).

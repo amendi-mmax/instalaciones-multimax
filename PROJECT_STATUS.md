@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — HANDYMAX · Multimax Despacho
 
-Última actualización: 2026-07-13 — Sprint 3.11 (`InstallerProfile`) — ✅ Completado. Sprint actual: 3.12.
+Última actualización: 2026-07-13 — Sprint 3.13 (`AdminPanel`/`AdminInstaladores`) — ✅ Completado. Sprint actual: 3.14.
 
 ## Cambio de metodología (vigente desde el Sprint 3.1)
 
@@ -372,9 +372,53 @@ El brief de este Sprint exigió el mismo análisis previo obligatorio de los Spr
 - Sprint 3.11 aprobado por validación técnica y visual del usuario, incluido el ajuste de punto de integración. No quedan pendientes técnicos.
 - **El siguiente Sprint a desarrollar es el Sprint 3.12** (`InstallerJobs`) — no se inicia sin el análisis previo obligatorio de su propio bloque HTML ni sin aprobación explícita del usuario.
 
+## Sprint 3.12 — `InstallerJobs` (2026-07-13) — ✅ Completado
+
+"InstallerJobs" (nombre del brief) **corresponde exactamente** a una función real del HTML: `function InstallerJobs()` (líneas 3453-3484 del script, selector `.mx-myjobs`, sin props). Análisis completo en `docs/sprints/sprint-3.12.md`.
+
+- Análisis previo: confirmación directa sobre el HTML fuente de que el nombre del brief coincide con la función real, sin discrepancia que reportar. Sin relación con `InstallerProfile`, `CountRing` ni `LiveCountdown`.
+- Componente nuevo: `InstallerJobs` (`src/components/shared/installer-jobs.tsx`) — reconstrucción verbatim, sin props, sin estado ni efectos propios.
+- Constantes agregadas (`src/constants/index.ts`): `ESTADO` (mapeo completo de 6 estados→tono/etiqueta, portado íntegro aunque `MISJOBS` solo use 3, para no reabrir este archivo cuando se migre `Coordinator()`/`TRABAJOS`) y `MISJOBS` (mock de 4 trabajos).
+- Reutilizado sin duplicar: `Badge` (Fase 3) para la Pill de estado, en vez de `StatusBadge`.
+- CSS agregado: bloque `.mx-phonehdr`/`.mx-myjobs`/`.mx-myjob*` (8 selectores, 10 reglas), verbatim.
+- **Nueva regla de integración (vigente desde el Sprint 3.11) aplicada por primera vez sin mount temporal**: `InstallerJobs` se integró directamente dentro de la rama real `instTab === 'trabajos'` de `InstallerDashboard` — `RootLayout.tsx` no requirió ningún cambio.
+- **Nueva regla de preparación para Supabase (vigente desde este Sprint)**: `MISJOBS`/`ESTADO` son constantes reutilizables, no datos generados dentro del componente; `InstallerJobs` es puramente de presentación, sin lógica de negocio ni estado innecesario.
+- Validación best-effort: 0 diagnósticos de `tsc` (básico + estricto); `prettier --check` sin diferencias; `git diff --stat` confirma el alcance exacto.
+- Detalle completo: `docs/sprints/sprint-3.12.md`.
+
+### Sprint 3.12 finalizado (2026-07-13)
+
+- Validación local completada: el usuario confirmó en su máquina que `npm install`, `npm run lint`, `npm run typecheck`, `npm run build` y `npm run dev` finalizan sin errores (solo warnings conocidos) sobre la rama activa.
+- Validación visual completada: el usuario confirmó que la implementación de `InstallerJobs` en React coincide con `Multimax_Despacho_v1.3.html`.
+- Validación funcional completada: el usuario confirmó que no hay regresiones sobre componentes previamente aprobados.
+- Sprint 3.12 aprobado por validación técnica, visual y funcional del usuario. No quedan pendientes técnicos.
+- **El siguiente Sprint a desarrollar es el Sprint 3.13** (`Admin Dashboard`, nombre genérico pendiente de su propio análisis previo obligatorio) — no se inicia sin aprobación explícita del usuario.
+
+## Sprint 3.13 — `AdminPanel` (2026-07-13) — ✅ Completado
+
+"Admin Dashboard" (nombre genérico del brief) **no corresponde** a ninguna función real del HTML — verificado con `grep -n "function Admin"` sobre el archivo completo. La función real equivalente es `function AdminPanel()` (líneas 3031-3048 del script), montada por `App()` cuando `role === "admin"`. Análisis completo en `docs/sprints/sprint-3.13.md`.
+
+- Análisis previo: `AdminPanel()` compone sub-tabs (`.mx-subtabs-wrap`/`.mx-subtabs`, ya migrado en el Sprint 3.3) con dos pestañas reales: "Calendario maestro" → `MasterCalendar` (función real, no construida, reservada para el Sprint 3.14 "Calendar" — no se invade su alcance) e "Instaladores" → `AdminInstaladores()` (líneas 3049-3160 del script, `.mx-page`/`.mx-pagehead`/`.mx-admingrid`), esta última reconstruible ahora porque solo depende de `INSTALLERS`/`ZONAS`, ya migrados.
+- Componentes nuevos: `AdminPanel` (`src/components/shared/admin-panel.tsx`, orquestador de sub-tabs) y `AdminInstaladores` (`src/components/shared/admin-instaladores.tsx`, tabla de instaladores + formulario de invitación).
+- Reutilizados sin duplicar: `MxSubtabs`/`MxSubtabButton` (Sprint 3.3, primer consumidor real fuera de Coordinator), `PageContainer`/`PageHead`/`Card`/`CardHeader`/`Badge`/`Button` (Fase 3), `INSTALLERS`/`ZONAS` (Sprints 3.7/3.5) — ninguna constante nueva en este Sprint.
+- Decisión documentada: no se usan `Input`/`Select` de `components/ui/` en el formulario de invitación — el HTML fuente estiliza esos campos exclusivamente vía el selector descendiente `.mx-invite input,.mx-invite select`, no vía las clases genéricas `.mx-input`/`.mx-select-native`; se reconstruyeron como elementos nativos para no alterar el estilado real.
+- CSS agregado: bloque `.mx-admingrid`/`.mx-admintable`/`.mx-adminrow*`/`.mx-admin-act`/`.mx-invite*` (15 selectores + 1 media query), verbatim.
+- **Integración real y directa en `RootLayout.tsx`** (no temporal): se agregó `{role === 'admin' && <AdminPanel />}` en la misma posición estructural que usa el HTML fuente dentro de `App()` — coincide 1:1 con `role === "admin" && React.createElement(AdminPanel, null)`.
+- Se detectó y **reportó sin corregir**: la pestaña "Calendario maestro" (activa por defecto) renderiza `null` en este Sprint, ya que `MasterCalendar` está reservado para el Sprint 3.14 — mismo criterio ya usado en `InstallerDashboard` (Sprint 3.10) para sus pestañas pendientes.
+- Validación best-effort: 0 diagnósticos de `tsc` (básico + estricto); `prettier --check` sin diferencias tras una corrección de formato/orden de imports; `git diff --stat` confirma el alcance exacto.
+- Detalle completo: `docs/sprints/sprint-3.13.md`.
+
+### Sprint 3.13 finalizado (2026-07-13)
+
+- Validación local completada: el usuario confirmó en su máquina que `npm install`, `npm run lint`, `npm run typecheck`, `npm run build` y `npm run dev` finalizan sin errores sobre la rama activa.
+- Validación visual y funcional completada: el usuario confirmó que la implementación de `AdminPanel`/`AdminInstaladores` en React coincide con `Multimax_Despacho_v1.3.html`, sin regresiones sobre componentes previamente aprobados.
+- Sprint 3.13 aprobado por validación técnica, visual y funcional del usuario. No quedan pendientes técnicos. La integración real de `AdminPanel` en `RootLayout.tsx` (`role === 'admin'`) queda aprobada tal cual.
+- Sin decisiones arquitectónicas permanentes nuevas que requieran actualizar `ARCHITECTURE.md` — las decisiones de este Sprint (reutilización de `MxSubtabs`, no usar `Input`/`Select` genéricos en el formulario de `AdminInstaladores`) son decisiones de implementación a nivel de componente, ya documentadas en `docs/sprints/sprint-3.13.md`.
+- **El siguiente Sprint a desarrollar es el Sprint 3.14** (`MasterCalendar`, "Calendar") — no se inicia sin el análisis previo obligatorio de su propio bloque HTML ni sin aprobación explícita del usuario.
+
 ## Qué falta
 
-- **Sprint 3.12: sin iniciar** — próximo Sprint a desarrollar, pendiente de análisis previo obligatorio.
+- **Sprint 3.14: sin iniciar** — próximo Sprint a desarrollar, pendiente de análisis previo obligatorio (`MasterCalendar`, contenido de la pestaña "Calendario maestro" de `AdminPanel`).
 - **Bloqueante para cerrar el Sprint 3.2**: confirmar en el entorno del usuario `npm install && npm run lint && npm run typecheck && npm run build && npm run dev` en verde sobre la rama `feature/sprint-3-2-mx-instside`.
 - A partir de aquí, el trabajo restante (antes descrito como "Fase 4 — Coordinator", "Fase 5 — Installer", "Fase 6 — Admin", etc.) se ejecuta Sprint a Sprint según `docs/SPRINTS_INDEX.md`, cada uno esperando aprobación explícita antes de iniciar el siguiente. La integración con Supabase, Realtime, eliminación de mocks y pruebas finales (antes Fases 7–10) siguen vigentes como trabajo futuro, a re-planificar en Sprints una vez completado el bloque 3.x.
 - Los layouts por rol (`CoordinatorLayout`/`InstallerLayout`/`AdminLayout`) siguen fuera de alcance hasta el Sprint que corresponda. Ver `MIGRATION_STATUS.md`.
@@ -382,7 +426,7 @@ El brief de este Sprint exigió el mismo análisis previo obligatorio de los Spr
 - `onPublish` sin lógica real en `PublishModal` (reportado, no corregido) — ver "Problema encontrado" en `docs/sprints/sprint-3.5.md`; pendiente para el Sprint que implemente `jobs`/`Trabajo` real.
 - El resto de `Coordinator()` (`mx-jobcard`, `QueueBar`, `AssignedPanel`, `NoResponsePanel`, respuestas, indicadores) queda pendiente de un Sprint que también implemente `jobs`/`publishJob` real — ver "Problema encontrado / decisión" en `docs/sprints/sprint-3.6.md`. `Radar` (Sprint 3.7, ✅ completado) ya está reconstruido pero también depende de esa misma base para su integración definitiva.
 - El consumidor real de `CountRing` (Sprint 3.8, ✅ completado) — pantallas "alerta"/"oferta" del teléfono del Instalador — queda pendiente de un Sprint futuro que implemente el resto de "Solicitudes" (`mx-alert`/`mx-offer`) con motor de trabajos real. El consumidor real de `LiveCountdown` (Sprint 3.9, ✅ completado) — `statusPill`/`QueueBar` de `Coordinator` — queda pendiente de un Sprint futuro que implemente el motor de trabajos (`jobs`/`publishJob`) real. Ver `docs/sprints/sprint-3.9.md`.
-- `InstallerDashboard` (Sprint 3.10, ✅ completado) reconstruyó únicamente el estado vacío de "Solicitudes" (`mx-phone-empty`) y la navegación del teléfono — el contenido de la pestaña "Perfil" ya se resolvió en el Sprint 3.11 (`InstallerProfile`, ✅ completado, integrado dentro de la rama real `instTab === 'perfil'`); la pestaña "Mis trabajos" queda pendiente del Sprint 3.12, y las 7 ramas restantes de "Solicitudes" dependen del mismo motor de trabajos real que bloquea `Coordinator()`. Ver `docs/sprints/sprint-3.10.md` y `docs/sprints/sprint-3.11.md`.
+- `InstallerDashboard` (Sprint 3.10, ✅ completado) reconstruyó únicamente el estado vacío de "Solicitudes" (`mx-phone-empty`) y la navegación del teléfono — el contenido de las pestañas "Perfil" (Sprint 3.11, ✅ completado) y "Mis trabajos" (Sprint 3.12, ✅ completado) ya está resuelto, ambas integradas dentro de sus ramas reales (`instTab === 'perfil'`/`'trabajos'`); las 7 ramas restantes de "Solicitudes" siguen dependiendo del mismo motor de trabajos real que bloquea `Coordinator()`. Ver `docs/sprints/sprint-3.10.md`, `docs/sprints/sprint-3.11.md` y `docs/sprints/sprint-3.12.md`.
 
 ## Problemas encontrados (heredados de Fase 1, siguen sin resolver)
 
@@ -403,4 +447,4 @@ Ninguno de estos bloquea el scaffold de esta fase; sí bloquearán las fases 7 (
 
 ## Próximos pasos
 
-Sprint 3.11 cerrado (✅ Completado). El próximo Sprint a desarrollar es el 3.12 (`InstallerJobs`), que requiere su propio análisis previo obligatorio antes de escribir cualquier código. No se inicia sin aprobación explícita del usuario. No se ejecuta ninguna operación Git — el flujo Git es exclusivamente manual, a cargo del usuario.
+Sprint 3.13 cerrado (✅ Completado). El próximo Sprint a desarrollar es el 3.14 (`MasterCalendar`, "Calendar"), que requiere su propio análisis previo obligatorio antes de escribir cualquier código. No se inicia sin aprobación explícita del usuario. No se ejecuta ninguna operación Git — el flujo Git es exclusivamente manual, a cargo del usuario.

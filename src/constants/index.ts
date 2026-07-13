@@ -336,3 +336,110 @@ export const ELIGIBLE_ORDER: readonly string[] = [
   'tecno',
   'polar',
 ] as const;
+
+/**
+ * `ESTADO` — mapeo estado→(tono/etiqueta) para las Pill de estado de trabajo,
+ * portado verbatim de `const ESTADO` (`Multimax_Despacho_v1.3.html`, línea
+ * 1155). Es un catálogo transversal del prototipo (no exclusivo del
+ * Instalador): además de `MISJOBS`/`InstallerJobs()` (Sprint 3.12, único
+ * consumidor real por ahora), el HTML fuente también lo usa para `TRABAJOS`
+ * dentro de `Coordinator()` — fuera de alcance de este Sprint, pero se porta
+ * el objeto completo (los 6 estados) en vez de solo el subconjunto usado por
+ * `MISJOBS` (`confirmado`/`pendiente`/`completado`) para no tener que volver
+ * a tocar este archivo ni duplicar el mapeo cuando llegue el Sprint que migre
+ * `Coordinator()`/`TRABAJOS`. `ARCHITECTURE.md` §3 ya reserva este catálogo
+ * como `constants/estadoUi.ts` para la arquitectura final (indexado por
+ * `trabajos.phase`/`bids.estado` reales); aquí vive junto al resto de
+ * constantes de Fase 3 hasta que corresponda esa reorganización.
+ *
+ * `tone` reutiliza los mismos 6 valores de `BadgeTone` (`components/ui/
+ * badge.tsx`) sin importar ese tipo aquí (capa `constants/` no depende de
+ * `components/`) — el componente consumidor (`InstallerJobs`) es responsable
+ * de pasarlo a `Badge`.
+ */
+export type EstadoUiTone = 'ice' | 'amber' | 'red' | 'green' | 'violet' | 'muted';
+
+export interface EstadoUiInfo {
+  tone: EstadoUiTone;
+  label: string;
+}
+
+export type EstadoUiKey =
+  | 'en_vivo'
+  | 'asignado'
+  | 'completado'
+  | 'cancelado'
+  | 'confirmado'
+  | 'pendiente';
+
+export const ESTADO: Record<EstadoUiKey, EstadoUiInfo> = {
+  en_vivo: { tone: 'amber', label: 'En vivo' },
+  asignado: { tone: 'violet', label: 'Asignado' },
+  completado: { tone: 'green', label: 'Completado' },
+  cancelado: { tone: 'red', label: 'Cancelado' },
+  confirmado: { tone: 'green', label: 'Confirmado' },
+  pendiente: { tone: 'muted', label: 'Pendiente' },
+};
+
+/**
+ * `MISJOBS` — mock estático de "Mis trabajos" del Instalador, portado
+ * verbatim de `const MISJOBS` (`Multimax_Despacho_v1.3.html`, líneas
+ * 1327-1352) — 4 registros fijos, sin `id` (a diferencia de `TRABAJOS`, que sí
+ * tiene `id`; el HTML fuente no le asigna uno a estos). Único consumidor
+ * real: `InstallerJobs` (Sprint 3.12), que agrupa por `grupo` ("Próximos"/
+ * "Historial") y resuelve cada `estado` contra `ESTADO` de arriba.
+ *
+ * Se define como constante reutilizable en vez de un literal dentro del
+ * componente, por la regla de preparación para Supabase vigente desde el
+ * Sprint 3.12: esta colección podrá sustituirse más adelante por datos reales
+ * (tabla `trabajos` filtrada por instalador asignado) sin tocar el JSX/
+ * estructura/estilos de `InstallerJobs` — solo la fuente de datos.
+ */
+export interface MisJobMock {
+  tipo: string;
+  zona: string;
+  fecha: string;
+  hora: string;
+  precio: number;
+  estado: EstadoUiKey;
+  grupo: 'Próximos' | 'Historial';
+}
+
+export const MISJOBS: readonly MisJobMock[] = [
+  {
+    tipo: 'Instalación A/A 12,000 BTU',
+    zona: 'Paitilla',
+    fecha: 'Mañana',
+    hora: '10:00 a.m.',
+    precio: 120,
+    estado: 'confirmado',
+    grupo: 'Próximos',
+  },
+  {
+    tipo: 'Mantenimiento de Split',
+    zona: 'Costa del Este',
+    fecha: 'Hoy',
+    hora: '2:00 p.m.',
+    precio: 90,
+    estado: 'pendiente',
+    grupo: 'Próximos',
+  },
+  {
+    tipo: 'Instalación A/A 18,000 BTU',
+    zona: 'San Francisco',
+    fecha: 'Ayer',
+    hora: '3:30 p.m.',
+    precio: 160,
+    estado: 'completado',
+    grupo: 'Historial',
+  },
+  {
+    tipo: 'Reparación de condensador',
+    zona: 'Bella Vista',
+    fecha: '19 jun',
+    hora: '9:00 a.m.',
+    precio: 80,
+    estado: 'completado',
+    grupo: 'Historial',
+  },
+] as const;

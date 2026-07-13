@@ -2,6 +2,7 @@ import { ClipboardList, Crosshair } from 'lucide-react';
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 
+import { AdminPanel } from '@/components/shared/admin-panel';
 import { CoordinatorEmptyState } from '@/components/shared/coordinator-empty-state';
 import { CountRing } from '@/components/shared/countring';
 import { Footer } from '@/components/shared/footer';
@@ -421,6 +422,32 @@ const LIVECOUNTDOWN_DEMO_BID_MINS = 5;
  * integración al contenedor real (este ajuste), sin modificar el
  * componente en sí. Ver "Problema encontrado / decisión de integración
  * temporal" en `docs/sprints/sprint-3.11.md` para el detalle original.
+ *
+ * ---------------------------------------------------------------------
+ * INTEGRACIÓN REAL — Sprint 3.13 (`AdminPanel`)
+ * ---------------------------------------------------------------------
+ * `AdminPanel` reconstruye verbatim `function AdminPanel()` (líneas
+ * 3031-3048 del HTML fuente) — la raíz del panel de Administrador. En el
+ * HTML fuente, `App()` la monta como `role === "admin" && React.
+ * createElement(AdminPanel, null)` (línea 2121), hermano directo de las
+ * ramas `role === "coord"`/`role === "inst"` — exactamente la misma
+ * posición donde ya viven, en este archivo, los bloques `role ===
+ * 'coordinador'`/`role === 'instalador'`.
+ *
+ * A diferencia de `CountRing`/`Radar`/`LiveCountdown`/`InstallerProfile`
+ * (en su entrega inicial), este NO es un mount temporal: `RootLayout.tsx`
+ * ya es, desde el Sprint 3.1, el equivalente directo de `App()` — el
+ * "contenedor" real de `AdminPanel` (la rama `role === "admin"` de `App()`)
+ * ya existe en el proyecto, así que se integra aquí directamente, sin
+ * ningún JSDoc de "retirar cuando exista el layout real" — coincide 1:1 con
+ * el HTML fuente, no es una solución provisional. Ver "Regla de
+ * integración" en `docs/sprints/sprint-3.13.md`.
+ *
+ * `AdminPanel` no recibe props ni mocks desde aquí: internamente reutiliza
+ * `INSTALLERS`/`ZONAS` (ya migrados) a través de `AdminInstaladores`. Ver
+ * JSDoc de `admin-panel.tsx`/`admin-instaladores.tsx` para el detalle
+ * completo del alcance (incluida la pestaña "Calendario maestro", fuera de
+ * alcance de este Sprint — reservada para el Sprint 3.14).
  */
 export function RootLayout() {
   const [role, setRole] = useState<Rol>('coordinador');
@@ -467,6 +494,8 @@ export function RootLayout() {
             <CountRing remaining={COUNTRING_DEMO_REMAINING} total={COUNTRING_DEMO_TOTAL} />
           </>
         )}
+        {/* Sprint 3.13 (AdminPanel): integración real y directa — ver comentario de la función. */}
+        {role === 'admin' && <AdminPanel />}
         {/* TEMPORARY INTEGRATION — Sprint 3.5 (PublishModal): ver comentario de la función. */}
         <PublishModal
           sucursal={sucursalCoord}
