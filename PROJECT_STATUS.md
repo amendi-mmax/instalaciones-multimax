@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — HANDYMAX · Multimax Despacho
 
-Última actualización: 2026-07-14 — Sprint 3.14 (`MasterCalendar`) — ✅ Completado. Sprint actual: 3.15.
+Última actualización: 2026-07-14 — Sprint 3.15 (`ConfirmCancel`, antes "Shared Dialogs") — 🟡 En revisión. Sprint actual: 3.15.
 
 **Componentes completados hasta la fecha**: Header, Sidebar (`mx-instside`), Subtabs (`MxSubtabs`/`MxSubtabButton`), Selector de sucursal (`SucursalSelect`), `PublishModal`, `CoordinatorEmptyState`, `Radar`, `CountRing`, `LiveCountdown`, `InstallerDashboard`, `InstallerProfile`, `InstallerJobs`, `AdminPanel`, `AdminInstaladores`, `MasterCalendar`.
 
@@ -440,9 +440,22 @@ El brief de este Sprint exigió el mismo análisis previo obligatorio de los Spr
 - Sin cambios de arquitectura — `ARCHITECTURE.md` no se modificó. Sin integración con Supabase.
 - **El siguiente Sprint a desarrollar es el Sprint 3.15** (Shared Dialogs) — no se inicia sin el análisis previo obligatorio de su propio bloque HTML ni sin aprobación explícita del usuario.
 
+## Sprint 3.15 — `ConfirmCancel` (2026-07-14) — 🟡 En revisión
+
+"Shared Dialogs" (nombre del brief) **NO corresponde** a ninguna función real del HTML — es un nombre genérico. Se confirmó, por inspección exhaustiva del script (búsqueda de cualquier patrón `function.*Dialog`/`function.*Modal`/`window.confirm`/textos de confirmación), que el único diálogo compartido real es `function ConfirmCancel({ onYes, onNo })` (líneas 3531-3553). Nombre corregido con trazabilidad documentada. Análisis completo en `docs/sprints/sprint-3.15.md`.
+
+- Hallazgo relevante: `ConfirmDialog` (`src/components/shared/confirm-dialog.tsx`) ya existía desde la fase de Baseline (Fases 1-3, previa a la metodología de Sprints), ya wireado a `.mx-confirm-*`, sin consumidor real. Este Sprint lo conecta por primera vez.
+- Componente nuevo: `ConfirmCancelDialog` (`src/components/shared/confirm-cancel-dialog.tsx`) — wrapper delgado sobre `ConfirmDialog`, con el contenido literal exacto de `ConfirmCancel` (título, descripción, botones, ícono `XCircle`). Sin datos mock — no aplica preparación para Supabase.
+- 2 correcciones de fidelidad en `ConfirmDialog` (componente pre-existente): tamaño de ícono `AlertTriangle` (17→16) y ampliación de tipo `confirmLabel`/`cancelLabel` (`string`→`ReactNode`) — documentadas en `docs/sprints/sprint-3.15.md`.
+- CSS: ninguno nuevo — `.mx-confirm-*` (11 reglas) ya portado desde Baseline, verificado sin diferencias.
+- **Integración temporal** en `RootLayout.tsx` (mismo criterio que Sprints 3.7/3.8/3.9): estado `confirmCancelOpen`, botón disparador temporal (réplica verbatim del botón "Cancelar" real de `Coordinator`) — el disparador real depende del motor de trabajos, todavía no construido.
+- Validación best-effort: 0 diagnósticos de `tsc` (básico + estricto); `prettier --check` sin diferencias; `git status --porcelain -- src/` confirma el alcance exacto.
+- Detalle completo: `docs/sprints/sprint-3.15.md`.
+- **Pendiente**: validación técnica real (`npm run lint`/`typecheck`/`build`/`dev`), visual y funcional del usuario. `docs/SPRINTS_INDEX.md` no se actualiza en esta ronda.
+
 ## Qué falta
 
-- **Sprint 3.15: sin iniciar** — próximo Sprint a desarrollar (Shared Dialogs), pendiente de análisis previo obligatorio.
+- **Sprint 3.15: implementado, pendiente de validación del usuario** (técnica real, visual, funcional) antes de cerrarse formalmente.
 - **Bloqueante para cerrar el Sprint 3.2**: confirmar en el entorno del usuario `npm install && npm run lint && npm run typecheck && npm run build && npm run dev` en verde sobre la rama `feature/sprint-3-2-mx-instside`.
 - A partir de aquí, el trabajo restante (antes descrito como "Fase 4 — Coordinator", "Fase 5 — Installer", "Fase 6 — Admin", etc.) se ejecuta Sprint a Sprint según `docs/SPRINTS_INDEX.md`, cada uno esperando aprobación explícita antes de iniciar el siguiente. La integración con Supabase, Realtime, eliminación de mocks y pruebas finales (antes Fases 7–10) siguen vigentes como trabajo futuro, a re-planificar en Sprints una vez completado el bloque 3.x.
 - Los layouts por rol (`CoordinatorLayout`/`InstallerLayout`/`AdminLayout`) siguen fuera de alcance hasta el Sprint que corresponda. Ver `MIGRATION_STATUS.md`.
@@ -471,4 +484,4 @@ Ninguno de estos bloquea el scaffold de esta fase; sí bloquearán las fases 7 (
 
 ## Próximos pasos
 
-Sprint 3.14 cerrado (✅ Completado). El próximo Sprint a desarrollar es el 3.15 (Shared Dialogs), que requiere su propio análisis previo obligatorio antes de escribir cualquier código. No se inicia sin aprobación explícita del usuario. No se ejecuta ninguna operación Git — el flujo Git es exclusivamente manual, a cargo del usuario.
+Sprint 3.15 (`ConfirmCancel`) implementado, con validación best-effort en verde. Queda a la espera de la validación técnica real, visual y funcional del usuario antes de poder cerrarse formalmente (✅ Completado). No se avanza al Sprint 3.16 sin esa aprobación explícita. No se ejecuta ninguna operación Git — el flujo Git es exclusivamente manual, a cargo del usuario.

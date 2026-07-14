@@ -2,6 +2,29 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Sprint 3.15 — `ConfirmCancel`] — 2026-07-14 — 🟡 En revisión
+
+Continúa la migración incremental. El brief llamaba a este Sprint "Shared Dialogs" (nombre genérico de `docs/SPRINTS_INDEX.md`) y exigía explícitamente, con una regla nueva, un análisis completo del HTML antes de escribir código. Verificado por inspección directa del script: no existe ninguna función/patrón de "diálogos compartidos" en plural — el único diálogo de confirmación real es `function ConfirmCancel({ onYes, onNo })` (líneas 3531-3553), usado por `App()` para confirmar la cancelación de un trabajo. Se corrige el nombre del Sprint a `ConfirmCancel`, con trazabilidad documentada.
+
+Hallazgo relevante: `src/components/shared/confirm-dialog.tsx` (`ConfirmDialog`) ya existía en el proyecto desde la fase de Baseline (Fases 1-3, previa a la metodología de Sprints), ya wireado a las clases `.mx-confirm-*`, con su propio JSDoc declarando que era la reconstrucción pendiente de `ConfirmCancel` — pero sin ningún consumidor real. Este Sprint lo conecta por primera vez, reutilizándolo (sin duplicar) como base de un nuevo componente `ConfirmCancelDialog`, que aporta el contenido literal exacto del bloque real (título, descripción, botones, ícono). Al conectarlo se detectaron y corrigieron 2 discrepancias de fidelidad menores en `ConfirmDialog` frente al script fuente (tamaño de ícono, tipo de las etiquetas de botón) — documentadas en `docs/sprints/sprint-3.15.md`.
+
+Como el disparador real (botón "Cancelar" dentro de la tarjeta de trabajo activo de `Coordinator`) depende del motor de trabajos, todavía no construido, se aplicó el mismo criterio de integración temporal ya usado en los Sprints 3.7/3.8/3.9 (`Radar`/`CountRing`/`LiveCountdown`): un botón disparador temporal en `RootLayout.tsx`, documentado, a retirar cuando exista `Coordinator` real.
+
+### Añadido
+
+- `src/components/shared/confirm-cancel-dialog.tsx` (`ConfirmCancelDialog`, NUEVO) — reconstrucción verbatim del contenido de `ConfirmCancel`, sobre la base de `ConfirmDialog` ya existente.
+- `docs/sprints/sprint-3.15.md` — análisis obligatorio ampliado (20 puntos, según la regla nueva de este Sprint), implementación, preparación para Supabase (no aplica, sin datos), validaciones.
+
+### Modificado
+
+- `src/components/shared/confirm-dialog.tsx` (`ConfirmDialog`) — 2 correcciones de fidelidad puntuales (tamaño de ícono `AlertTriangle` 17→16; `confirmLabel`/`cancelLabel` ampliados de `string` a `ReactNode`), sin cambios de estructura ni de props obligatorias.
+- `src/layouts/RootLayout.tsx` — integración temporal de `ConfirmCancelDialog` (estado `confirmCancelOpen`, botón disparador temporal dentro de `role === 'coordinador'`, mount como hermano de `PublishModal`).
+
+### Pendiente
+
+- Validación técnica real (`npm run lint`/`typecheck`/`build`/`dev`), visual y funcional del usuario.
+- `docs/SPRINTS_INDEX.md` no se actualiza en esta ronda — se actualizará únicamente después de la aprobación del Sprint.
+
 ## Sprint 3.14 — Cierre del Sprint
 
 - Validación técnica aprobada por el usuario (`npm run lint`, `npm run typecheck`, `npm run build`, `npm run dev`).

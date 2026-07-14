@@ -1,8 +1,9 @@
-import { ClipboardList, Crosshair } from 'lucide-react';
+import { ClipboardList, Crosshair, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 
 import { AdminPanel } from '@/components/shared/admin-panel';
+import { ConfirmCancelDialog } from '@/components/shared/confirm-cancel-dialog';
 import { CoordinatorEmptyState } from '@/components/shared/coordinator-empty-state';
 import { CountRing } from '@/components/shared/countring';
 import { Footer } from '@/components/shared/footer';
@@ -448,11 +449,44 @@ const LIVECOUNTDOWN_DEMO_BID_MINS = 5;
  * JSDoc de `admin-panel.tsx`/`admin-instaladores.tsx` para el detalle
  * completo del alcance (incluida la pestaña "Calendario maestro", fuera de
  * alcance de este Sprint — reservada para el Sprint 3.14).
+ *
+ * ---------------------------------------------------------------------
+ * TEMPORARY INTEGRATION — Sprint 3.15 (`ConfirmCancelDialog` / `ConfirmCancel`)
+ * ---------------------------------------------------------------------
+ * `ConfirmCancelDialog` reconstruye `function ConfirmCancel({ onYes, onNo })`
+ * (líneas 3531-3553 del HTML fuente) — ver `docs/sprints/sprint-3.15.md` para
+ * el análisis completo y la corrección de nombre ("Shared Dialogs" →
+ * `ConfirmCancel`). En el HTML fuente, su único consumidor real es el botón
+ * "Cancelar" (`mx-btn mx-btn-ghost`, líneas 2312-2321) dentro de la fila de
+ * acciones (`mx-actionsrow`) de un trabajo activo/asignado, que a su vez solo
+ * existe dentro de `Coordinator(props)` cuando `jobs.length > 0` — el mismo
+ * bloqueo ya documentado para `CoordinatorEmptyState`/`Radar`/`LiveCountdown`
+ * (Sprints 3.6/3.7/3.9): `Coordinator` (la variante con tarjetas de trabajo)
+ * no existe todavía en el proyecto (`jobs` arranca en `[]`, sin motor de
+ * trabajos portado).
+ *
+ * Para poder validar visualmente el diálogo sin depender de ese motor, se
+ * agrega aquí, dentro de `role === 'coordinador'`, un botón disparador
+ * temporal que reproduce verbatim la apariencia real del botón "Cancelar" de
+ * `Coordinator()` (mismas clases `mx-btn mx-btn-ghost`, mismo `style` en
+ * línea con color/borde rojo, mismo ícono `XCircle` de 14px, mismo texto) —
+ * mismo criterio que la integración temporal del Sprint 3.9. El estado
+ * `confirmCancelOpen`/`setConfirmCancelOpen` reemplaza aquí al `confirmCancel`
+ * (string | null, id de trabajo) de `App()` — no hay ningún `job.id` real que
+ * rastrear todavía, así que se simplifica a un booleano de solo
+ * abrir/cerrar, sin cambiar el comportamiento visible del diálogo en sí.
+ * `onYes` no ejecuta ninguna lógica de negocio real todavía (no existe
+ * ningún `job`/`jobs` que cancelar) — se documenta como pendiente para el
+ * Sprint que implemente el motor de trabajos real de `Coordinator`, mismo
+ * criterio ya aplicado a `onPublish` en el Sprint 3.5. Se retirará este botón
+ * disparador temporal y se recolocará `ConfirmCancelDialog` dentro de la fila
+ * de acciones real en el Sprint que construya `Coordinator`/`QueueBar`.
  */
 export function RootLayout() {
   const [role, setRole] = useState<Rol>('coordinador');
   const [sucursalCoord, setSucursalCoord] = useState('Multiplaza');
   const [showPublishModal, setShowPublishModal] = useState(false);
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [meId, setMeId] = useState('pty');
 
   return (
@@ -484,6 +518,16 @@ export function RootLayout() {
               publishedAt={LIVECOUNTDOWN_DEMO_PUBLISHED_AT}
               bidMins={LIVECOUNTDOWN_DEMO_BID_MINS}
             />
+            {/* TEMPORARY INTEGRATION — Sprint 3.15 (ConfirmCancelDialog): ver comentario de la función. */}
+            <button
+              type="button"
+              className="mx-btn mx-btn-ghost"
+              style={{ flex: 'none', color: 'var(--red)', borderColor: 'rgba(255,92,122,.35)' }}
+              onClick={() => setConfirmCancelOpen(true)}
+            >
+              <XCircle size={14} />
+              Cancelar
+            </button>
           </div>
         )}
         {/* TEMPORARY INTEGRATION — Sprint 3.10 (InstallerDashboard, reemplaza la integración de Sprint 3.2.1/3.2.2): ver comentario de la función. */}
@@ -502,6 +546,14 @@ export function RootLayout() {
           open={showPublishModal}
           onOpenChange={setShowPublishModal}
           onPublish={() => {
+            /* Sin lógica de negocio en este Sprint — ver comentario de la función. */
+          }}
+        />
+        {/* TEMPORARY INTEGRATION — Sprint 3.15 (ConfirmCancelDialog): ver comentario de la función. */}
+        <ConfirmCancelDialog
+          open={confirmCancelOpen}
+          onOpenChange={setConfirmCancelOpen}
+          onYes={() => {
             /* Sin lógica de negocio en este Sprint — ver comentario de la función. */
           }}
         />

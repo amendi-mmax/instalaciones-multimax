@@ -13,14 +13,29 @@ import { Dialog } from '@/components/ui/dialog';
  * component pedido explícitamente en el listado de esta fase). Construido
  * sobre los primitivos de `ui/dialog.tsx` (Radix) para accesibilidad
  * (foco atrapado, cierre con Escape).
+ *
+ * Corrección de fidelidad (Sprint 3.15 — "Shared Dialogs" / `ConfirmCancel`):
+ * este componente se creó en la fase de scaffold (Baseline: Fases 1-3),
+ * antes de la metodología de Sprints estrictos, y quedó sin ningún consumidor
+ * real. Al retomarlo para construir la reconstrucción verbatim de
+ * `ConfirmCancel` (líneas 3531-3553 del script fuente) se detectaron 2
+ * discrepancias contra el HTML, corregidas aquí a favor del script
+ * (autoritativo), sin cambiar la estructura/props existentes: (1) el icono
+ * de `<h3>` usaba `size={17}`, el script fuente usa `size:16`
+ * (línea 3540-3541); (2) `confirmLabel`/`cancelLabel` eran `string`, lo que
+ * no permitía reproducir el ícono `XCircle` dentro del botón "Sí, cancelar"
+ * (línea 3547-3552 del script) — se amplían a `ReactNode` (los valores por
+ * defecto, ambos strings, siguen siendo válidos, así que esto no rompe
+ * ningún uso existente). Ver `docs/sprints/sprint-3.15.md` → sección
+ * "Diferencias encontradas".
  */
 export interface ConfirmDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: ReactNode;
   description: ReactNode;
-  confirmLabel?: string;
-  cancelLabel?: string;
+  confirmLabel?: ReactNode;
+  cancelLabel?: ReactNode;
   onConfirm: () => void;
 }
 
@@ -40,7 +55,7 @@ export function ConfirmDialog({
           <DialogPrimitive.Content className="mx-confirm-card">
             <DialogPrimitive.Title asChild>
               <h3>
-                <AlertTriangle size={17} />
+                <AlertTriangle size={16} />
                 {title}
               </h3>
             </DialogPrimitive.Title>

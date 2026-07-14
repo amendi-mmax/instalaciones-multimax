@@ -18,7 +18,7 @@ Checklist vivo. **Desde el Sprint 3.1, el checklist activo para el trabajo resta
 14. **Sprint 3.12 — `InstallerJobs` ✅** (validación local + visual + funcional aprobadas — ver `docs/sprints/sprint-3.12.md`)
 15. **Sprint 3.13 — `AdminPanel`/`AdminInstaladores` ✅** (validación local + visual + funcional aprobadas — ver `docs/sprints/sprint-3.13.md`)
 16. **Sprint 3.14 — `MasterCalendar` ✅** (validación local + visual + funcional aprobadas — ver `docs/sprints/sprint-3.14.md`)
-17. **Sprint 3.15 — Shared Dialogs 🔜 Pendiente** — próximo Sprint a desarrollar, ver `docs/SPRINTS_INDEX.md`
+17. **Sprint 3.15 — `ConfirmCancel` (nombre real; "Shared Dialogs" era el nombre genérico del brief) 🟡 En revisión** — implementado, pendiente de validación técnica/visual/funcional del usuario — ver `docs/sprints/sprint-3.15.md`
 18. Sprint 3.16 — ver `docs/SPRINTS_INDEX.md`
 5. (Futuro, a re-planificar en Sprints) Integración completa con Supabase, Realtime, eliminación de datos mock, pruebas finales
 
@@ -279,6 +279,22 @@ Migra `function MasterCalendar()` (líneas 2825-3028 del JSX fuente) — calenda
 - [x] **Sprint 3.14 cerrado formalmente (✅ Completado)**. Sin pendientes técnicos.
 - [ ] **Detenido a propósito**: no se avanza al Sprint 3.15 sin aprobación explícita del usuario. No se ejecuta ninguna operación Git — el flujo Git es exclusivamente manual, a cargo del usuario.
 
+## Sprint 3.15 — `ConfirmCancel` (implementado, 🟡 en revisión)
+
+Migra `function ConfirmCancel({ onYes, onNo })` (líneas 3531-3553 del JSX fuente) — diálogo de confirmación para cancelar un trabajo. "Shared Dialogs" (nombre genérico del brief/`docs/SPRINTS_INDEX.md`) **se corrige** a `ConfirmCancel`, la única función real de este tipo en todo el script. Detalle completo en `docs/sprints/sprint-3.15.md`.
+
+- [x] Análisis previo obligatorio (20 puntos exigidos por el brief): se confirmó que `ConfirmCancel` es el único diálogo compartido real; se descartó cualquier otro candidato (`PublishModal`, ya migrado y prohibido de modificar, no es un diálogo genérico).
+- [x] Se detectó que `ConfirmDialog` (`src/components/shared/confirm-dialog.tsx`) **ya existía desde la fase de Baseline (Fases 1-3)**, ya wireado a `.mx-confirm-*`, sin consumidor real hasta este Sprint — se reutiliza tal cual como base, sin duplicar Overlay/Content/accesibilidad.
+- [x] `ConfirmCancelDialog` (`src/components/shared/confirm-cancel-dialog.tsx`, NUEVO) — wrapper delgado sobre `ConfirmDialog` con el contenido literal exacto de `ConfirmCancel` (título, descripción, botones, ícono `XCircle`).
+- [x] 2 correcciones de fidelidad en `ConfirmDialog` (componente pre-existente, sin Sprint propio): tamaño del ícono `AlertTriangle` (17→16) y ampliación de tipo `confirmLabel`/`cancelLabel` (`string`→`ReactNode`), documentadas explícitamente.
+- [x] CSS: ninguno nuevo — `.mx-confirm-*` (11 reglas) ya estaba portado íntegro desde Baseline, verificado sin diferencias.
+- [x] **Integración temporal** en `RootLayout.tsx` (mismo criterio que Sprints 3.7/3.8/3.9): estado local `confirmCancelOpen`, botón disparador temporal (réplica verbatim del botón "Cancelar" real de `Coordinator`) dentro de `role === 'coordinador'`, `ConfirmCancelDialog` montado como hermano de `PublishModal` — el disparador real (`Coordinator`, motor de trabajos) no existe todavía.
+- [x] Validación best-effort (`tsc --noEmit` con stubs básico + estricto, + `prettier --check`) — en verde.
+- [ ] Validación real del usuario (`npm run lint`/`typecheck`/`build`/`dev`) — pendiente.
+- [ ] Validación visual y funcional del usuario — pendiente.
+- [ ] **Sprint 3.15 pendiente de cierre formal** — no se marca ✅ Completado hasta la aprobación explícita del usuario.
+- [ ] **Detenido a propósito**: no se avanza al Sprint 3.16 sin aprobación explícita del usuario. No se ejecuta ninguna operación Git — el flujo Git es exclusivamente manual, a cargo del usuario.
+
 ## Fase 4 — Módulo Coordinator (parcialmente iniciada vía Sprints 3.6/3.7 — estado vacío + Radar; ver Sprints 3.9 en adelante en `docs/SPRINTS_INDEX.md`)
 
 - [ ] `DespachoPage` (QueueBar, JobCard, JobStatsGrid, ResponsesFeed, AssignedPanel, NoResponsePanel) con datos mock locales — depende de `jobs`/`Trabajo` real (Sprint futuro).
@@ -288,7 +304,7 @@ Migra `function MasterCalendar()` (líneas 2825-3028 del JSX fuente) — calenda
 - [ ] `TrabajosPage` / `TrabajoDetailPage` (historial, filtro, timeline) con datos mock locales.
 - [x] `MasterCalendar` (grid, dots, leyenda) reconstruido con datos mock (`SUSCOL`/`TRABAJOS`) — Sprint 3.14, ✅ Completado; integrado dentro de `AdminPanel` (Admin). Su segundo consumidor real dentro de Coordinator (`CoordinatorJobs({isMaster:true})`) sigue pendiente — depende de `CoordinatorJobs()`, sin Sprint asignado.
 - [x] `LiveCountdown` (countdown de texto con timer propio, usado en `mx-jobcard`/QueueBar — distinto de `CountRing`, ya migrado en Sprint 3.8) reconstruido — Sprint 3.9, ✅ Completado, integrado temporalmente en `RootLayout`.
-- [ ] `ConfirmDialog` de Fase 3 conectado al flujo real `requestCancel`/`doCancel`.
+- [x] `ConfirmDialog` de Fase 3 reconstruido con el contenido literal exacto de `ConfirmCancel` (Sprint 3.15, `ConfirmCancelDialog`) e integrado temporalmente en `RootLayout.tsx` (botón disparador temporal, ver `docs/sprints/sprint-3.15.md`) — pendiente de validación del usuario. Su conexión al flujo real `requestCancel`/`doCancel` (motor de trabajos, `Coordinator` con tarjetas reales) sigue pendiente — depende del mismo Sprint futuro que `DespachoPage`/`TrabajosPage` de arriba.
 
 ## Fase 5 — Módulo Installer (parcialmente iniciada vía Sprints 3.8/3.10/3.11/3.12 — `CountRing` + `InstallerDashboard` + `InstallerProfile` + `InstallerJobs`)
 
