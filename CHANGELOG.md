@@ -2,6 +2,18 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## Sprint 3.14 — Cierre del Sprint
+
+- Validación técnica aprobada por el usuario (`npm run lint`, `npm run typecheck`, `npm run build`, `npm run dev`).
+- Validación visual aprobada — la implementación de `MasterCalendar` en React coincide con `Multimax_Despacho_v1.3.html`.
+- Validación funcional aprobada.
+- `MasterCalendar` integrado correctamente dentro de `AdminPanel` (rama real `tab === 'calendario'`) — sin ningún mount temporal en `RootLayout.tsx`.
+- Sin incidencias bloqueantes.
+- No hubo cambios de arquitectura — `ARCHITECTURE.md` no se modificó.
+- No hubo integración con Supabase — exclusivamente visual, con datos mock (`SUSCOL`/`TRABAJOS`).
+- Sprint 3.14 oficialmente completado (✅ Completado).
+- Próximo Sprint: Sprint 3.15 — Shared Dialogs.
+
 ## Sprint 3.13 — Cierre del Sprint
 
 - Validación técnica aprobada por el usuario (`npm install`, `npm run lint`, `npm run typecheck`, `npm run build`, `npm run dev`).

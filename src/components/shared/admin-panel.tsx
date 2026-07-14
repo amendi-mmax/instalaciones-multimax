@@ -2,6 +2,7 @@ import { Calendar, Users } from 'lucide-react';
 import { useState } from 'react';
 
 import { AdminInstaladores } from '@/components/shared/admin-instaladores';
+import { MasterCalendar } from '@/components/shared/master-calendar';
 import { MxSubtabButton } from '@/components/shared/mx-subtab-button';
 import { MxSubtabs } from '@/components/shared/mx-subtabs';
 
@@ -28,29 +29,25 @@ import { MxSubtabs } from '@/components/shared/mx-subtabs';
  * activa por defecto — `useState("calendario")`, línea 3032) e
  * "Instaladores" (ícono `Users`). Según la pestaña activa, renderiza
  * `MasterCalendar` (tab "calendario") o `AdminInstaladores` (tab
- * "instaladores").
+ * "instaladores") — ternario verbatim del HTML fuente (línea 3047:
+ * `tab === "calendario" ? React.createElement(MasterCalendar, null) :
+ * React.createElement(AdminInstaladores, null)`).
  *
- * **Alcance de este Sprint**: `MasterCalendar` (función real, sin
- * construir todavía, reservada para el Sprint 3.14 "Calendar" — ver
- * `docs/SPRINTS_INDEX.md`) NO se implementa aquí — implementarla invadiría
- * su propio Sprint numerado, mismo criterio ya aplicado en el Sprint 3.10
- * con `InstallerJobs`/`InstallerProfile`. `AdminInstaladores` SÍ es
- * reconstruible ahora (no depende de ningún motor de trabajos, solo de
- * `INSTALLERS`/`ZONAS`, ya migrados) — ver `admin-instaladores.tsx`.
- *
- * **Limitación reportada (no corregida)**: el HTML fuente arranca con
- * `tab === "calendario"` como pestaña activa por defecto — se reconstruye
- * ese mismo estado inicial exacto (`useState('calendario')`), pero como
- * `MasterCalendar` no existe todavía, la rama `tab === 'calendario'`
- * renderiza `null` en este Sprint (mismo patrón ya usado en
- * `InstallerDashboard`, Sprint 3.10, para sus pestañas no implementadas
- * todavía). La navegación (resaltado de pestaña activa, cambio de `tab`)
- * es real y funcional; solo el contenido de "Calendario maestro" queda
- * pendiente del Sprint 3.14.
+ * **AJUSTE DE INTEGRACIÓN (Sprint 3.14)**: hasta el Sprint 3.13, la rama
+ * `tab === 'calendario'` renderizaba `null` porque `MasterCalendar` no
+ * existía todavía (limitación documentada en ese Sprint, mismo patrón usado
+ * en `InstallerDashboard`, Sprint 3.10, para sus pestañas pendientes). El
+ * Sprint 3.14 construyó `MasterCalendar` (`src/components/shared/
+ * master-calendar.tsx`) y esta rama ahora la renderiza — integración real y
+ * directa dentro del contenedor que ya existía (`AdminPanel`), sin ningún
+ * mount temporal en `RootLayout.tsx`, que no requirió ningún cambio. Se
+ * reemplazó el ternario `tab === 'instaladores' ? <AdminInstaladores/> :
+ * null` (Sprint 3.13) por el ternario verbatim del HTML fuente (arriba),
+ * ahora que ambas ramas tienen componente real.
  *
  * Sin props, sin CSS propio (compone únicamente clases ya portadas:
  * `.mx-subtabs-wrap`/`.mx-subtabs` desde el Sprint 3.3, y las de
- * `AdminInstaladores`).
+ * `MasterCalendar`/`AdminInstaladores`).
  */
 export function AdminPanel() {
   const [tab, setTab] = useState<'calendario' | 'instaladores'>('calendario');
@@ -73,7 +70,7 @@ export function AdminPanel() {
           Instaladores
         </MxSubtabButton>
       </MxSubtabs>
-      {tab === 'instaladores' ? <AdminInstaladores /> : null}
+      {tab === 'calendario' ? <MasterCalendar /> : <AdminInstaladores />}
     </div>
   );
 }

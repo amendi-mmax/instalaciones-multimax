@@ -17,7 +17,9 @@ Checklist vivo. **Desde el Sprint 3.1, el checklist activo para el trabajo resta
 13. **Sprint 3.11 — `InstallerProfile` ✅** (validación local + visual aprobadas, incluido el ajuste de punto de integración — ver `docs/sprints/sprint-3.11.md`)
 14. **Sprint 3.12 — `InstallerJobs` ✅** (validación local + visual + funcional aprobadas — ver `docs/sprints/sprint-3.12.md`)
 15. **Sprint 3.13 — `AdminPanel`/`AdminInstaladores` ✅** (validación local + visual + funcional aprobadas — ver `docs/sprints/sprint-3.13.md`)
-16. Sprints 3.14–3.16 — ver `docs/SPRINTS_INDEX.md`
+16. **Sprint 3.14 — `MasterCalendar` ✅** (validación local + visual + funcional aprobadas — ver `docs/sprints/sprint-3.14.md`)
+17. **Sprint 3.15 — Shared Dialogs 🔜 Pendiente** — próximo Sprint a desarrollar, ver `docs/SPRINTS_INDEX.md`
+18. Sprint 3.16 — ver `docs/SPRINTS_INDEX.md`
 5. (Futuro, a re-planificar en Sprints) Integración completa con Supabase, Realtime, eliminación de datos mock, pruebas finales
 
 ## Fase 1 — Arquitectura (completada)
@@ -260,6 +262,23 @@ Migra `function AdminPanel()` (líneas 3031-3048 del JSX fuente, sub-tabs "Calen
 - [x] **Sprint 3.13 cerrado formalmente (✅ Completado)**. Sin pendientes técnicos.
 - [ ] **Detenido a propósito**: no se avanza al Sprint 3.14 sin aprobación explícita del usuario. No se ejecuta ninguna operación Git — el flujo Git es exclusivamente manual, a cargo del usuario.
 
+## Sprint 3.14 — `MasterCalendar` (completado ✅)
+
+Migra `function MasterCalendar()` (líneas 2825-3028 del JSX fuente) — calendario de "todos los trabajos de todas las sucursales" del panel de Administrador. El nombre "Calendar" del brief **corresponde exactamente** a esta función real. Detalle completo en `docs/sprints/sprint-3.14.md`.
+
+- [x] Análisis previo obligatorio: se confirmó, por inspección directa del HTML, que "Calendar" corresponde exactamente a `MasterCalendar()`, ya identificada desde el análisis del Sprint 3.13 — sin discrepancia que reportar. Se detectó un segundo punto de montaje real (`CoordinatorJobs({isMaster:true})`), fuera de alcance porque ese componente no existe todavía.
+- [x] `MasterCalendar` (`src/components/shared/master-calendar.tsx`) — reconstrucción verbatim: filtro de sucursal, grilla de mes con navegación y puntos de color por trabajo, lista de trabajos del día seleccionado, leyenda de colores por sucursal.
+- [x] Constantes agregadas (`src/constants/index.ts`): `SUSCOL` (colores por sucursal, 9 entradas) y `TRABAJOS` (mock de 13 trabajos con fecha real) — ninguna generada dentro del componente.
+- [x] Reutilizado sin duplicar: `PageContainer`/`PageHead`/`Card`/`Badge` (Fase 3), `SUCURSALES` (Sprint 3.4), `ESTADO` (Sprint 3.12).
+- [x] CSS agregado: bloque de 21 selectores (`.mx-cal-*`/`.mx-joblist`/`.mx-jobrow*`/`.mx-suc-badge`/`.mx-daylist*`), verbatim.
+- [x] **Integración real y directa** dentro de la rama `tab === 'calendario'` de `AdminPanel` (antes `null`, Sprint 3.13) — sin ningún mount temporal en `RootLayout.tsx`.
+- [x] Validación best-effort (`tsc --noEmit` con stubs básico + estricto, + `prettier --check`) — en verde.
+- [x] Validación real del usuario confirmada en verde (`npm run lint`/`typecheck`/`build`/`dev`) sobre `feature/sprint-3-14-calendar`.
+- [x] Validación visual y funcional del usuario confirmada — la implementación de `MasterCalendar` coincide con `Multimax_Despacho_v1.3.html`, sin regresiones.
+- [x] Sin cambios de arquitectura — `ARCHITECTURE.md` no se modificó. Sin integración con Supabase.
+- [x] **Sprint 3.14 cerrado formalmente (✅ Completado)**. Sin pendientes técnicos.
+- [ ] **Detenido a propósito**: no se avanza al Sprint 3.15 sin aprobación explícita del usuario. No se ejecuta ninguna operación Git — el flujo Git es exclusivamente manual, a cargo del usuario.
+
 ## Fase 4 — Módulo Coordinator (parcialmente iniciada vía Sprints 3.6/3.7 — estado vacío + Radar; ver Sprints 3.9 en adelante en `docs/SPRINTS_INDEX.md`)
 
 - [ ] `DespachoPage` (QueueBar, JobCard, JobStatsGrid, ResponsesFeed, AssignedPanel, NoResponsePanel) con datos mock locales — depende de `jobs`/`Trabajo` real (Sprint futuro).
@@ -267,7 +286,7 @@ Migra `function AdminPanel()` (líneas 3031-3048 del JSX fuente, sub-tabs "Calen
 - [x] `Radar` (panel SVG de instaladores) reconstruido — Sprint 3.7, integrado temporalmente en `RootLayout`.
 - [ ] Conectar `PublishModal` (Sprint 3.5) a lógica real de publicación (`onPublish` → `jobs`/`TRABAJOS`). El botón real `onOpenPublish` ya existe desde Sprint 3.6 (`CoordinatorEmptyState`), pendiente solo la lógica de `publishJob` en sí.
 - [ ] `TrabajosPage` / `TrabajoDetailPage` (historial, filtro, timeline) con datos mock locales.
-- [ ] `MasterCalendar` (grid, dots, leyenda) con datos mock locales.
+- [x] `MasterCalendar` (grid, dots, leyenda) reconstruido con datos mock (`SUSCOL`/`TRABAJOS`) — Sprint 3.14, ✅ Completado; integrado dentro de `AdminPanel` (Admin). Su segundo consumidor real dentro de Coordinator (`CoordinatorJobs({isMaster:true})`) sigue pendiente — depende de `CoordinatorJobs()`, sin Sprint asignado.
 - [x] `LiveCountdown` (countdown de texto con timer propio, usado en `mx-jobcard`/QueueBar — distinto de `CountRing`, ya migrado en Sprint 3.8) reconstruido — Sprint 3.9, ✅ Completado, integrado temporalmente en `RootLayout`.
 - [ ] `ConfirmDialog` de Fase 3 conectado al flujo real `requestCancel`/`doCancel`.
 
@@ -280,10 +299,10 @@ Migra `function AdminPanel()` (líneas 3031-3048 del JSX fuente, sub-tabs "Calen
 - [x] `PerfilPage` (`InstallerProfile()`, `.mx-profscreen`) reconstruida — Sprint 3.11 (`InstallerProfile`), integrada dentro de `InstallerDashboard` (rama real `instTab === 'perfil'`).
 - [ ] `PhoneFrame`/`Sidebar` de Fase 3 conectados con datos reales del instalador seleccionado.
 
-## Fase 6 — Módulo Admin (parcialmente iniciada vía Sprint 3.13 — `AdminPanel`/`AdminInstaladores`, ✅ Completado)
+## Fase 6 — Módulo Admin (✅ Completado vía Sprints 3.13/3.14 — `AdminPanel`/`AdminInstaladores`/`MasterCalendar`)
 
 - [x] `AdminInstaladores` (tabla + suspender/reactivar + formulario de invitación) con datos mock (`INSTALLERS`/`ZONAS`, ya migrados) — Sprint 3.13, integrada dentro de `AdminPanel` (rama real `tab === 'instaladores'`), validación real, visual y funcional confirmadas por el usuario.
-- [ ] `MasterCalendar` (calendario maestro) — reservado para el Sprint 3.14 ("Calendar"); la rama `tab === 'calendario'` de `AdminPanel` renderiza `null` hasta entonces.
+- [x] `MasterCalendar` (calendario maestro) con datos mock (`SUSCOL`/`TRABAJOS`) — Sprint 3.14, integrado dentro de `AdminPanel` (rama real `tab === 'calendario'`), validación técnica, visual y funcional confirmadas por el usuario. Módulo Admin completo en su alcance de reconstrucción visual.
 
 ## Fase 7 — Integración completa con Supabase (no iniciada)
 

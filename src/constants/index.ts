@@ -443,3 +443,224 @@ export const MISJOBS: readonly MisJobMock[] = [
     grupo: 'Historial',
   },
 ] as const;
+
+/**
+ * `SUSCOL` — mapeo sucursal→color (`bg`/`fg`), portado verbatim de `const
+ * SUSCOL` (`Multimax_Despacho_v1.3.html`, línea 1117) — mismas 9 sucursales
+ * de `SUCURSALES` (Sprint 3.4), cada una con su color de acento (puntos del
+ * calendario, badges `mx-suc-badge`). Único consumidor real: `MasterCalendar`
+ * (Sprint 3.14). El HTML fuente también lo usa dentro de `Coordinator()`/
+ * `CoordinatorJobs()` (`isMaster` renderiza `MasterCalendar`, rama no-master
+ * fuera de alcance de este Sprint) — se porta el objeto completo (las 9
+ * sucursales) en vez de solo un subconjunto, mismo criterio ya aplicado a
+ * `ESTADO` en el Sprint 3.12, para no reabrir este archivo cuando se migre
+ * `CoordinatorJobs()`.
+ */
+export interface SucursalColor {
+  bg: string;
+  fg: string;
+}
+
+export const SUSCOL: Record<string, SucursalColor> = {
+  'Tumba Muerto': { bg: 'rgba(52,225,232,.13)', fg: '#34e1e8' },
+  Multiplaza: { bg: 'rgba(169,155,255,.13)', fg: '#a99bff' },
+  Albrook: { bg: 'rgba(59,224,138,.13)', fg: '#3be08a' },
+  Metromall: { bg: 'rgba(255,178,62,.13)', fg: '#ffb23e' },
+  'Los Andes': { bg: 'rgba(255,92,122,.13)', fg: '#ff5c7a' },
+  Westland: { bg: 'rgba(93,190,255,.13)', fg: '#5dbbff' },
+  'Costa Verde': { bg: 'rgba(100,230,140,.13)', fg: '#64e68c' },
+  Chiriquí: { bg: 'rgba(255,160,40,.13)', fg: '#ffa028' },
+  'Paso Canoas': { bg: 'rgba(200,100,255,.13)', fg: '#c864ff' },
+};
+
+/**
+ * `TRABAJOS` — mock estático de "todos los trabajos de todas las sucursales",
+ * portado verbatim de `const TRABAJOS` (`Multimax_Despacho_v1.3.html`, líneas
+ * 1183-1326) — 13 registros fijos, con fechas `YYYY-MM-DD` reales (a
+ * diferencia de `MISJOBS`, que usa etiquetas relativas como "Hoy"/"Mañana").
+ * Único consumidor real: `MasterCalendar` (Sprint 3.14), que agrupa por
+ * `fecha` para pintar los puntos del calendario y filtra por `sucursal`. El
+ * HTML fuente también usa esta misma constante dentro de `Coordinator()`/
+ * `CoordinatorJobs()` (lista "Mis trabajos" del coordinador, filtrada por
+ * `sucursalActual`) — ese consumidor queda fuera de alcance de este Sprint
+ * (`CoordinatorJobs` no está construido todavía), pero no se porta un
+ * subconjunto: se transcribe el array completo tal cual el HTML fuente, para
+ * no reabrir este archivo cuando le corresponda su propio Sprint.
+ *
+ * Se define como constante reutilizable en vez de un literal dentro del
+ * componente, por la regla de preparación para Supabase vigente desde el
+ * Sprint 3.12: esta colección podrá sustituirse más adelante por datos reales
+ * (tabla `trabajos`) sin tocar el JSX/estructura/estilos de `MasterCalendar`
+ * — solo la fuente de datos.
+ */
+export interface TrabajoMock {
+  id: string;
+  tipo: string;
+  zona: string;
+  provincia: string;
+  fecha: string;
+  hora: string;
+  estado: EstadoUiKey;
+  instalador: string | null;
+  precio: number;
+  sucursal: string;
+}
+
+export const TRABAJOS: readonly TrabajoMock[] = [
+  {
+    id: 'JOB-4821',
+    tipo: 'Instalación A/A 12,000 BTU',
+    zona: 'Paitilla',
+    provincia: 'Panamá',
+    fecha: '2026-06-22',
+    hora: '2:00 p.m.',
+    estado: 'en_vivo',
+    instalador: null,
+    precio: 130,
+    sucursal: 'Multiplaza',
+  },
+  {
+    id: 'JOB-4815',
+    tipo: 'Mantenimiento de Split',
+    zona: 'Costa del Este',
+    provincia: 'Panamá',
+    fecha: '2026-06-22',
+    hora: '10:00 a.m.',
+    estado: 'asignado',
+    instalador: 'ClimaTech Panamá',
+    precio: 145,
+    sucursal: 'Albrook',
+  },
+  {
+    id: 'JOB-4812',
+    tipo: 'Instalación A/A 9,000 BTU',
+    zona: 'San Miguelito',
+    provincia: 'Panamá',
+    fecha: '2026-06-22',
+    hora: '8:00 a.m.',
+    estado: 'completado',
+    instalador: 'AirePro',
+    precio: 110,
+    sucursal: 'Los Andes',
+  },
+  {
+    id: 'JOB-4802',
+    tipo: 'Instalación A/A 18,000 BTU',
+    zona: 'San Francisco',
+    provincia: 'Panamá',
+    fecha: '2026-06-21',
+    hora: '3:30 p.m.',
+    estado: 'completado',
+    instalador: 'PTY',
+    precio: 160,
+    sucursal: 'Metromall',
+  },
+  {
+    id: 'JOB-4793',
+    tipo: 'Reparación de condensador',
+    zona: 'Bella Vista',
+    provincia: 'Panamá',
+    fecha: '2026-06-21',
+    hora: '9:00 a.m.',
+    estado: 'completado',
+    instalador: 'Frío Express',
+    precio: 90,
+    sucursal: 'Tumba Muerto',
+  },
+  {
+    id: 'JOB-4781',
+    tipo: 'Instalación A/A 24,000 BTU',
+    zona: 'Obarrio',
+    provincia: 'Panamá',
+    fecha: '2026-06-20',
+    hora: '11:00 a.m.',
+    estado: 'cancelado',
+    instalador: null,
+    precio: 210,
+    sucursal: 'Multiplaza',
+  },
+  {
+    id: 'JOB-4774',
+    tipo: 'Mantenimiento de Split',
+    zona: 'Punta Pacífica',
+    provincia: 'Panamá',
+    fecha: '2026-06-23',
+    hora: '4:00 p.m.',
+    estado: 'pendiente',
+    instalador: null,
+    precio: 85,
+    sucursal: 'Albrook',
+  },
+  {
+    id: 'JOB-4770',
+    tipo: 'Instalación A/A 9,000 BTU',
+    zona: 'La Chorrera',
+    provincia: 'Panamá Oeste',
+    fecha: '2026-06-23',
+    hora: '9:00 a.m.',
+    estado: 'pendiente',
+    instalador: null,
+    precio: 110,
+    sucursal: 'Westland',
+  },
+  {
+    id: 'JOB-4765',
+    tipo: 'Instalación A/A 12,000 BTU',
+    zona: 'David',
+    provincia: 'Chiriquí',
+    fecha: '2026-06-24',
+    hora: '8:00 a.m.',
+    estado: 'pendiente',
+    instalador: null,
+    precio: 130,
+    sucursal: 'Chiriquí',
+  },
+  {
+    id: 'JOB-4760',
+    tipo: 'Mantenimiento de Split',
+    zona: 'Santiago',
+    provincia: 'Veraguas',
+    fecha: '2026-06-24',
+    hora: '2:00 p.m.',
+    estado: 'pendiente',
+    instalador: null,
+    precio: 85,
+    sucursal: 'Costa Verde',
+  },
+  {
+    id: 'JOB-4755',
+    tipo: 'Instalación A/A 18,000 BTU',
+    zona: 'Paitilla',
+    provincia: 'Panamá',
+    fecha: '2026-06-25',
+    hora: '10:00 a.m.',
+    estado: 'pendiente',
+    instalador: null,
+    precio: 155,
+    sucursal: 'Tumba Muerto',
+  },
+  {
+    id: 'JOB-4750',
+    tipo: 'Reparación de condensador',
+    zona: 'El Cangrejo',
+    provincia: 'Panamá',
+    fecha: '2026-06-18',
+    hora: '3:00 p.m.',
+    estado: 'completado',
+    instalador: 'CoolMaster',
+    precio: 95,
+    sucursal: 'Metromall',
+  },
+  {
+    id: 'JOB-4745',
+    tipo: 'Mantenimiento de Split',
+    zona: 'Paso Canoas',
+    provincia: 'Chiriquí',
+    fecha: '2026-06-19',
+    hora: '9:00 a.m.',
+    estado: 'completado',
+    instalador: 'Servifrío',
+    precio: 80,
+    sucursal: 'Paso Canoas',
+  },
+] as const;

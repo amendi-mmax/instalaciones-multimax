@@ -1214,6 +1214,208 @@
     grid-template-columns: 1fr;
   }
 }
+/* Sprint 3.14 — MasterCalendar (líneas 288-300 y 419-440 del <style> original).
+   .mx-jobrow-side/.mx-jobrow-price (línea 298-300) NO se portan aquí: no las
+   usa MasterCalendar (su lista de trabajos del día no envuelve el precio en
+   .mx-jobrow-side, lo muestra inline dentro de .mx-jobrow-meta) — pertenecen
+   a CoordinatorJobs(), todavía sin Sprint asignado. .mx-cal-day.other-month
+   (línea 431) tampoco se porta: MasterCalendar nunca aplica esa clase (las
+   celdas antes del día 1 se renderizan como <div> vacíos sin className, no
+   con "other-month"). */
+.mx-joblist {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mx-jobrow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  width: 100%;
+  background: linear-gradient(180deg, var(--surf), var(--ink2));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  transition: 0.18s;
+}
+.mx-jobrow:hover {
+  border-color: var(--ice);
+  transform: translateY(-1px);
+}
+.mx-jobrow-main {
+  flex: 1;
+  min-width: 0;
+}
+.mx-jobrow-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.mx-jobrow-id {
+  font-family: var(--fm);
+  font-size: 11px;
+  color: var(--muted);
+}
+.mx-jobrow-t {
+  font-family: var(--fd);
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+.mx-jobrow-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.mx-jobrow-meta span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.mx-jobrow-meta svg {
+  color: var(--ice);
+}
+.mx-suc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.mx-cal-outer {
+  background: linear-gradient(180deg, var(--surf), var(--ink2));
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.mx-cal-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.mx-cal-month {
+  font-family: var(--fd);
+  font-weight: 700;
+  font-size: 16px;
+}
+.mx-cal-nav {
+  display: flex;
+  gap: 6px;
+}
+.mx-cal-nav button {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 17px;
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+}
+.mx-cal-nav button:hover {
+  color: var(--ice);
+  border-color: var(--ice);
+}
+.mx-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 10px 10px 14px;
+  gap: 3px;
+}
+.mx-cal-dow {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+  padding: 4px 0 8px;
+  letter-spacing: 0.04em;
+}
+.mx-cal-day {
+  min-height: 58px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 6px 5px 5px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: 0.13s;
+}
+.mx-cal-day:hover {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.02);
+}
+.mx-cal-day.has-jobs {
+  background: rgba(255, 255, 255, 0.015);
+  border-color: rgba(52, 225, 232, 0.12);
+}
+.mx-cal-day.sel {
+  border-color: var(--ice) !important;
+  background: rgba(52, 225, 232, 0.08);
+}
+.mx-cal-day.today .mx-cal-dn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--ice);
+  color: #04222a;
+  display: grid;
+  place-items: center;
+}
+.mx-cal-dn {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+.mx-cal-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  justify-content: center;
+  margin-top: 1px;
+}
+.mx-cal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.mx-cal-count {
+  font-size: 9px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.mx-daylist {
+  animation: mxpop 0.2s ease;
+}
+.mx-daylist-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mx-daylist-hd h3 {
+  font-family: var(--fd);
+  font-weight: 700;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .mx-instside {
   display: flex;
   flex-direction: column;

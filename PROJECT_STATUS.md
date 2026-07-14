@@ -1,6 +1,8 @@
 # PROJECT_STATUS.md — HANDYMAX · Multimax Despacho
 
-Última actualización: 2026-07-13 — Sprint 3.13 (`AdminPanel`/`AdminInstaladores`) — ✅ Completado. Sprint actual: 3.14.
+Última actualización: 2026-07-14 — Sprint 3.14 (`MasterCalendar`) — ✅ Completado. Sprint actual: 3.15.
+
+**Componentes completados hasta la fecha**: Header, Sidebar (`mx-instside`), Subtabs (`MxSubtabs`/`MxSubtabButton`), Selector de sucursal (`SucursalSelect`), `PublishModal`, `CoordinatorEmptyState`, `Radar`, `CountRing`, `LiveCountdown`, `InstallerDashboard`, `InstallerProfile`, `InstallerJobs`, `AdminPanel`, `AdminInstaladores`, `MasterCalendar`.
 
 ## Cambio de metodología (vigente desde el Sprint 3.1)
 
@@ -416,9 +418,31 @@ El brief de este Sprint exigió el mismo análisis previo obligatorio de los Spr
 - Sin decisiones arquitectónicas permanentes nuevas que requieran actualizar `ARCHITECTURE.md` — las decisiones de este Sprint (reutilización de `MxSubtabs`, no usar `Input`/`Select` genéricos en el formulario de `AdminInstaladores`) son decisiones de implementación a nivel de componente, ya documentadas en `docs/sprints/sprint-3.13.md`.
 - **El siguiente Sprint a desarrollar es el Sprint 3.14** (`MasterCalendar`, "Calendar") — no se inicia sin el análisis previo obligatorio de su propio bloque HTML ni sin aprobación explícita del usuario.
 
+## Sprint 3.14 — `MasterCalendar` (2026-07-14) — ✅ Completado
+
+"Calendar" (nombre del brief) **corresponde exactamente** a una función real del HTML: `function MasterCalendar()` (líneas 2825-3028 del script), ya identificada y reservada desde el análisis del Sprint 3.13. Análisis completo en `docs/sprints/sprint-3.14.md`.
+
+- Análisis previo: confirmación directa sobre el HTML fuente de que el nombre del brief coincide con la función real, sin discrepancia que reportar. Se detectó (no una diferencia de nombre) que el HTML fuente también monta `MasterCalendar` desde `CoordinatorJobs({ isMaster })` (línea 2661) — ese segundo punto de integración queda fuera de alcance porque `CoordinatorJobs()` no está construido todavía.
+- Componente nuevo: `MasterCalendar` (`src/components/shared/master-calendar.tsx`) — reconstrucción verbatim: filtro de sucursal, grilla de mes con navegación, puntos de color por trabajo, lista de trabajos del día seleccionado, leyenda de colores por sucursal. Sin sub-componentes propios.
+- Constantes agregadas (`src/constants/index.ts`): `SUSCOL` (colores por sucursal, 9 entradas) y `TRABAJOS` (mock de 13 trabajos con fecha real) — ninguna generada dentro del componente, per la regla de preparación para Supabase.
+- Reutilizado sin duplicar: `PageContainer`/`PageHead`/`Card`/`Badge` (Fase 3), `SUCURSALES` (Sprint 3.4), `ESTADO` (Sprint 3.12).
+- CSS agregado: bloque de 21 selectores (`.mx-cal-*`/`.mx-joblist`/`.mx-jobrow*`/`.mx-suc-badge`/`.mx-daylist*`), verbatim.
+- **Integración real y directa** dentro de la rama `tab === 'calendario'` de `AdminPanel` (antes `null`, Sprint 3.13) — sin ningún mount temporal en `RootLayout.tsx`, que no requirió ningún cambio.
+- Validación best-effort: 0 diagnósticos de `tsc` (básico + estricto); `prettier --check` sin diferencias; `git diff --stat` confirma el alcance exacto.
+- Detalle completo: `docs/sprints/sprint-3.14.md`.
+
+### Sprint 3.14 finalizado (2026-07-14)
+
+- Validación local completada: el usuario confirmó `npm run lint`, `npm run typecheck`, `npm run build` y `npm run dev` sin errores.
+- Validación visual completada: el usuario confirmó que la implementación de `MasterCalendar` en React coincide con `Multimax_Despacho_v1.3.html`.
+- Validación funcional completada: sin regresiones sobre componentes previamente aprobados.
+- Sprint 3.14 aprobado por validación técnica, visual y funcional del usuario. No quedan pendientes técnicos. La integración real de `MasterCalendar` dentro de `AdminPanel` queda aprobada tal cual.
+- Sin cambios de arquitectura — `ARCHITECTURE.md` no se modificó. Sin integración con Supabase.
+- **El siguiente Sprint a desarrollar es el Sprint 3.15** (Shared Dialogs) — no se inicia sin el análisis previo obligatorio de su propio bloque HTML ni sin aprobación explícita del usuario.
+
 ## Qué falta
 
-- **Sprint 3.14: sin iniciar** — próximo Sprint a desarrollar, pendiente de análisis previo obligatorio (`MasterCalendar`, contenido de la pestaña "Calendario maestro" de `AdminPanel`).
+- **Sprint 3.15: sin iniciar** — próximo Sprint a desarrollar (Shared Dialogs), pendiente de análisis previo obligatorio.
 - **Bloqueante para cerrar el Sprint 3.2**: confirmar en el entorno del usuario `npm install && npm run lint && npm run typecheck && npm run build && npm run dev` en verde sobre la rama `feature/sprint-3-2-mx-instside`.
 - A partir de aquí, el trabajo restante (antes descrito como "Fase 4 — Coordinator", "Fase 5 — Installer", "Fase 6 — Admin", etc.) se ejecuta Sprint a Sprint según `docs/SPRINTS_INDEX.md`, cada uno esperando aprobación explícita antes de iniciar el siguiente. La integración con Supabase, Realtime, eliminación de mocks y pruebas finales (antes Fases 7–10) siguen vigentes como trabajo futuro, a re-planificar en Sprints una vez completado el bloque 3.x.
 - Los layouts por rol (`CoordinatorLayout`/`InstallerLayout`/`AdminLayout`) siguen fuera de alcance hasta el Sprint que corresponda. Ver `MIGRATION_STATUS.md`.
@@ -447,4 +471,4 @@ Ninguno de estos bloquea el scaffold de esta fase; sí bloquearán las fases 7 (
 
 ## Próximos pasos
 
-Sprint 3.13 cerrado (✅ Completado). El próximo Sprint a desarrollar es el 3.14 (`MasterCalendar`, "Calendar"), que requiere su propio análisis previo obligatorio antes de escribir cualquier código. No se inicia sin aprobación explícita del usuario. No se ejecuta ninguna operación Git — el flujo Git es exclusivamente manual, a cargo del usuario.
+Sprint 3.14 cerrado (✅ Completado). El próximo Sprint a desarrollar es el 3.15 (Shared Dialogs), que requiere su propio análisis previo obligatorio antes de escribir cualquier código. No se inicia sin aprobación explícita del usuario. No se ejecuta ninguna operación Git — el flujo Git es exclusivamente manual, a cargo del usuario.
