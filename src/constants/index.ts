@@ -664,3 +664,30 @@ export const TRABAJOS: readonly TrabajoMock[] = [
     sucursal: 'Paso Canoas',
   },
 ] as const;
+
+/**
+ * REVEAL (línea 1075 del script fuente) — datos de contacto/dirección que se
+ * "revelan" al instalador una vez asignado un trabajo. Usado por
+ * `AssignedPanel` (Sprint 3.16, Coordinator) y también, en el HTML fuente,
+ * por la pantalla "Asignado" de `Installer()` (línea ~3233, `AssignedScreen`,
+ * fuera de alcance del Sprint 3.16 — sin Sprint asignado todavía). Se porta
+ * completo, no un subconjunto, mismo criterio ya aplicado a `ESTADO`
+ * (Sprint 3.12) y `SUSCOL`/`TRABAJOS` (Sprint 3.14).
+ */
+export interface RevealCliente {
+  nombre: string;
+  telefono: string;
+}
+
+export interface RevealMock {
+  direccion: string;
+  cliente: RevealCliente;
+}
+
+export const REVEAL: RevealMock = {
+  direccion: 'Av. Italia, PH Ocean View, piso 14, apto 14-B, Paitilla, Panamá',
+  cliente: {
+    nombre: 'María Carrizo',
+    telefono: '+507 6123-4567',
+  },
+};

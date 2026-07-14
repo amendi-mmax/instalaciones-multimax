@@ -1416,6 +1416,98 @@
   align-items: center;
   gap: 8px;
 }
+
+/* Sprint 3.16 — AssignedPanel / NoResponsePanel (líneas 128-143 y 265 del
+   <style> original). .mx-revealc (líneas 193-197, variante compacta usada
+   dentro de Installer()/AssignedScreen) NO se porta aquí: AssignedPanel usa
+   .mx-reveal/.mx-reveal-row, no .mx-revealc — pertenece a un Sprint futuro
+   del módulo Installer. La regla responsive .mx-nr-acts{grid-template-
+   columns:1fr} (línea 265) se agrega dentro del media query
+   `@media (max-width: 560px)` ya existente (portado desde Baseline). */
+.mx-assigned {
+  border-color: rgba(59, 224, 138, 0.4);
+  background: linear-gradient(180deg, rgba(59, 224, 138, 0.08), var(--ink2));
+}
+.mx-as-h {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--fd);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--green);
+}
+.mx-as-name {
+  font-size: 13.5px;
+  margin: 8px 0 12px;
+  color: var(--text);
+}
+.mx-reveal {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mx-reveal-row {
+  display: grid;
+  grid-template-columns: 18px 90px 1fr;
+  gap: 8px;
+  align-items: start;
+  font-size: 12.5px;
+}
+.mx-reveal-row svg {
+  color: var(--green);
+  margin-top: 1px;
+}
+.mx-reveal-row b {
+  color: var(--muted);
+  font-weight: 600;
+}
+.mx-reveal-row span {
+  color: var(--text);
+}
+.mx-noresp {
+  border-color: rgba(255, 92, 122, 0.4);
+  background: linear-gradient(180deg, rgba(255, 92, 122, 0.08), var(--ink2));
+}
+.mx-nr-h {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--fd);
+  font-weight: 700;
+  color: var(--red);
+  font-size: 15px;
+}
+.mx-nr-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 6px 0 12px;
+}
+.mx-nr-acts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.mx-nr-acts button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  padding: 10px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text);
+}
+.mx-nr-acts button:hover {
+  border-color: var(--red);
+}
+.mx-nr-acts svg {
+  color: var(--red);
+  flex-shrink: 0;
+}
 .mx-instside {
   display: flex;
   flex-direction: column;
@@ -1657,6 +1749,9 @@
   }
   .mx-stats {
     grid-template-columns: 1fr 1fr;
+  }
+  .mx-nr-acts {
+    grid-template-columns: 1fr;
   }
 }
 @media (prefers-reduced-motion: reduce) {
