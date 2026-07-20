@@ -2,6 +2,91 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 4 — Sprint 4.0.1 (tercera ronda) — Reconstrucción del baseline de Supabase] — 2026-07-16 — 🟡 En revisión
+
+Tercer brief bajo el mismo número de Sprint, con lenguaje absoluto ("prohibido cambiar nombres de tablas", "no debes crear una arquitectura distinta"), pidiendo reconstruir `0001_initial_schema.sql` para representar exactamente un modelo con las tablas `empresas`/`tiendas`/`admins`/`coordinadores`/`instaladores`/`trabajos`/`trabajo_instaladores`/`ofertas`. Antes de tocar cualquier archivo, se verificó ese modelo contra las dos únicas fuentes SQL reales del proyecto (`handymax_supabase_schema_v3.sql`, el archivo originalmente subido, y `0001_initial_schema.sql` actual) — ambas coinciden entre sí y ninguna define esas tablas. Siguiendo la propia "regla final" de ese brief ("si detectas una diferencia, no la corrijas, detente y repórtala"), se detuvo la implementación sin tocar ningún archivo y se reportó la discrepancia al usuario.
+
+**El usuario confirmó por escrito que el modelo oficial y definitivo es el que ya existe en el repositorio**: `empresas`/`sucursales`/`usuarios`/`zonas_cobertura`/`trabajos`/`bids`/`notificaciones` (más `trabajo_instaladores`, agregada en la primera ronda de este Sprint) — instruyendo explícitamente no reconstruir hacia el modelo de `tiendas`/`admins`/`coordinadores`/`instaladores`/`ofertas`. Esta confirmación queda documentada formalmente como la declaración oficial del modelo de datos del proyecto (`ARCHITECTURE.md §9.9`).
+
+Con el modelo confirmado, se ejecutó la parte del brief compatible con él: se completó la estructura de `supabase/` pedida agregando `config.toml` (nuevo — no existía ningún archivo de configuración de la Supabase CLI en el proyecto), y se realizó una validación estructural completa y no superficial (tabla por tabla, columna por columna, tipo por tipo, FK por FK, PK por PK, índices, vistas, triggers, funciones, políticas) contra una base PostgreSQL 16 real, aplicando `0001` + `seed.sql` + `0002` desde cero — resultado: 0 errores, 0 diferencias respecto a lo ya documentado.
+
+Se detectó y reportó (sin resolver unilateralmente) una tensión entre este brief y el trabajo ya aprobado: el brief exige que `0002_auth_roles_rls.sql` sea "únicamente incremental" sin modificar columnas/tablas existentes, pero `0002` (de la primera ronda) sí convierte 3 columnas existentes a ENUM y agrega una tabla nueva. Se interpretó, dada la instrucción del usuario de "mantener compatibilidad con el esquema existente", que esas conversiones ya forman parte del esquema existente — no se revirtieron ni se dividieron; se documenta la interpretación para confirmación del usuario.
+
+### Añadido
+
+- `supabase/config.toml` (NUEVO) — configuración estándar de Supabase CLI, escrita a mano (la CLI real no está instalada/vinculada en este entorno), documentando explícitamente esa limitación. Completa la estructura de `supabase/` pedida por el brief (`config.toml`, `README.md`, `seed.sql`, `migrations/0001_...`, `migrations/0002_...`, sin archivos adicionales).
+
+### Modificado
+
+- `ARCHITECTURE.md` — nueva subsección `§9.9`: declaración formal del modelo de datos oficial confirmado por el usuario, trazabilidad completa del bloqueo/confirmación, resumen de la validación estructural, y la tensión reportada sobre `0002`.
+- `PROJECT_STATUS.md` — nueva entrada de Sprint documentando esta ronda.
+- `PHASE_4.md` — nueva sección extensa: el bloqueo detectado, la confirmación del usuario, la validación estructural completa (tabla por tabla), el resultado de la validación SQL de punta a punta, las confirmaciones explícitas pedidas por el brief (no reinterpretación del modelo, `0002` incremental con la tensión reportada, React no modificado, repositorio listo para Sprint 4.1).
+- `supabase/README.md` — nota sobre `config.toml` (nuevo) y sobre la confirmación del modelo oficial.
+
+### No modificado (por diseño)
+
+- `supabase/migrations/0001_initial_schema.sql` — cero cambios en esta ronda (ya había quedado limpio de datos en la ronda anterior; el modelo ya coincidía exactamente con la única fuente real).
+- `supabase/migrations/0002_auth_roles_rls.sql` — cero cambios en esta ronda (ver tensión reportada arriba).
+- Cualquier archivo bajo `src/`, `vite.config.ts`, `tailwind.config.ts`, `tsconfig*.json`, `package.json`.
+
+### Pendiente
+
+- Aprobación explícita del usuario sobre esta ronda, en particular sobre la tensión reportada respecto a `0002`.
+- Decisiones ya pendientes de rondas anteriores (ver entradas siguientes de este archivo): `UNIQUE (empresa_id, nombre)` en `sucursales`, corrección de `TODO.md`/`MIGRATION_STATUS.md`, instalación real de la Supabase CLI, columnas auto-editables en la política de perfil propio.
+- No se avanza al Sprint 4.1 hasta esa aprobación.
+
+## [Fase 4 — Sprint 4.0.1 (segunda ronda) — Database Infrastructure Baseline] — 2026-07-15 — 🟡 En revisión
+
+Segundo brief recibido bajo el mismo número de Sprint ("4.0.1") que la ronda anterior (`Infraestructura de Base de Datos (Supabase)`, entrada siguiente de este mismo archivo) — se reporta la coincidencia de numeración, sin renumerar nada por cuenta propia. Objetivo de esta ronda: adoptar el flujo oficial de Supabase basado en migraciones, separando estructura de datos, **sin rediseñar tablas, columnas, tipos, relaciones ni FKs**, y sin modificar React/Vite/Tailwind/TS/Auth.
+
+`supabase/migrations/0001_initial_schema.sql` tenía, embebidos, un `INSERT INTO empresas` y un bloque `DO $$ ... INSERT INTO sucursales ...` (datos de Multimax y sus 9 sucursales), más 2 queries `SELECT` de verificación manual al final — ninguno de estos es una sentencia estructural permitida en una migración limpia. Se extrajeron, sin cambiar su contenido, a dos archivos nuevos: `supabase/seed.sql` (los `INSERT`) y `supabase/README.md` (las queries de verificación, como parte de una guía de "cómo verificar que una migración aplicó correctamente"). El archivo de migración quedó con únicamente `CREATE`/`ALTER`/índices/funciones/vista/RLS — cero sentencias de datos.
+
+No se encontró ningún `INSERT` de un "administrador inicial" en el schema real (el brief lo mencionaba) — se documenta como discrepancia: los `usuarios` nunca se sembraron por seed en este proyecto, se crean vía Auth. No se inventó ese INSERT sin una fuente real; queda como decisión de producto pendiente si se desea.
+
+Validado de punta a punta contra una instancia real de PostgreSQL 16 (mismo método que la ronda anterior): `0001` (limpio) + `seed.sql` + `0002_auth_roles_rls.sql` aplican sin errores. Al re-ejecutar `seed.sql` una segunda vez (prueba de idempotencia) se descubrió un problema real, preexistente: el `INSERT` de `sucursales` no es realmente idempotente (no hay `UNIQUE` constraint sobre esa tabla más allá de `id`), y una segunda ejecución **duplica** las 9 sucursales. No se corrige agregando un constraint nuevo (fuera de alcance, requiere aprobación) — se documenta como riesgo en `supabase/seed.sql`, `supabase/README.md` y `PHASE_4.md`.
+
+Se rompió, deliberadamente y por instrucción explícita de este brief, la invariante documentada desde Fase 2 de que `0001_initial_schema.sql` era una "copia literal, sin modificar, verificada con `diff`" de `handymax_supabase_schema_v3.sql`. Se corrigió esa afirmación en `ARCHITECTURE.md` (árbol de proyecto, §3) y en `PROJECT_STATUS.md`. `TODO.md`/`MIGRATION_STATUS.md` contienen la misma afirmación ahora desactualizada pero **no se tocaron**, por no estar en la lista de archivos permitidos para esta ronda — reportado para decisión futura.
+
+### Añadido
+
+- `supabase/seed.sql` (NUEVO) — datos iniciales (empresa Multimax + sus 9 sucursales), extraídos de `0001_initial_schema.sql` sin cambios de contenido. Incluye advertencia documentada sobre el riesgo de duplicados en `sucursales` al re-ejecutar.
+- `supabase/README.md` (NUEVO) — flujo operativo completo: cómo aplicar migraciones (método manual actual vía Dashboard + flujo objetivo con Supabase CLI, no instalada/vinculada todavía), cómo y cuándo correr `seed.sql`, cómo crear una migración nueva (incluye los hallazgos reales de PostgreSQL de la ronda anterior, reformulados como checklist reutilizable), buenas prácticas, flujo Git (manual, regla permanente del proyecto), CLI utilizada, y las queries de verificación movidas desde `0001`.
+
+### Modificado
+
+- `supabase/migrations/0001_initial_schema.sql` — se removieron el `INSERT` de `empresas`, el bloque `DO $$` de `sucursales`, y las 2 queries `SELECT` de verificación final. Cero cambios en cualquier sentencia estructural (`CREATE`/`ALTER`/índices/funciones/vista/RLS) — mismas tablas, columnas, tipos, relaciones y constraints que antes.
+- `ARCHITECTURE.md` — nueva subsección `§9.8` documentando esta ronda; corrección de la línea del árbol de proyecto en `§3` (`0001_initial_schema.sql` ya no se describe como "copia literal sin modificar").
+- `PROJECT_STATUS.md` — nueva entrada de Sprint + nota de corrección sobre la invariante rota (ver arriba).
+
+### Pendiente
+
+- Aprobación explícita del usuario sobre esta ronda y sobre la de `§9.7`/entrada anterior, si aún no se dio.
+- Decisión pendiente sobre agregar `UNIQUE (empresa_id, nombre)` a `sucursales` para que el seed sea realmente idempotente.
+- Decisión pendiente sobre corregir `TODO.md`/`MIGRATION_STATUS.md` (afirmación desactualizada, fuera del alcance de esta ronda).
+- No se avanza a Sprint 4.1 hasta esa aprobación.
+
+## [Fase 4 — Sprint 4.0.1 — Infraestructura de Base de Datos (Supabase)] — 2026-07-14 — 🟡 En revisión
+
+Primer Sprint de Fase 4 (backend real), cerrando la etapa de reconstrucción visual (Fase 3). Exclusivamente infraestructura SQL: no se modificó ningún componente React, hook, contexto, ruta, ni configuración de Vite/Tailwind — confirmado por revisión de `git status --porcelain -- src/` (comando de solo lectura).
+
+El brief asumía tablas/columnas que no existen en el schema real (`admins`/`coordinadores`/`instaladores` separadas, `tiendas`, `ofertas`, `trabajos.estado`, `trabajos.publicado_at`, `trabajos.instalador_asignado_id`, ruta `database/migrations/002_...`, documentación bajo `docs/`) — se verificó directamente contra `supabase/migrations/0001_initial_schema.sql` (la fuente real) y se adaptó la migración a la estructura real existente (`usuarios` unificada con columna `rol`, `sucursales`, `bids`, `trabajos.phase`/`published_at`/`assigned_bid_id`, convención real `supabase/migrations/NNNN_nombre.sql`, documentación en la raíz del proyecto), documentando cada desviación con trazabilidad completa. Ver `PHASE_4.md` (nuevo, raíz del proyecto) para el detalle exhaustivo.
+
+Validado con una instancia real de PostgreSQL 16 levantada en el entorno (no con `npm run lint/typecheck/build/dev`, que no aplican a un Sprint de backend puro y siguen bloqueados en el sandbox por falta de red): aplicación limpia de `0001_initial_schema.sql` + `0002_auth_roles_rls.sql`, y una segunda ejecución de `0002` para confirmar idempotencia total. Durante esta validación se encontraron y corrigieron 4 problemas reales de PostgreSQL (palabra reservada `current_role()`, dependencias de DDL bloqueando `ALTER COLUMN TYPE`, orden de eliminación de CHECK constraints, no-idempotencia de `CREATE POLICY`) — ver detalle en `PHASE_4.md §8`.
+
+### Añadido
+
+- `supabase/migrations/0002_auth_roles_rls.sql` (NUEVO) — 4 ENUMs (`user_role`, `trabajo_estado`, `oferta_estado`, `trabajo_instalador_estado`), conversión de 3 columnas `text`+CHECK a ENUM sin pérdida de datos, tabla nueva `trabajo_instaladores`, 5 índices nuevos (+4 re-declarados de forma idempotente), 6 funciones SQL nuevas (`current_user_role()`, `current_profile()`, `current_empresa()`, `is_admin()`, `is_coordinator()`, `is_installer()`) más redefinición defensiva de `get_my_rol()`, activación de RLS en `trabajo_instaladores`, y 7 políticas RLS nuevas (cerrando 3 vacíos reales en `empresas`/`sucursales`/`trabajos`/`usuarios` detectados durante este Sprint). Incluye bloque de reversión completo comentado.
+- `PHASE_4.md` (NUEVO, raíz del proyecto) — reporte técnico completo del Sprint: diferencias detectadas, ENUMs, índices, funciones, políticas RLS, validación real contra PostgreSQL 16, reversibilidad, confirmación de no-modificación de React.
+
+### Modificado
+
+- `ARCHITECTURE.md` — nueva subsección `§9.7` documentando lo implementado en este Sprint; nota de actualización en `§9.5` (el RPC `seleccionar_instalador`, todavía propuesto/no implementado, sigue siendo válido sin cambios contra el nuevo ENUM `oferta_estado`); nuevo riesgo `§11.10` (política de auto-actualización de perfil sin restricción por columna, pendiente de decisión del usuario). Sin restructuración ni eliminación de contenido existente.
+
+### Pendiente
+
+- Aprobación explícita del usuario sobre las desviaciones documentadas (ver `PHASE_4.md §1`) y sobre el riesgo de auto-actualización de perfil (`PHASE_4.md §7` / `ARCHITECTURE.md §11.10`).
+- No se avanza a Sprint 4.0.2 hasta esa aprobación.
+
 ## [Sprint 3.15 — `ConfirmCancel`] — 2026-07-14 — 🟡 En revisión
 
 Continúa la migración incremental. El brief llamaba a este Sprint "Shared Dialogs" (nombre genérico de `docs/SPRINTS_INDEX.md`) y exigía explícitamente, con una regla nueva, un análisis completo del HTML antes de escribir código. Verificado por inspección directa del script: no existe ninguna función/patrón de "diálogos compartidos" en plural — el único diálogo de confirmación real es `function ConfirmCancel({ onYes, onNo })` (líneas 3531-3553), usado por `App()` para confirmar la cancelación de un trabajo. Se corrige el nombre del Sprint a `ConfirmCancel`, con trazabilidad documentada.

@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — HANDYMAX · Multimax Despacho
 
-Última actualización: 2026-07-14 — Sprint 3.15 (`ConfirmCancel`, antes "Shared Dialogs") — 🟡 En revisión. Sprint actual: 3.15.
+Última actualización: 2026-07-16 — Fase 4, Sprint 4.0.1 (tercera ronda, "Reconstrucción del baseline de Supabase") — 🟡 En revisión. Sprint actual: 4.0.1 (tercera ronda). Modelo de datos oficial **confirmado por el usuario** en esta ronda: `empresas`/`sucursales`/`usuarios`/`zonas_cobertura`/`trabajos`/`bids`/`notificaciones`/`trabajo_instaladores` (ver `ARCHITECTURE.md §9.9`). Nota: Sprint 3.15 (`ConfirmCancel`) sigue también pendiente de aprobación técnica/visual/funcional del usuario (ver sección correspondiente más abajo); Fase 4 avanzó en paralelo sobre infraestructura de base de datos, sin depender de esa aprobación.
 
 **Componentes completados hasta la fecha**: Header, Sidebar (`mx-instside`), Subtabs (`MxSubtabs`/`MxSubtabButton`), Selector de sucursal (`SucursalSelect`), `PublishModal`, `CoordinatorEmptyState`, `Radar`, `CountRing`, `LiveCountdown`, `InstallerDashboard`, `InstallerProfile`, `InstallerJobs`, `AdminPanel`, `AdminInstaladores`, `MasterCalendar`.
 
@@ -42,7 +42,7 @@ Por pedido del usuario, a partir de esta fase el orden de implementación cambia
 - Estructura completa de carpetas `src/` según `ARCHITECTURE.md` §3 (con `.gitkeep` en las que aún no tienen archivos).
 - Archivos base creados: `main.tsx`, `App.tsx`, `routes/AppRouter.tsx` (placeholder), `contexts/AuthContext.tsx` (placeholder tipado, sin conexión real a Supabase Auth), `supabase/client.ts` (cliente preparado, sin queries), `styles/globals.css` (variables, fuentes y keyframes del prototipo, sin las clases `mx-*` todavía), `types/database.ts`, `types/domain.ts`, `types/enums.ts`, `lib/mappers.ts` (conversión snake_case ↔ camelCase), `lib/utils.ts` (helper `cn()` de shadcn), `constants/index.ts` (placeholder).
 - `.env.example` creado con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` vacíos.
-- `handymax_supabase_schema_v3.sql` copiado **sin ninguna modificación** a `supabase/migrations/0001_initial_schema.sql` (verificado con `diff`, idéntico byte a byte).
+- `handymax_supabase_schema_v3.sql` copiado **sin ninguna modificación** a `supabase/migrations/0001_initial_schema.sql` (verificado con `diff`, idéntico byte a byte). **[Nota, Fase 4 — Sprint 4.0.1, segunda ronda, 2026-07-15]: esta afirmación ya no es válida.** Por instrucción explícita del brief "Database Infrastructure Baseline", `0001_initial_schema.sql` fue editado para remover los `INSERT`/queries de verificación que tenía embebidos (movidos a `supabase/seed.sql` y `supabase/README.md` respectivamente) — sigue siendo el mismo diseño de schema (mismas tablas/columnas/tipos/relaciones), pero ya no es una copia byte a byte del archivo original. Ver la sección de Sprint 4.0.1 (segunda ronda) más abajo y `PHASE_4.md` para el detalle completo. `TODO.md`/`MIGRATION_STATUS.md` conservan la afirmación original sin corregir (fuera de la lista de archivos permitidos para esa ronda).
 - No se migró ningún componente del HTML, no se implementó lógica de negocio, no se conectó Supabase, no se implementó Auth ni Realtime — tal como se pidió para esta fase.
 
 ## Problema encontrado — bloqueo de red (crítico, no resuelto)
@@ -452,6 +452,35 @@ El brief de este Sprint exigió el mismo análisis previo obligatorio de los Spr
 - Validación best-effort: 0 diagnósticos de `tsc` (básico + estricto); `prettier --check` sin diferencias; `git status --porcelain -- src/` confirma el alcance exacto.
 - Detalle completo: `docs/sprints/sprint-3.15.md`.
 - **Pendiente**: validación técnica real (`npm run lint`/`typecheck`/`build`/`dev`), visual y funcional del usuario. `docs/SPRINTS_INDEX.md` no se actualiza en esta ronda.
+
+## Fase 4 — Sprint 4.0.1, primera ronda — Infraestructura de Base de Datos (Supabase) (2026-07-14) — 🟡 En revisión
+
+Cierra la etapa de reconstrucción visual (Fase 3, Sprints 3.1-3.16) e inicia la infraestructura real de backend. Exclusivamente SQL vía `supabase/migrations/0002_auth_roles_rls.sql` (nuevo): 4 ENUMs (`user_role`/`trabajo_estado`/`oferta_estado`/`trabajo_instalador_estado`), conversión de 3 columnas `text`+CHECK a ENUM sin pérdida de datos, tabla nueva `trabajo_instaladores`, 5 índices nuevos, 6 funciones `SECURITY DEFINER` nuevas, y 7 políticas RLS nuevas (cerrando 3 vacíos reales en `empresas`/`sucursales`/`trabajos`/`usuarios`). El brief asumía tablas/columnas que no existen en el schema real (`admins`/`coordinadores`/`instaladores` separadas, `tiendas`, `ofertas`, `trabajos.estado`/`publicado_at`/`instalador_asignado_id`) — se adaptó a la estructura real (`usuarios` unificada, `sucursales`, `bids`, `trabajos.phase`/`published_at`/`assigned_bid_id`), documentado con trazabilidad completa en `PHASE_4.md` (no existía todavía; se creó en esta ronda). Validado con PostgreSQL 16 real (no `npm run lint/typecheck/build/dev`, que no aplican a un Sprint de backend puro): 0 errores en 3 corridas (incluye prueba de idempotencia). Ningún componente React fue modificado. **Pendiente de aprobación explícita del usuario.** Detalle completo: `PHASE_4.md`, `ARCHITECTURE.md §9.7`, `CHANGELOG.md`.
+
+## Fase 4 — Sprint 4.0.1, segunda ronda — Database Infrastructure Baseline (2026-07-15) — 🟡 En revisión
+
+Segundo brief bajo el mismo número de Sprint que la ronda anterior — coincidencia de numeración reportada, sin renumerar nada por cuenta propia. Objetivo: adoptar el flujo oficial de Supabase basado en migraciones (estructura separada de datos), sin rediseñar tablas/columnas/tipos/relaciones/FKs y sin tocar React/Vite/Tailwind/TS/Auth.
+
+- `supabase/migrations/0001_initial_schema.sql` se limpió de datos: se removieron el `INSERT INTO empresas`, el bloque `DO $$` de las 9 sucursales, y 2 queries `SELECT` de verificación manual al final — ahora contiene únicamente sentencias estructurales (`CREATE`/`ALTER`/índices/funciones/vista/RLS). Ningún `CREATE`/`ALTER` de estructura se modificó.
+- `supabase/seed.sql` (nuevo): mismos `INSERT`/bloque `DO $$` removidos de `0001`, sin cambios de contenido.
+- `supabase/README.md` (nuevo): flujo operativo completo (aplicar migraciones, ejecutar seed, crear migraciones nuevas, buenas prácticas, flujo Git, CLI utilizada), incluye las queries de verificación movidas desde `0001`.
+- No se encontró ningún INSERT de "administrador inicial" en el schema real (el brief lo mencionaba) — documentado como discrepancia, no se inventó ese dato.
+- **Riesgo real detectado durante la validación** (preexistente, no introducido en esta ronda): el `INSERT` de `sucursales` en el seed no es realmente idempotente (`sucursales` no tiene `UNIQUE` constraint más allá de `id`) — ejecutar `seed.sql` dos veces duplica las 9 sucursales. No se corrigió agregando un constraint nuevo (fuera de alcance sin aprobación); documentado en `supabase/seed.sql`, `supabase/README.md` y `PHASE_4.md`.
+- Se corrigió la afirmación, vigente desde Fase 2, de que `0001_initial_schema.sql` era una copia literal sin modificar de `handymax_supabase_schema_v3.sql` — ver nota en "Qué quedó implementado" más arriba. `TODO.md`/`MIGRATION_STATUS.md` no se tocaron (fuera de la lista de archivos permitidos en esta ronda), quedan con la afirmación desactualizada.
+- Validado con PostgreSQL 16 real: `0001` (limpio) + `seed.sql` + `0002` aplican sin errores; una segunda ejecución de `seed.sql` confirmó el riesgo de duplicados de arriba.
+- Ningún componente React fue modificado. **Pendiente de aprobación explícita del usuario.** Detalle completo: `PHASE_4.md`, `ARCHITECTURE.md §9.8`, `CHANGELOG.md`, `supabase/README.md`.
+
+## Fase 4 — Sprint 4.0.1, tercera ronda — Reconstrucción del baseline de Supabase (2026-07-16) — 🟡 En revisión
+
+Tercer brief bajo el mismo número de Sprint, con lenguaje absoluto, pidiendo reconstruir `0001_initial_schema.sql` hacia un modelo alternativo (`tiendas`/`admins`/`coordinadores`/`instaladores`/`ofertas`) que no coincide con ninguna fuente SQL real del proyecto. Siguiendo la propia "regla final" de ese brief (detenerse y reportar en vez de corregir por cuenta propia), se verificó el modelo pedido contra las dos únicas fuentes reales (`handymax_supabase_schema_v3.sql` original y `0001_initial_schema.sql` actual — idénticos entre sí), se confirmó que ninguna define ese modelo alternativo, y se reportó la discrepancia sin tocar ningún archivo.
+
+**El usuario confirmó por escrito el modelo de datos oficial y definitivo**: `empresas`/`sucursales`/`usuarios`/`zonas_cobertura`/`trabajos`/`bids`/`notificaciones`/`trabajo_instaladores` — el mismo que ya estaba implementado. Esta confirmación queda documentada formalmente en `ARCHITECTURE.md §9.9` como la declaración oficial del modelo de datos del proyecto, para que ningún brief futuro vuelva a asumir el modelo alternativo sin corregirlo primero contra este documento.
+
+Con el modelo confirmado, se completó la estructura de `supabase/` pedida agregando `supabase/config.toml` (nuevo), y se realizó una validación estructural completa y no superficial (tabla por tabla, columna por columna, tipo por tipo, FK por FK, PK por PK, índices, vistas, triggers, funciones, políticas) contra PostgreSQL 16 real, aplicando `0001` + `seed.sql` + `0002` desde una base vacía: **0 errores, 0 diferencias** respecto a lo ya documentado en las rondas anteriores.
+
+Se detectó y reportó (sin resolver unilateralmente) una tensión: el brief exige que `0002` sea "únicamente incremental" sin tocar columnas/tablas existentes, pero `0002` (ya aprobado en la primera ronda) sí convierte 3 columnas a ENUM y agrega una tabla nueva. Se interpretó, dada la instrucción del usuario de "mantener compatibilidad con el esquema existente", que esas conversiones ya forman parte de ese "esquema existente" — no se revirtieron ni se dividieron; se deja explícitamente reportado para que el usuario confirme esa lectura.
+
+Ningún componente React fue modificado (`git status --porcelain -- src/` sin cambios nuevos). **Pendiente de aprobación explícita del usuario**, en particular sobre la tensión de `0002` señalada arriba. Con esta ronda, el repositorio queda preparado, sobre el modelo ya confirmado, para iniciar el Sprint 4.1 (Autenticación). Detalle completo: `PHASE_4.md`, `ARCHITECTURE.md §9.9`, `CHANGELOG.md`, `supabase/README.md`.
 
 ## Qué falta
 

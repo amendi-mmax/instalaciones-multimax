@@ -2,20 +2,9 @@
 -- HANDYMAX · Supabase Schema v3
 -- Multimax Despacho — plataforma de despacho de instaladores
 -- ============================================================
+-- Ejecutar en: Supabase Dashboard → SQL Editor
 -- Proyecto: bdevkryrgmttxnlxaisd
--- Nota: ejecutar en orden, de arriba a abajo, junto con el resto
--- de `supabase/migrations/*.sql` (ver `supabase/README.md` para
--- el flujo oficial de migraciones).
---
--- Sprint 4.0.1 (segunda ronda) — Database Infrastructure Baseline:
--- este archivo se limpió de datos (INSERT/DO de seed) y de las
--- queries de verificación manual que tenía originalmente, para
--- dejarlo como una migración de solo-estructura (CREATE/ALTER/
--- índices/funciones/vistas/RLS). El detalle de qué se movió y
--- adónde está documentado en `PHASE_4.md`. Los datos iniciales
--- (empresa Multimax + sus 9 sucursales) viven ahora en
--- `supabase/seed.sql`; las queries de verificación manual viven
--- en `supabase/README.md`.
+-- Nota: ejecutar en orden, de arriba a abajo.
 -- ============================================================
 
 
@@ -38,9 +27,10 @@ CREATE TABLE IF NOT EXISTS empresas (
     created_at  timestamptz NOT NULL DEFAULT now()
 );
 
--- Dato inicial (empresa Multimax) movido a supabase/seed.sql — Sprint 4.0.1
--- (segunda ronda, "Database Infrastructure Baseline"). Esta migración ya no
--- contiene INSERT/UPDATE/DELETE, únicamente estructura.
+-- Insertar Multimax como empresa base
+INSERT INTO empresas (nombre, slug)
+VALUES ('Multimax', 'multimax')
+ON CONFLICT (slug) DO NOTHING;
 
 
 -- ────────────────────────────────────────────────────────────
@@ -57,10 +47,25 @@ CREATE TABLE IF NOT EXISTS sucursales (
     created_at  timestamptz NOT NULL DEFAULT now()
 );
 
--- Datos iniciales (las 9 sucursales de Multimax) movidos a
--- supabase/seed.sql — Sprint 4.0.1 (segunda ronda, "Database
--- Infrastructure Baseline"). Esta migración ya no contiene
--- INSERT/UPDATE/DELETE, únicamente estructura.
+-- Insertar las 9 sucursales de Multimax
+DO $$
+DECLARE
+    mx_id uuid;
+BEGIN
+    SELECT id INTO mx_id FROM empresas WHERE slug = 'multimax';
+
+    INSERT INTO sucursales (empresa_id, nombre, provincia) VALUES
+        (mx_id, 'Tumba Muerto',  'Panamá'),
+        (mx_id, 'Multiplaza',    'Panamá'),
+        (mx_id, 'Albrook',       'Panamá'),
+        (mx_id, 'Metromall',     'Panamá'),
+        (mx_id, 'Los Andes',     'Panamá'),
+        (mx_id, 'Westland',      'Panamá'),
+        (mx_id, 'Costa Verde',   'Panamá'),
+        (mx_id, 'Chiriquí',      'Chiriquí'),
+        (mx_id, 'Paso Canoas',   'Chiriquí')
+    ON CONFLICT DO NOTHING;
+END $$;
 
 
 -- ────────────────────────────────────────────────────────────
@@ -543,13 +548,24 @@ CREATE INDEX IF NOT EXISTS idx_zonas_instalador     ON zonas_cobertura(instalado
 
 
 -- ============================================================
--- FIN DEL SCHEMA v3
+-- VERIFICACIÓN RÁPIDA
+-- Ejecutar después del schema para confirmar que todo quedó bien.
 -- ============================================================
--- Las queries de verificación manual que este archivo tenía antes
--- (listar tablas creadas, verificar sucursales insertadas, probar
--- el trigger bid_cierra_at) se movieron a `supabase/README.md`
--- ("Cómo verificar que una migración aplicó correctamente") —
--- Sprint 4.0.1 (segunda ronda). Una migración no debe contener
--- SELECT de verificación, únicamente las sentencias estructurales
--- listadas al inicio de este archivo.
+
+-- Verificar tablas creadas
+SELECT table_name FROM information_schema.tables
+WHERE table_schema = 'public'
+ORDER BY table_name;
+
+-- Verificar trigger bid_cierra_at (prueba con INSERT)
+-- INSERT INTO trabajos (empresa_id, sucursal_id, coordinador_id, tipo, zona, bid_mins)
+-- VALUES ('<empresa_id>', '<sucursal_id>', '<coordinador_id>', 'Test', 'Paitilla', 10)
+-- RETURNING id, published_at, bid_cierra_at;
+-- bid_cierra_at debe ser published_at + 10 minutos
+
+-- Verificar sucursales insertadas
+SELECT nombre, provincia FROM sucursales ORDER BY nombre;
+
+-- ============================================================
+-- FIN DEL SCHEMA v3
 -- ============================================================
