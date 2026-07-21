@@ -1,0 +1,79 @@
+# ============================================================
+# supabase/config.toml — HANDYMAX · Multimax Despacho
+# ============================================================
+# Creado en Sprint 4.0.1 (tercera ronda) — "Reconstrucción del baseline
+# de Supabase" — como parte de dejar `supabase/` con exactamente la
+# estructura pedida: config.toml, README.md, seed.sql, migrations/.
+#
+# NOTA DE TRAZABILIDAD (léase antes de confiar en este archivo como
+# generado por la CLI real): este archivo NO fue generado ejecutando
+# `supabase init` — la CLI de Supabase no está instalada en este entorno
+# de trabajo (sandbox sin acceso al proyecto real `bdevkryrgmttxnlxaisd`
+# ni a las credenciales para vincularla, ver `supabase/README.md §2`).
+# Se escribió a mano siguiendo la convención estándar y pública del
+# archivo que `supabase init` genera, con los valores que ya se sabían
+# de este proyecto (el `project_id` real, ya referenciado en los
+# encabezados de `0001_initial_schema.sql`/`0002_auth_roles_rls.sql`, y
+# PostgreSQL 16 como versión, que es la que se usó para validar las
+# migraciones de este Sprint contra una base real). Antes de depender
+# de este archivo para levantar un entorno local real con `supabase
+# start`, se recomienda que el usuario corra `supabase init` en su
+# propia máquina (con la CLI real instalada) y compare/reemplace este
+# archivo si difiere — especialmente los puertos, si ya usa Supabase
+# CLI para otro proyecto en la misma máquina.
+# ============================================================
+
+project_id = "bdevkryrgmttxnlxaisd"
+
+    [api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+# PostgreSQL 16: misma versión usada para validar 0001/seed/0002 en este
+# Sprint (`sudo service postgresql start` + base de prueba local, ver
+# PHASE_4.md).
+major_version = 16
+
+[db.pooler]
+enabled = false
+
+[realtime]
+enabled = true
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+# Placeholder de desarrollo local — NO son las URLs reales de producción
+# de Multimax. Ajustar cuando exista un dominio real (Sprint 4.1 en
+# adelante, Auth).
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173"]
+jwt_expiry = 3600
+enable_signup = false
+# `enable_signup = false`: consistente con `ARCHITECTURE.md §9.4` — los
+# instaladores NUNCA se autoregistran (los invita un admin vía Edge
+# Function); los coordinadores/admins tampoco se autoregistran desde la
+# UI pública. Decisión ya documentada, no nueva de este Sprint.
+
+[analytics]
+enabled = false
+
+[edge_runtime]
+enabled = true

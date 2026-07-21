@@ -1,309 +1,71 @@
-# HANDYMAX - Multimax Despacho
+# HANDYMAX · Multimax Despacho
 
-> Plataforma de despacho y asignación de instalaciones en tiempo real para Multimax Panamá.
+Plataforma de despacho de instaladores para Multimax — reconstrucción en producción (React + TypeScript + Vite + Supabase) del prototipo `Multimax_Despacho_v1.3.html`.
 
----
+> Este archivo no existía antes del Sprint 4.1.1 ("Supabase Infrastructure Integration") -- se crea en este Sprint porque su Fase 9 pide "actualizar README.md" entre los documentos a mantener; al no existir, se crea desde cero en vez de reportarse como discrepancia (es un README estándar de proyecto, no una fuente de verdad técnica en disputa).
 
-## Descripción
+## Documentación del proyecto
 
-HANDYMAX es una plataforma web desarrollada para optimizar el proceso de asignación de trabajos de instalación de **Multimax Panamá**.
+Este README es un punto de entrada rápido. Para el detalle real, ver:
 
-El sistema permite a los coordinadores publicar solicitudes de instalación, a los instaladores recibirlas y responder en tiempo real, y a los administradores gestionar instaladores, sucursales y operaciones mediante una arquitectura segura basada en roles.
+- **`ARCHITECTURE.md`** — arquitectura completa, stack, decisiones, plan de migración del HTML, y (§14) la infraestructura Supabase de este Sprint.
+- **`PROJECT_STATUS.md`** — estado Sprint a Sprint, qué falta, problemas abiertos.
+- **`MIGRATION_STATUS.md`** — seguimiento exclusivo de la reconstrucción HTML→React (cobertura por pantalla/componente).
+- **`CHANGELOG.md`** — registro cronológico de cambios.
+- **`docs/database/`** — auditoría completa del esquema real de Producción (`DATABASE_INVENTORY.md`, `DATABASE_DIFF.md`, `DATABASE_SYNC_PLAN.md`).
+- **`docs/frontend/`** — auditoría de compatibilidad del frontend contra ese esquema (`FRONTEND_AUDIT.md`, `FRONTEND_DIFF.md`, `FRONTEND_COMPATIBILITY_MATRIX.md`, `FRONTEND_SYNC_PLAN.md`, `FRONTEND_IMPACT_REPORT.md`).
+- **`supabase/README.md`** — flujo operativo de migraciones/seed de base de datos.
 
-El proyecto está construido utilizando tecnologías modernas del ecosistema React y Supabase, con una arquitectura modular y escalable que facilita su mantenimiento y evolución.
+## Stack
 
----
+React 18 + TypeScript + Vite, Tailwind CSS, Radix UI (primitivos accesibles), TanStack Query, React Router, Supabase (`@supabase/supabase-js`). Ver `ARCHITECTURE.md §2` para el detalle y justificación de cada elección.
 
-## Objetivos
+## Esquema oficial de base de datos
 
-- Digitalizar el proceso de asignación de instalaciones.
-- Reducir tiempos de respuesta entre coordinadores e instaladores.
-- Gestionar trabajos en tiempo real.
-- Centralizar la administración de instaladores.
-- Administrar sucursales y zonas de cobertura.
-- Mantener historial completo de instalaciones.
-- Facilitar la escalabilidad futura del sistema.
+**Baseline oficial**: `supabase/migrations/0001_initial_schema.sql` — un `pg_dump` real exportado directamente desde el proyecto de Producción (PostgreSQL 17.6). Las 8 tablas reales son `empresas`, `tiendas`, `admins`, `coordinadores`, `instaladores`, `trabajos`, `trabajo_instaladores`, `ofertas` — ver `docs/database/DATABASE_INVENTORY.md` para el inventario completo (columnas, FKs, índices, RLS, funciones).
 
----
+Los archivos bajo `supabase/migrations/legacy/` documentan un modelo de datos anterior, ya no vigente — se conservan únicamente como referencia histórica (ver `ARCHITECTURE.md §14.1` y `docs/database/DATABASE_SYNC_PLAN.md` para la trazabilidad completa de por qué existen dos modelos).
 
-## Tecnologías
-
-### Frontend
-
-- React
-- Vite
-- TypeScript
-- React Router
-- TanStack Query
-- Tailwind CSS
-- shadcn/ui
-- React Hook Form
-- Zod
-- Lucide React
-
-### Backend
-
-- Supabase
-  - PostgreSQL
-  - Authentication
-  - Realtime
-  - Storage
-  - Edge Functions
-
-### Herramientas
-
-- Git
-- GitHub
-- ESLint
-- Prettier
-
----
-
-## Arquitectura
-
-El proyecto sigue una arquitectura modular basada en funcionalidades (**Feature-Based Architecture**) separando completamente:
-
-- Presentación
-- Lógica de negocio
-- Acceso a datos
-- Integraciones
-- Servicios
-
-Toda interacción con la base de datos se realiza mediante una capa de servicios conectada a Supabase.
-
----
-
-## Estructura del Proyecto
-
-```text
-src/
-│
-├── assets/
-├── components/
-│   ├── shared/
-│   └── ui/
-├── constants/
-├── contexts/
-├── features/
-├── hooks/
-├── layouts/
-├── lib/
-├── pages/
-├── routes/
-├── services/
-├── styles/
-├── supabase/
-├── types/
-└── utils/
-```
-
----
-
-## Flujo General
-
-```text
-Coordinador
-
-      │
-
-      ▼
-
-Publica un trabajo
-
-      │
-
-      ▼
-
-Supabase
-
-      │
-
-      ▼
-
-Realtime
-
-      │
-
-      ▼
-
-Instaladores reciben la solicitud
-
-      │
-
-      ▼
-
-Envían propuesta
-
-      │
-
-      ▼
-
-Coordinador selecciona instalador
-
-      │
-
-      ▼
-
-Trabajo asignado
-
-      │
-
-      ▼
-
-Seguimiento
-
-      │
-
-      ▼
-
-Trabajo finalizado
-```
-
----
-
-## Roles del Sistema
-
-### Coordinador
-
-- Publicar trabajos.
-- Visualizar respuestas.
-- Asignar instaladores.
-- Seguimiento de trabajos.
-- Consultar historial.
-
-### Instalador
-
-- Recibir solicitudes.
-- Enviar disponibilidad.
-- Gestionar trabajos asignados.
-- Actualizar perfil.
-
-### Administrador
-
-- Administrar instaladores.
-- Administrar sucursales.
-- Configurar zonas.
-- Consultar estadísticas.
-- Gestionar usuarios.
-
----
-
-## Desarrollo
-
-El proyecto se desarrolla de forma incremental mediante fases controladas.
-
-Cada fase debe:
-
-- Compilar correctamente.
-- Pasar las validaciones.
-- Mantener compatibilidad con la arquitectura.
-- Actualizar la documentación técnica.
-
----
-
-## Documentación del Proyecto
-
-Toda la documentación técnica se encuentra en los siguientes archivos:
-
-| Documento | Descripción |
-|------------|-------------|
-| ARCHITECTURE.md | Arquitectura técnica del sistema |
-| PROJECT_STATUS.md | Estado actual del desarrollo |
-| TODO.md | Lista de tareas y fases pendientes |
-| CHANGELOG.md | Historial de cambios |
-
----
-
-## Instalación
-
-Clonar el repositorio:
-
-```bash
-git clone <repository-url>
-```
-
-Entrar al proyecto:
-
-```bash
-cd handymax-despacho
-```
-
-Instalar dependencias:
+## Puesta en marcha local
 
 ```bash
 npm install
-```
-
-Configurar variables de entorno:
-
-```env
-VITE_SUPABASE_URL=
-VITE_SUPABASE_ANON_KEY=
-```
-
-Ejecutar el proyecto:
-
-```bash
+cp .env.example .env
+# completar VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY en .env
+# (ver .env.example para el detalle de qué variable va en cada lugar y por qué)
 npm run dev
 ```
 
----
+Scripts disponibles (`package.json`):
 
-## Scripts
+| Script | Qué hace |
+|---|---|
+| `npm run dev` | Servidor de desarrollo (Vite) |
+| `npm run build` | `tsc -b` + build de producción |
+| `npm run typecheck` | Solo chequeo de tipos, sin emitir (`tsc -b --noEmit`) |
+| `npm run lint` / `npm run lint:fix` | ESLint |
+| `npm run format` / `npm run format:check` | Prettier |
+| `npm run preview` | Sirve el build de producción localmente |
 
-```bash
-npm run dev
-```
+### Generar los tipos de base de datos
 
-Servidor de desarrollo.
-
-```bash
-npm run build
-```
-
-Generar versión de producción.
-
-```bash
-npm run lint
-```
-
-Validación del código.
+Este proyecto tipa todo su acceso a Supabase contra `src/types/database.generated.ts`, generado automáticamente con la Supabase CLI (nunca escrito a mano — ver `ARCHITECTURE.md §14.3`/`§14.8` y `src/types/README.md`, única fuente de verdad sobre esta convención):
 
 ```bash
-npm run typecheck
+npm install -g supabase   # una sola vez por máquina
+supabase login
+supabase link --project-ref bdevkryrgmttxnlxaisd
+supabase gen types typescript --linked --schema public > src/types/database.generated.ts
 ```
 
-Validación de TypeScript.
+Ya generado (Sprint 4.1.1B, 2026-07-21) contra el proyecto real de Producción -- si se regenera, `git diff` sobre este archivo antes de commitear, ya que un cambio de esquema real (columna nueva, función RPC nueva) puede requerir ajustes en `src/services/database.service.ts`/`src/repositories/`.
 
----
+## Estado del proyecto
 
-## Convenciones
+Fase 3 (reconstrucción visual del HTML, Sprints 3.1–3.16) completa. Fase 4 (backend) en curso: base de datos auditada y confirmada contra Producción real (Sprint 4.0.1), frontend auditado contra ese esquema (Sprint 4.0.2), infraestructura Supabase implementada offline (Sprint 4.1.1, Fase A), estabilizada tras errores reales de `tsc`/`eslint` (Sprint 4.1.1C), y adaptada al SDK oficial con `database.generated.ts` real ya integrado (Sprint 4.1.1B) — pendiente de que el usuario ejecute `npm run lint`/`typecheck`/`build`/`dev` en verde en su propio entorno y reporte el resultado (este entorno de trabajo no tiene acceso de red ni `node_modules/` para ejecutarlos). Ver `PROJECT_STATUS.md` para el detalle Sprint a Sprint.
 
-- No acceder directamente a Supabase desde componentes.
-- Toda consulta debe pasar por Services.
-- No utilizar `any`.
-- Mantener componentes pequeños y reutilizables.
-- Toda nueva funcionalidad debe documentarse.
-- Respetar la arquitectura definida en `ARCHITECTURE.md`.
+## Reglas del proyecto (permanentes)
 
----
-
-## Estado del Proyecto
-
-Actualmente el proyecto se encuentra en desarrollo por fases.
-
-Cada fase es implementada por Claude Code, validada localmente y revisada antes de continuar con la siguiente.
-
----
-
-## Licencia
-
-Proyecto privado desarrollado para **Multimax Panamá**.
-
-Todos los derechos reservados.
-
-El código fuente, la documentación y los recursos asociados son de uso exclusivo del equipo autorizado para el desarrollo del proyecto.
-
----
-
-## Desarrollado con ❤️ para Multimax Panamá
+- Ningún flujo de Git que modifique el repositorio (`add`/`commit`/`push`/`merge`/`rebase`/`checkout`/`switch`/`branch`/`reset`) se ejecuta de forma automatizada -- todo el flujo de Git lo ejecuta el usuario manualmente.
+- Ninguna migración de base de datos se crea/modifica sin aprobación explícita, documentada con trazabilidad completa en `PHASE_4.md`/`CHANGELOG.md`.
+- El esquema oficial es el de Producción (`supabase/migrations/0001_initial_schema.sql`) -- ningún código nuevo debe asumir el modelo legacy (`usuarios`/`sucursales`/`bids`/`zonas_cobertura`/`notificaciones`).

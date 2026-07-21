@@ -248,6 +248,8 @@ Extraído por lectura completa del script de `Multimax_Despacho_v1.3.html` (lín
 
 ## 5. Hooks necesarios (custom hooks)
 
+> **⚠ Escrito contra el modelo legacy, superado por §14 (Sprint 4.1.1) y `docs/frontend/FRONTEND_SYNC_PLAN.md`.** Nombres como `bids`, `usuarios.rol`, RPC `seleccionar_instalador` no existen en Producción (ver `docs/database/DATABASE_DIFF.md`). Los hooks base reales (sin lógica de negocio todavía) están en `src/hooks/` -- ver §14.2.
+
 Todos con TanStack Query (`useQuery`/`useMutation`) sobre la capa `services/`. Ninguno usa `any`.
 
 - `useSession()` — sesión de Supabase Auth + fila `usuarios` asociada + `rol`. Fuente única de verdad para navegación por rol.
@@ -273,6 +275,8 @@ Todos con TanStack Query (`useQuery`/`useMutation`) sobre la capa `services/`. N
 
 ## 6. Servicios (`src/services`)
 
+> **⚠ Escrito contra el modelo legacy, superado por §14 (Sprint 4.1.1).** Los servicios base reales (genéricos, sin lógica de negocio) son `src/services/supabase.service.ts`/`auth.service.ts`/`database.service.ts` -- ver §14.2. Los servicios de dominio listados abajo (`trabajos.service.ts`, `bids.service.ts`, etc.) quedan para un Sprint funcional futuro, construidos sobre `database.service.ts`/`repositories/`, con nombres/tablas actualizados al modelo real.
+
 Cada servicio expone funciones puras `async` tipadas que reciben/retornan tipos de `types/domain.ts` (no `types/database.ts` crudo) — la conversión ocurre en `lib/mappers.ts` dentro del propio servicio, así los hooks/components nunca ven `snake_case`.
 
 - `trabajos.service.ts`: `listActivos()`, `listHistorial()`, `getById()`, `getPorMes()`, `publicar(form)`, `marcarCompletado(id)`, `cancelar(id)`. Siempre consulta `trabajos_vista`, nunca `trabajos` directamente para lecturas visibles a instaladores (ver riesgo crítico §11.2).
@@ -289,6 +293,8 @@ Cada servicio expone funciones puras `async` tipadas que reciben/retornan tipos 
 ## 7. Contextos, tipos e iconos
 
 ### 7.1 Contextos
+
+> **⚠ `AuthContext` legacy no se modificó (Sprint 4.1.1, §14.4).** Sprint 4.1.1 agregó `SupabaseProvider`/`SessionProvider`/`AuthProvider` nuevos en `src/providers/`, genéricos y sin resolver rol todavía -- coexisten con este `AuthContext` legacy hasta la reconciliación de `docs/frontend/FRONTEND_SYNC_PLAN.md` Fase 3.
 
 - `AuthContext` — únicamente este. Expone `{ session, usuario, rol, sucursalId, isMaster, loading }`. No se necesita un contexto de "trabajo activo" ni de "tema" (el diseño es fijo, sin modo claro/oscuro).
 
@@ -606,6 +612,8 @@ Segundo Sprint dentro de "4.0.1" (el brief de esta ronda reutiliza el mismo núm
 
 ### 9.9 Modelo de datos oficial — confirmado por el usuario (Sprint 4.0.1, tercera ronda: "Reconstrucción del baseline de Supabase")
 
+> **⚠ Superado por §14 (Sprint 4.1.1).** La confirmación de abajo se basaba en la mejor evidencia disponible en ese momento (dos fuentes SQL, ambas legacy). Una ronda posterior del mismo Sprint 4.0.1 recibió el `pg_dump` real de Producción, que reveló que el modelo vigente es otro. Se conserva este texto por trazabilidad histórica -- ver §14.1 y `docs/database/DATABASE_SYNC_PLAN.md` para la decisión vigente.
+
 **Declaración formal, por instrucción explícita del usuario:** el modelo de datos oficial y definitivo del proyecto es el que ya existe en `supabase/migrations/0001_initial_schema.sql`, con las 8 tablas `empresas`, `sucursales`, `usuarios`, `zonas_cobertura`, `trabajos`, `bids`, `notificaciones`, `trabajo_instaladores` (esta última agregada en `0002_auth_roles_rls.sql`, §9.7). Cualquier brief futuro que asuma tablas separadas `admins`/`coordinadores`/`instaladores`, `tiendas` u `ofertas` debe leerse como una asunción incorrecta a corregir contra este documento, no como una instrucción de rediseño a ejecutar.
 
 Un tercer brief bajo el mismo número "Sprint 4.0.1" ("Reconstrucción del baseline de Supabase") pidió, con lenguaje absoluto ("prohibido cambiar nombres de tablas", "no debes crear una arquitectura distinta"), reconstruir `0001_initial_schema.sql` para que coincidiera EXACTAMENTE con un modelo alternativo (`empresas`/`tiendas`/`admins`/`coordinadores`/`instaladores`/`trabajos`/`trabajo_instaladores`/`ofertas`). Antes de tocar cualquier archivo, se verificó ese modelo alternativo contra las dos únicas fuentes SQL reales del proyecto (el archivo originalmente subido `handymax_supabase_schema_v3.sql` y `0001_initial_schema.sql` actual) — ambas coinciden entre sí (`diff` estructural sin diferencias, más allá de los `INSERT`/`SELECT` ya movidos en §9.8) y ninguna define `tiendas`/`admins`/`coordinadores`/`instaladores`/`ofertas`. Se reportó la discrepancia sin implementarla (siguiendo la propia "regla final" de ese brief: detenerse y reportar en vez de corregir por cuenta propia) y se preguntó al usuario, quien confirmó por escrito que el modelo real (`usuarios`/`sucursales`/`bids`/etc.) es el oficial. Ver `PHASE_4.md` → "Sprint 4.0.1 (tercera ronda)" para la trazabilidad completa de este intercambio.
@@ -702,3 +710,132 @@ Cambios puntuales respecto al inventario de §3/§4, detectados al construir el 
 2. **`RootLayout.tsx` sí incluye, temporalmente, un selector de rol manual.** §3 lo describía como "sin selector manual", asumiendo Auth ya implementada. La Fase 3 ocurre antes de la Fase de Auth (hoy Fase 7 en el orden vigente) y las instrucciones de esta fase exigen no alterar la apariencia/interactividad del prototipo. Resolución: `Header`/`RootLayout` reconstruyen `.mx-roleswitch` idéntico al original, respaldado por `useState<Rol>` local (no por `AuthContext`). La Fase 7 reemplaza ese estado por la sesión real sin tocar la apariencia — la nota "sin selector manual" de §3 sigue siendo el objetivo final, solo se pospuso su cumplimiento. Ver `MIGRATION_STATUS.md` §5 para el detalle.
 3. **Primitivos Radix confirmados para `components/ui/`**: `@radix-ui/react-dialog` (Dialog/Modal/Drawer/ConfirmDialog), `@radix-ui/react-tabs`, `@radix-ui/react-checkbox`, `@radix-ui/react-switch`, `@radix-ui/react-tooltip`, `@radix-ui/react-dropdown-menu`, `@radix-ui/react-slot` (Button `asChild`), `@radix-ui/react-label`. Se decidió explícitamente **no** agregar `@radix-ui/react-select` (el prototipo usa `<select>` nativo en todos sus formularios — un primitivo custom cambiaría comportamiento/apariencia nativa) ni `@radix-ui/react-separator`/`@radix-ui/react-progress`/`@radix-ui/react-scroll-area` (implementados como `div`s simples con los tokens del proyecto, para minimizar dependencias donde no se necesita comportamiento accesible adicional).
 4. **`Modal` y `Drawer` son dos primitivos nuevos de `components/ui/`**, no mencionados en §4 porque esa sección solo cataloga componentes de *feature* (Coordinator/Installer/Admin). `Drawer` porta verbatim `.mx-modal-bg`/`.mx-modal-panel` (el "modal" slide-up del prototipo, usado hoy por `PublishModal` en Fase 4). `Modal` es un patrón centrado genérico nuevo, sin equivalente en el prototipo. Ver `MIGRATION_STATUS.md` §6.2 para el razonamiento completo del renombre.
+
+---
+
+## 14. Adenda — Sprint 4.1.1 "Supabase Infrastructure Integration" (Fase A)
+
+> **Este Sprint reemplaza la declaración de §9.9 como modelo oficial.** §9.9 (Sprint 4.0.1, tercera ronda) confirmó por escrito el modelo legacy (`empresas`/`sucursales`/`usuarios`/`zonas_cobertura`/`trabajos`/`bids`/`notificaciones`/`trabajo_instaladores`) como oficial, con la mejor evidencia disponible en ese momento. Una ronda posterior del mismo Sprint 4.0.1 (Database Synchronization Audit) recibió un `pg_dump` real de Producción que reveló un modelo distinto y ya vigente (`empresas`/`tiendas`/`admins`/`coordinadores`/`instaladores`/`trabajos`/`trabajo_instaladores`/`ofertas`) — ver `docs/database/DATABASE_DIFF.md`, `docs/database/DATABASE_INVENTORY.md` y la decisión formal en `docs/database/DATABASE_SYNC_PLAN.md` (Estrategia B: nueva línea base a partir de Producción, no incremental desde legacy). Este Sprint 4.1.1 confirma esa decisión como vigente y construye la infraestructura sobre ella. **§9.9 no se reescribe** (se conserva por trazabilidad histórica de cómo se llegó a esa conclusión intermedia) pero queda **superado** por esta sección y por `docs/database/DATABASE_SYNC_PLAN.md`.
+>
+> Del mismo modo, **§5 (Hooks), §6 (Servicios) y §7.1/§7.3 (Contextos/Tipos) siguen describiendo el modelo legacy** (`bids.service.ts`, `usuarios.service.ts`, `sucursales.service.ts`, RPC `seleccionar_instalador`, `AuthContext` con `{ usuario, rol, sucursalId, isMaster }`, tipos `UsuarioRow`/`TrabajoRow`/etc. de `types/database.ts`) — no se reescribieron en este Sprint (está fuera de su alcance: Fase A es "no modifica la UI/hooks/servicios existentes", solo agrega infraestructura nueva) pero también deben leerse como **superadas** por esta sección y por `docs/frontend/FRONTEND_DIFF.md`/`FRONTEND_SYNC_PLAN.md`, que documentan exhaustivamente cada campo/tabla/RPC afectado y el orden de migración recomendado.
+
+### 14.1 Contexto y decisión (Fase A / Fase B)
+
+Brief: "HANDYMAX - Sprint 4.1.1 - Supabase Infrastructure Integration". Objetivo: implementar la infraestructura Supabase completa (sin lógica de negocio, sin UI nueva), dejando el proyecto listo para que los Sprints funcionales trabajen sobre una base estable. Baseline oficial explícita del propio brief: `supabase/migrations/0001_initial_schema.sql` (el `pg_dump` real) -- consistente con §9.9 de esta sección/`DATABASE_SYNC_PLAN.md`.
+
+Antes de implementar nada, se auditó el entorno de trabajo (sandbox) contra los requisitos "OBLIGATORIOS" del brief original y se detectaron 3 bloqueos de entorno, no de diseño:
+
+1. `supabase/schema_instalaciones_current.sql` (nombre que la Fase 0 original pedía verificar) no existe -- el archivo real es `supabase/migrations/0001_initial_schema.sql`.
+2. El sandbox de este entorno de trabajo bloquea con `403 host_not_allowed` tanto `registry.npmjs.org` como `supabase.com`/`*.supabase.co` (confirmado con `curl -I` contra ambos) -- no hay forma de instalar la Supabase CLI ni de conectarse a Producción real desde este entorno, independientemente de qué credenciales se proporcionen.
+3. No existe `node_modules/` en el proyecto y `npm install` falla por el mismo bloqueo de red -- tampoco es posible correr `build`/`lint`/`typecheck` reales desde este entorno.
+
+Reportados estos 3 bloqueos, el usuario confirmó la auditoría y dividió el Sprint en dos fases:
+
+- **Fase A (este Sprint, ejecutada acá)**: toda la infraestructura que no requiere red ni conexión real -- estructura `src/lib/supabase/`, `.env.example`, Providers, servicios base, repositorios, hooks base, infraestructura de Realtime, y esta documentación. **No genera `database.generated.ts`, no ejecuta la Supabase CLI, no ejecuta `npm install`, no corre `build`/`lint`/`typecheck`, no valida conexión real** -- instrucción explícita del usuario, no una omisión.
+- **Fase B (a cargo del usuario, fuera de este entorno)**: `npm install`, `supabase gen types typescript` (generando `src/types/database.generated.ts`), `npm run build`/`lint`/`typecheck`, y la validación real de conexión contra Producción. El usuario reportará los resultados de vuelta para que se adapte cualquier incompatibilidad que la Fase B detecte.
+
+### 14.2 Infraestructura creada en Fase A
+
+```
+src/lib/supabase/
+├── environment.ts   # lectura/validación de VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
+├── config.ts        # TABLES/VIEWS/RPC_FUNCTIONS (nombres reales de Producción), opciones del cliente
+├── client.ts         # singleton del cliente Supabase (navegador), tipado con Database
+├── server.ts          # cliente con service role key -- SOLO scripts Node/Edge Functions futuras, nunca el navegador
+├── realtime.ts       # infraestructura genérica de canales/Presence/Broadcast (Fase 7 -- sin eventos de negocio)
+└── index.ts          # barrel público (NO reexporta server.ts, a propósito)
+
+src/providers/
+├── SupabaseProvider.tsx   # expone el cliente vía Context
+├── SessionProvider.tsx    # rastrea Session de Supabase Auth (sin resolver rol)
+├── AuthProvider.tsx        # signIn/signOut genéricos, envuelve SessionProvider
+├── AppProviders.tsx        # composición recomendada de los 3 -- no montado todavía en App.tsx
+└── index.ts
+
+src/services/
+├── supabase.service.ts    # cliente + normalización de errores (ServiceResult<T>)
+├── auth.service.ts         # signInWithPassword/signOut/getCurrentSession/getCurrentUser/onAuthStateChange
+├── database.service.ts    # selectAll/selectById/insertRow/updateById/deleteById/callRpc genéricos, tipados
+└── index.ts
+
+src/repositories/
+├── base.repository.ts             # fábrica createRepository(table) -- CRUD genérico
+├── admins.repository.ts
+├── coordinadores.repository.ts
+├── empresas.repository.ts
+├── instaladores.repository.ts
+├── tiendas.repository.ts
+├── trabajos.repository.ts
+├── trabajo-instaladores.repository.ts
+├── ofertas.repository.ts
+└── index.ts
+
+src/hooks/
+├── useSupabase.ts   # cliente vía Context
+├── useSession.ts    # sesión cruda
+├── useAuth.ts        # acciones de auth genéricas
+├── useRealtime.ts   # infraestructura de canal (Fase 7, sin eventos de negocio)
+└── index.ts
+```
+
+**Cobertura de tablas en `repositories/`**: el brief listaba 5 como "Ejemplo" (`admins`/`coordinadores`/`empresas`/`instaladores`/`trabajos`). Se interpretó "Ejemplo" como no-exhaustivo (mismo criterio ya aplicado y confirmado en Sprint 4.0.2 para "no limitarse a los ejemplos") y se agregaron también `tiendas`, `trabajo_instaladores` y `ofertas` -- las 8 tablas reales completas de `docs/database/DATABASE_INVENTORY.md`. Se documenta esta decisión explícitamente porque no estaba pedida literalmente.
+
+### 14.3 Fase 0 -- procedimiento de generación de tipos (pendiente, Fase B)
+
+Ninguna interfaz de tipo de base de datos se escribió a mano en este Sprint. Todo el código de `client.ts`, `server.ts`, `database.service.ts` y `repositories/` importa `type { Database }` desde `@/types/database.generated` -- un archivo que **todavía no existe** y que este Sprint no genera (instrucción explícita de Fase A). Procedimiento documentado para cuando el usuario ejecute la Fase B:
+
+```bash
+npm install
+supabase login
+supabase link --project-ref bdevkryrgmttxnlxaisd
+supabase gen types typescript --linked > src/types/database.generated.ts
+```
+
+o, sin `link` previo: `supabase gen types typescript --project-id bdevkryrgmttxnlxaisd > src/types/database.generated.ts`.
+
+Hasta que ese archivo exista, `tsc`/`vite build` fallarán con "Cannot find module '@/types/database.generated'" en cada uno de los archivos de arriba -- **comportamiento esperado de esta Fase A**, no un defecto a corregir.
+
+### 14.4 Duplicaciones conocidas, documentadas (no resueltas en este Sprint)
+
+Este Sprint agrega infraestructura **nueva**, sin modificar la ya existente (fuera de alcance: "NO modificar componentes/hooks/servicios/Auth/React existentes"). Esto deja, deliberadamente, dos pares de módulos con responsabilidades solapadas hasta que un Sprint futuro de reconciliación los unifique:
+
+1. **Dos clientes de Supabase**: `src/supabase/client.ts` (Fase 3, sin tipar, sin validación de entorno estructurada, cero importadores reales según `docs/frontend/FRONTEND_AUDIT.md`) vs. `src/lib/supabase/client.ts` (este Sprint, tipado, singleton, con `environment.ts`). El primero no se tocó.
+2. **Dos `AuthProvider`/`useAuth`**: `src/contexts/AuthContext.tsx` (Fase 3 de UI, legacy, expone `{ usuario, rol, sucursalId, isMaster }` tipado contra el modelo legacy) vs. `src/providers/AuthProvider.tsx`/`src/hooks/useAuth.ts` (este Sprint, genérico, expone `{ session, user, signInWithPassword, signOut }` sin resolver rol). El primero no se tocó. No importar ambos `AuthProvider`/`useAuth` en el mismo archivo sin alias explícito.
+
+Ver `docs/frontend/FRONTEND_SYNC_PLAN.md` (Fase 3) para el plan de reconciliación ya documentado, que sigue vigente.
+
+### 14.5 Otras inconsistencias documentales detectadas (fuera de alcance de este Sprint, reportadas)
+
+- `supabase/README.md` §10 y `supabase/config.toml` (ambos bajo `supabase/`, fuera de la lista de archivos permitidos de este Sprint: "NO modificar supabase/") siguen declarando el modelo legacy como oficial y `major_version = 16`, respectivamente -- el segundo además contradice el `pg_dump` real auditado, que reporta PostgreSQL 17.6. Ambos quedan pendientes de corrección en un Sprint futuro con permiso explícito para tocar `supabase/`.
+- `TODO.md` y `MIGRATION_STATUS.md` ya arrastraban, desde Sprint 4.0.1, afirmaciones desactualizadas sobre el modelo de datos (ver §9.8); `MIGRATION_STATUS.md` se actualiza en este mismo Sprint (Fase 9, sí está en la lista de archivos permitidos) -- ver su propia sección nueva. `TODO.md` sigue fuera de alcance.
+
+### 14.6 Estado de aprobación de este Sprint
+
+Conforme a los propios criterios de aprobación del brief original ("Validación real de conexión con Producción" y "Build/Typecheck/Lint exitosos" son condiciones obligatorias), **este Sprint no puede declararse aprobado todavía** -- por diseño, no por incumplimiento: esos criterios corresponden a la Fase B, que el usuario ejecutará fuera de este entorno. Fase A queda completa y lista para que Fase B la ejercite.
+
+### 14.7 Adenda — Sprint 4.1.1C "Supabase Infrastructure Stabilization"
+
+Tras ejecutar Fase A/Fase B localmente, el usuario reportó 5 categorías de errores reales detectados por `tsc`/`eslint` contra el código de Fase A. Este Sprint (4.1.1C) es de **estabilización únicamente** -- no agrega features, no cambia arquitectura, no toca UI/HTML/migraciones. Detalle completo en `docs/architecture/frontend/SPRINT_4_1_1C_REPORT.md`; resumen:
+
+1. **Tipos generados**: se ratifica `src/types/database.generated.ts` como única ubicación (ya lo era desde Fase A) y se documenta formalmente en `src/types/README.md` (nuevo). Se confirma que no existen archivos de tipos duplicados.
+2. **`import/no-unresolved`**: este proyecto nunca configuró `eslint-plugin-import` (confirmado leyendo `eslint.config.js`) -- los 6 comentarios `eslint-disable-next-line import/no-unresolved` escritos en Fase A silenciaban una regla inexistente, causando el error real "Definition for rule ... was not found". Se eliminaron los 6 comentarios (no se instaló el plugin, por no ser parte de la arquitectura aprobada).
+3. **Realtime**: `removeRealtimeChannel` (`src/lib/supabase/realtime.ts`) usaba el tipo de retorno hand-rolled `Promise<'ok' | 'error'>`, incompleto respecto al real `RealtimeRemoveChannelResponse` exportado por `@supabase/supabase-js` (le faltaba `'timed out'`). Se reemplazó por el tipo oficial de la librería.
+4. **`server.ts` y `process.env`**: se confirmó que este archivo es, y seguirá siendo, exclusivo de Node (nunca se importa desde código de navegador) -- el error de tipos era porque `tsconfig.app.json` define `"types": []` para excluir deliberadamente los globals de `@types/node` de todo `src/` (evita que APIs de Node se filtren al código de navegador). Se agregó `/// <reference types="node" />` únicamente en `server.ts`, en vez de revertir `"types": []` para todo el proyecto.
+5. **Providers y `react-refresh/only-export-components`**: los 3 archivos `Provider.tsx` exportaban, cada uno, un componente + un hook interno (`useXContext`) desde el mismo archivo `.tsx` -- eso es justamente lo que la regla (configurada con `allowConstantExport: true`) señala como riesgoso para Fast Refresh. Se extrajo el objeto `Context` crudo de cada Provider a un archivo `.ts` nuevo (`supabase.context.ts`/`session.context.ts`/`auth.context.ts`), y la lógica de los hooks internos se movió a los hooks públicos correspondientes (`src/hooks/useSupabase.ts`/`useSession.ts`/`useAuth.ts`). Los `.tsx` de `providers/` ahora exportan únicamente el componente + su tipo de props.
+
+Al igual que en Fase A, este entorno de trabajo (Claude Code) no tiene acceso de red a `registry.npmjs.org`/`supabase.com` ni `node_modules/` instalado -- por lo tanto **no se ejecutaron realmente** `npm run lint`/`npm run typecheck`/`npm run build` en este Sprint; la corrección de cada error se validó por lectura manual del código y de la configuración real del proyecto (`eslint.config.js`, `tsconfig.app.json`), no por ejecución. Ver `SPRINT_4_1_1C_REPORT.md §6` para el detalle honesto de este punto, incluyendo el hallazgo de que `database.generated.ts` sigue sin existir en este entorno pese a que el brief de este Sprint asume que Fase B ya lo generó.
+
+### 14.8 Adenda — Sprint 4.1.1B "Adaptación definitiva al SDK oficial"
+
+El usuario adjuntó un ZIP con el estado real del proyecto tras ejecutar localmente `npm install`, `supabase init`, `supabase link` y `supabase gen types typescript --linked --schema public` -- `src/types/database.generated.ts` **existe por primera vez** en este Sprint, con contenido genuino (verificado por forma: incluye `__InternalSupabase.PostgrestVersion: "14.5"`, `Constants`, y coincide exactamente con las 8 tablas + 1 vista + 2 funciones RPC ya documentadas en `docs/database/DATABASE_INVENTORY.md`). `supabase/.temp/postgres-version` (`17.6.1.127`) y `supabase/.temp/rest-version` (`v14.5`) son consistentes entre sí y con el `pg_dump` real auditado en Sprint 4.0.1 -- evidencia cruzada de que el `link` fue real, no simulado.
+
+Con el `Database` real ya disponible, se detectó (por lectura, no por ejecución -- ver más abajo) un problema estructural en el patrón de acceso a datos que Fase A/4.1.1C no podían haber detectado sin el archivo real: los helpers `insertRow`/`updateById`/`callRpc`, genéricos sobre `T extends TableName`, dejan de ser seguros en cuanto `.insert()`/`.update()`/`.rpc()` reciben un valor real que debe verificarse contra la forma exacta de una tabla/función concreta -- esa verificación ocurre dentro del cuerpo de una función genérica, donde TypeScript trata la tabla/función como un parámetro de tipo abierto, no como el literal concreto que cada llamador usa. Es un límite conocido y estable de TypeScript (chequeo de cuerpo genérico una sola vez, no por instanciación), no un bug de una versión particular de `@supabase/supabase-js`.
+
+Refactor aplicado (detalle técnico completo, con justificación línea por línea, en `docs/architecture/frontend/SPRINT_4_1_1B_REPORT.md`):
+
+1. `selectAll`/`selectById`/`deleteById` (`src/services/database.service.ts`) siguen siendo genéricos -- son seguros (no pasan ningún valor cuya forma dependa de la tabla).
+2. `insertRow`/`updateById` genéricos se eliminaron. Cada uno de los 8 archivos de `src/repositories/*.repository.ts` implementa ahora su propio `create`/`update`, usando `TABLES.<tabla>` como literal concreto -- sin ningún cast (`as any`/`as never`/`@ts-ignore`).
+3. `base.repository.ts` cambia la firma de `createRepository(table, writeOps)` (antes `createRepository(table)`) para recibir esas dos implementaciones inyectadas -- el contrato público `Repository<T>` (`getAll`/`getById`/`create`/`update`/`remove`) no cambió.
+4. `callRpc<TArgs, TResult>` genérico (sin ninguna verificación real contra `Database['public']['Functions']`) se reemplazó por dos funciones explícitas, `callAsignarInstalador`/`callSubmitBid`, cada una tipada directamente contra `Database['public']['Functions'][<literal>]['Args'|'Returns']`.
+
+Como en Fase A y en 4.1.1C, este entorno de trabajo sigue sin acceso de red (`registry.npmjs.org`/`supabase.com` responden `403 host_not_allowed`, re-confirmado en este Sprint) y sin `node_modules/` -- por lo tanto tampoco en este Sprint se pudieron ejecutar realmente `npm run lint`/`typecheck`/`build`/`dev`. El propio `tsconfig.app.tsbuildinfo` incluido en el ZIP del usuario (generado por su `tsc` real, no por este entorno) reporta `"errors": true` para la última compilación local conocida -- confirmación honesta, no fabricada, de que había errores reales pendientes al momento de este Sprint. Detalle completo, incluyendo los riesgos de que un aspecto de este refactor (particularmente los tipos de Realtime, dado el salto de versión de `@supabase/supabase-js` a `2.110.0`, muy posterior al corte de entrenamiento de este modelo) no pudo verificarse contra el código fuente real de la librería instalada, en `docs/architecture/frontend/SPRINT_4_1_1B_REPORT.md §7`.
