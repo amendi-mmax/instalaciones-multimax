@@ -7,13 +7,12 @@ import { SupabaseContext } from '@/providers/supabase.context';
  * SupabaseProvider — provee el cliente único de Supabase (navegador) al
  * árbol de componentes vía React Context (Sprint 4.1.1, Fase 3).
  *
- * Nuevo, separado deliberadamente de `src/contexts/AuthContext.tsx`
- * (Fase 3 del proyecto, Sprints 3.1–3.16, todavía basado en tipos legacy
- * per `docs/frontend/FRONTEND_AUDIT.md`) -- este Sprint no modifica ese
- * archivo (está fuera de la lista de archivos permitidos: "NO modificar
- * Auth"). `AuthContext.tsx` sigue existiendo tal cual hasta que un Sprint
- * futuro (`docs/frontend/FRONTEND_SYNC_PLAN.md`, Fase 3) decida
- * reconciliarlo con esta nueva capa.
+ * Nuevo, separado deliberadamente del antiguo `src/contexts/AuthContext.tsx`
+ * (Fase 3 del proyecto, Sprints 3.1–3.16, basado en tipos legacy per
+ * `docs/frontend/FRONTEND_AUDIT.md`) -- ese archivo fue retirado por
+ * completo en Sprint 4.2.1 ("Sistema de Autenticación"), que reconcilió
+ * ambas capas a favor de esta (ver
+ * `docs/architecture/frontend/SPRINT_4_2_1_AUTH_REPORT.md`).
  *
  * Sin lógica de negocio: solo expone el cliente en sí, no sesión ni rol
  * (eso es responsabilidad de `SessionProvider`/`AuthProvider`, que

@@ -62,7 +62,11 @@ Ya generado (Sprint 4.1.1B, 2026-07-21) contra el proyecto real de Producción -
 
 ## Estado del proyecto
 
-Fase 3 (reconstrucción visual del HTML, Sprints 3.1–3.16) completa. Fase 4 (backend) en curso: base de datos auditada y confirmada contra Producción real (Sprint 4.0.1), frontend auditado contra ese esquema (Sprint 4.0.2), infraestructura Supabase implementada offline (Sprint 4.1.1, Fase A), estabilizada tras errores reales de `tsc`/`eslint` (Sprint 4.1.1C), y adaptada al SDK oficial con `database.generated.ts` real ya integrado (Sprint 4.1.1B) — pendiente de que el usuario ejecute `npm run lint`/`typecheck`/`build`/`dev` en verde en su propio entorno y reporte el resultado (este entorno de trabajo no tiene acceso de red ni `node_modules/` para ejecutarlos). Ver `PROJECT_STATUS.md` para el detalle Sprint a Sprint.
+Fase 3 (reconstrucción visual del HTML, Sprints 3.1–3.16) completa. Fase 4 (backend) en curso: base de datos auditada y confirmada contra Producción real (Sprint 4.0.1), frontend auditado contra ese esquema (Sprint 4.0.2), infraestructura Supabase implementada offline (Sprint 4.1.1, Fase A), estabilizada tras errores reales de `tsc`/`eslint` (Sprint 4.1.1C), adaptada al SDK oficial con `database.generated.ts` real (Sprint 4.1.1B), con la capa de datos convertida a repositorios explícitos por tabla sin CRUD genérico (Sprint 4.1.1C, segunda ronda), y con autenticación real de punta a punta (login, sesión, resolución de rol/perfil, recuperación de contraseña, rutas protegidas — Sprint 4.2.1) — pendiente de que el usuario ejecute `npm run lint`/`typecheck`/`build`/`dev` en verde en su propio entorno y reporte el resultado (este entorno de trabajo no tiene acceso de red ni `node_modules/` para ejecutarlos).
+
+**Limitación crítica abierta** (Sprint 4.2.1): `admins`/`coordinadores`/`empresas`/`tiendas` tienen RLS habilitado sin policies de `SELECT` para `authenticated` -- bloquea probar login de `admin`/`coordinador` de punta a punta contra Producción hasta que se agreguen esas policies (decisión de backend pendiente, no ejecutada sin aprobación). Ver `docs/architecture/frontend/SPRINT_4_2_1_AUTH_REPORT.md §8`.
+
+Ver `PROJECT_STATUS.md` para el detalle Sprint a Sprint.
 
 ## Reglas del proyecto (permanentes)
 

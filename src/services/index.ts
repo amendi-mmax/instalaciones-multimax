@@ -14,6 +14,8 @@ export {
   getCurrentSession,
   getCurrentUser,
   onAuthStateChange,
+  refreshSession,
+  resetPasswordForEmail,
   type SignInWithPasswordParams,
 } from '@/services/auth.service';
 export {
@@ -23,3 +25,4 @@ export {
   type TableInsert,
   type TableUpdate,
 } from '@/services/database.service';
+export { resolveProfile } from '@/services/profile.service';

@@ -294,9 +294,9 @@ Cada servicio expone funciones puras `async` tipadas que reciben/retornan tipos 
 
 ### 7.1 Contextos
 
-> **⚠ `AuthContext` legacy no se modificó (Sprint 4.1.1, §14.4).** Sprint 4.1.1 agregó `SupabaseProvider`/`SessionProvider`/`AuthProvider` nuevos en `src/providers/`, genéricos y sin resolver rol todavía -- coexisten con este `AuthContext` legacy hasta la reconciliación de `docs/frontend/FRONTEND_SYNC_PLAN.md` Fase 3.
+> **⚠ SUPERADO — ver §14.9 (Sprint 4.2.1).** El `AuthContext` legacy descrito abajo (`{ session, usuario, rol, sucursalId, isMaster, loading }`) fue **eliminado** en Sprint 4.2.1 ("Sistema de Autenticación"): el `AuthProvider`/`useAuth` de `src/providers/`/`src/hooks/` (mencionados en la nota original de Sprint 4.1.1 como "genéricos, sin resolver rol todavía") se completaron con resolución de perfil/rol real y son ahora el único contexto de autenticación de la aplicación. Esta subsección queda como registro histórico de la Fase 3, no como el estado actual.
 
-- `AuthContext` — únicamente este. Expone `{ session, usuario, rol, sucursalId, isMaster, loading }`. No se necesita un contexto de "trabajo activo" ni de "tema" (el diseño es fijo, sin modo claro/oscuro).
+- `AuthContext` (legacy, retirado en Sprint 4.2.1) — únicamente este. Expone `{ session, usuario, rol, sucursalId, isMaster, loading }`. No se necesita un contexto de "trabajo activo" ni de "tema" (el diseño es fijo, sin modo claro/oscuro).
 
 ### 7.2 Mapeo de íconos (`ICONS`/`mkIcon` → lucide-react)
 
@@ -503,6 +503,8 @@ Nota: no existe en el schema un tipo para el estado "efímero" de radar (idle/no
 
 ## 8. Rutas
 
+> **⚠ PARCIALMENTE SUPERADO — ver §14.9 (Sprint 4.2.1).** La tabla de abajo es la planificación original de Fase 2 (todas las rutas por rol, incluidas las que todavía no existen -- `/despacho`, `/trabajos`, etc., fuera de alcance de Sprint 4.2.1). La única parte de esta tabla ya implementada de verdad es `/login` (ahora real, protegida por `PublicRoute`/`AuthLayout`) y la ruta raíz `/` (ahora protegida por `ProtectedRoute`) -- ver `src/routes/AppRouter.tsx` y §14.9 para el árbol de rutas real actual.
+
 ```
 /login                          LoginPage (público)
 
@@ -554,12 +556,16 @@ Los estados intermedios del radar (`notified` → `opened` → `responding`) no 
 
 ### 9.4 Auth
 
+> **⚠ SUPERADO — ver §14.9 (Sprint 4.2.1).** Esta subsección (magic link, invitación por Edge Function, vínculo `usuarios.auth_id`) describe una propuesta de la Fase 2, sobre el modelo de datos LEGACY (`usuarios` unificado) que el usuario descartó explícitamente en Sprint 4.0.1 (`§9.9`) a favor del modelo real de Producción (`admins`/`coordinadores`/`instaladores`, cada uno con `id = auth.users.id` directamente, sin `auth_id`). El flujo real implementado en Sprint 4.2.1 es email + contraseña (`supabase.auth.signInWithPassword`), sin magic link ni Edge Function de invitación. Queda como registro histórico, no como el diseño vigente.
+
 - **Coordinador/Admin**: `supabase.auth.signInWithOtp({ email })` (magic link), UI en `LoginForm.tsx`.
 - **Instalador**: nunca se autoregistra. El admin lo invita desde `InviteInstaladorForm` → una **Edge Function** (`invite-instalador`) que corre en el servidor con `service_role` (nunca en el cliente) y llama a `supabase.auth.admin.inviteUserByEmail(email, { data: { rol: 'instalador', ... } })`.
 - **Vínculo `usuarios.auth_id`** (decisión arquitectónica nueva, no cubierta explícitamente por el PDF ni el SQL — documentada aquí por regla del proyecto): el admin crea la fila en `usuarios` (con `auth_id = NULL`) antes o al momento de invitar. Cuando la persona invitada completa el login por primera vez, se necesita enlazar su `auth.users.id` recién creado con esa fila. Se propone un trigger `AFTER INSERT ON auth.users` que ejecute una función `SECURITY DEFINER` que busque en `usuarios` por `email = NEW.email AND auth_id IS NULL` y setee `auth_id = NEW.id`. Es aditivo (no modifica columnas ni políticas existentes) pero es nueva superficie de la base de datos — **se reporta aquí para aprobación antes de implementarla en la fase correspondiente**, tal como piden las instrucciones del proyecto para decisiones arquitectónicas.
 - **Sesión del cliente**: `supabase.auth.onAuthStateChange` alimenta `AuthContext`; al iniciar sesión se hace `SELECT * FROM usuarios WHERE auth_id = auth.uid()` para obtener rol/sucursal/perfil.
 
 ### 9.5 RLS y la operación de "seleccionar instalador"
+
+> **⚠ SUPERADO — ver §14.9 (Sprint 4.2.1) y §9.9.** Esta propuesta opera sobre `bids`/`trabajos.phase` (modelo legacy). El modelo real de Producción ya tiene, desde Sprint 4.0.1, un RPC real equivalente (`asignar_instalador`, ver `docs/database/DATABASE_INVENTORY.md §5`) que opera sobre `trabajos`/`trabajo_instaladores`/`ofertas` -- no sobre `bids`. Esta subsección queda como registro histórico de una propuesta previa a la confirmación del modelo oficial, no como trabajo pendiente de implementar tal cual.
 
 El schema define políticas de UPDATE separadas para `trabajos` y `bids`, pero seleccionar un ganador requiere dos escrituras coordinadas (marcar el bid ganador como `seleccionado` + actualizar `trabajos.phase`/`assigned_bid_id`), y en el prototipo real también hace falta marcar los demás bids `pendiente` de ese trabajo como `rechazado` (para que "lost" sea representable). Ejecutar esto como dos `UPDATE` sueltos desde el cliente (como sugiere el PDF) deja una ventana de inconsistencia si el segundo falla. Se propone (nueva decisión arquitectónica, pendiente de aprobación, no implementada aún):
 
@@ -839,3 +845,17 @@ Refactor aplicado (detalle técnico completo, con justificación línea por lín
 4. `callRpc<TArgs, TResult>` genérico (sin ninguna verificación real contra `Database['public']['Functions']`) se reemplazó por dos funciones explícitas, `callAsignarInstalador`/`callSubmitBid`, cada una tipada directamente contra `Database['public']['Functions'][<literal>]['Args'|'Returns']`.
 
 Como en Fase A y en 4.1.1C, este entorno de trabajo sigue sin acceso de red (`registry.npmjs.org`/`supabase.com` responden `403 host_not_allowed`, re-confirmado en este Sprint) y sin `node_modules/` -- por lo tanto tampoco en este Sprint se pudieron ejecutar realmente `npm run lint`/`typecheck`/`build`/`dev`. El propio `tsconfig.app.tsbuildinfo` incluido en el ZIP del usuario (generado por su `tsc` real, no por este entorno) reporta `"errors": true` para la última compilación local conocida -- confirmación honesta, no fabricada, de que había errores reales pendientes al momento de este Sprint. Detalle completo, incluyendo los riesgos de que un aspecto de este refactor (particularmente los tipos de Realtime, dado el salto de versión de `@supabase/supabase-js` a `2.110.0`, muy posterior al corte de entrenamiento de este modelo) no pudo verificarse contra el código fuente real de la librería instalada, en `docs/architecture/frontend/SPRINT_4_1_1B_REPORT.md §7`.
+
+### 14.9 Adenda — Sprint 4.2.1 "Sistema de Autenticación y Experiencia de Inicio de Sesión"
+
+Primer Sprint que implementa autenticación real de punta a punta. Detalle técnico completo (flujos, componentes, decisiones, limitaciones) en `docs/architecture/frontend/SPRINT_4_2_1_AUTH_REPORT.md`; esta adenda resume el impacto arquitectónico y reconcilia las secciones legacy marcadas arriba (§7.1, §8, §9.4, §9.5).
+
+**Reconciliación de arquitectura paralela**: hasta este Sprint coexistían a propósito dos pares Provider/hook de Auth -- el legacy `src/contexts/AuthContext.tsx` (Fase 3, montado en `App.tsx`, tipado contra el modelo `usuario`/`rol`/`sucursalId` ya descartado en §9.9) y el nuevo `src/providers/AuthProvider.tsx`/`useAuth` (Sprint 4.1.1, genérico, sin montar en `App.tsx`, sin resolver rol). Este Sprint retiró el primero por completo (`src/contexts/AuthContext.tsx` eliminado) y completó el segundo con resolución de perfil/rol real -- es ahora el único.
+
+**Resolución de rol real**: el modelo de Producción (§9.9) no tiene tabla `usuarios` unificada ni columna `rol` central -- el rol se determina por membresía de fila en `admins`/`coordinadores`/`instaladores` (`id = auth.users.id` directo, sin `auth_id`). `src/services/profile.service.ts` (nuevo) implementa esa resolución, consultando las 3 tablas en orden de precedencia hasta encontrar una fila.
+
+**Rutas reales**: `/login` (pública, `PublicRoute` + `AuthLayout`) y `/` (protegida, `ProtectedRoute`) -- primeras rutas reales de Auth del proyecto, ver `src/routes/AppRouter.tsx`. El resto de la tabla de §8 (`/despacho`, `/trabajos`, etc.) sigue sin implementar, fuera de alcance de este Sprint.
+
+**Header**: el selector manual de rol (`HeaderRoleSwitch`, `.mx-roleswitch`) se eliminó -- su propio JSDoc, desde Fase 3, ya anticipaba este retiro exacto ("se elimina en la fase de Auth"). Se reemplaza por `HeaderUserMenu` (usuario autenticado real, con menú de "Cerrar sesión" funcional).
+
+**Limitación crítica reportada, no resuelta en esta ronda**: `admins`/`coordinadores`/`empresas`/`tiendas` tienen RLS habilitado sin policies de `SELECT` para `authenticated` (auditado desde Sprint 4.0.1/4.1.1) -- bloquea la resolución de perfil real para `admin`/`coordinador` hasta que un Sprint de backend agregue esas policies. Solo el login de `instalador` puede probarse de punta a punta contra Producción real hoy. Ver `SPRINT_4_2_1_AUTH_REPORT.md §8` para el detalle completo y la recomendación técnica.

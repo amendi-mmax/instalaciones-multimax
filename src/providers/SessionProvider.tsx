@@ -16,8 +16,8 @@ import { SessionContext } from '@/providers/session.context';
  * funcional futuro (ver `docs/frontend/FRONTEND_SYNC_PLAN.md`, Fase 3,
  * sobre la decisión pendiente "Usuario unificado vs. tipos separados").
  *
- * Nuevo y separado de `src/contexts/AuthContext.tsx` (legacy, Fase 3 de UI)
- * -- ver nota de `SupabaseProvider.tsx`.
+ * Nuevo y separado del antiguo `src/contexts/AuthContext.tsx` (legacy, Fase
+ * 3 de UI, retirado en Sprint 4.2.1) -- ver nota de `SupabaseProvider.tsx`.
  *
  * Desde Sprint 4.1.1C: `SessionContextValue` y el objeto `Context` viven en
  * `session.context.ts`; este archivo exporta únicamente el componente (+ su

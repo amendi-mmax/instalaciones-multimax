@@ -3,20 +3,23 @@ import { useContext } from 'react';
 import { AuthContext, type AuthContextValue } from '@/providers/auth.context';
 
 /**
- * useAuth — hook público de acciones/estado genéricos de autenticación
- * (Sprint 4.1.1, Fase 5). Requiere `<AuthProvider>` (o `<AppProviders>`)
- * más arriba en el árbol.
+ * useAuth — hook público canónico de autenticación (Sprint 4.1.1, Fase 5;
+ * completado con perfil/rol real en Sprint 4.2.1). Requiere `<AuthProvider>`
+ * (o `<AppProviders>`) más arriba en el árbol.
  *
- * **Aviso de nomenclatura duplicada**: existe otro `useAuth()` en
- * `src/contexts/AuthContext.tsx` (Fase 3 de UI, legacy, no tocado en este
- * Sprint por instrucción explícita -- "NO modificar Auth"). Son dos hooks
- * distintos, en dos módulos distintos, con dos formas de retorno distintas
- * (`AuthContextValue` legacy expone `usuario`/`rol`/`sucursalId`/
- * `isMaster` tipados contra el modelo legacy; este `useAuth` expone
- * `session`/`user`/`signInWithPassword`/`signOut` genéricos de Supabase
- * Auth, sin resolver rol todavía). No importar ambos sin alias explícito
- * en el mismo archivo. Ver `docs/frontend/FRONTEND_SYNC_PLAN.md` Fase 3
- * para el plan de reconciliación futura.
+ * Desde Sprint 4.2.1: este es el único `useAuth()`/`AuthProvider` de la
+ * aplicación -- el `AuthContext`/`AuthProvider`/`useAuth` legacy que existía
+ * en `src/contexts/AuthContext.tsx` (placeholder de Fase 3, tipado contra el
+ * modelo `usuario`/`rol`/`sucursalId` ya descartado, ver `ARCHITECTURE.md
+ * §9.9`) fue retirado y borrado en este mismo Sprint (`App.tsx` ya no lo
+ * importa) --
+ * ver `docs/architecture/frontend/SPRINT_4_2_1_AUTH_REPORT.md` para la
+ * justificación completa de por qué se resuelve así la "arquitectura
+ * paralela" señalada en Sprints anteriores, en vez de mantener ambos.
+ *
+ * Devuelve `session`/`user`/`profile`/`loading`/`profileLoading` +
+ * `login`/`logout`/`resetPassword`/`refreshSession` -- ver
+ * `providers/auth.context.ts` para la forma completa.
  *
  * Desde Sprint 4.1.1C (problema #5): absorbe acá la lógica que antes vivía
  * en `useAuthContext()` dentro de `AuthProvider.tsx` -- ver

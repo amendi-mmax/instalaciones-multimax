@@ -1,32 +1,34 @@
 import { HeaderBrand } from '@/components/shared/header-brand';
-import { HeaderRoleSwitch } from '@/components/shared/header-role-switch';
 import { HeaderStatus } from '@/components/shared/header-status';
+import { HeaderUserMenu } from '@/components/shared/header-user-menu';
 import type { Rol } from '@/types/enums';
+import type { Perfil } from '@/types/perfil';
 
 /**
  * Header — portado verbatim de `<header className="mx-top">` (JSX de
  * referencia: `App()` en Multimax_Despacho_v1.3.html, líneas 2029–2071).
- * Compone `HeaderBrand` (`.mx-brand`), `HeaderRoleSwitch` (`.mx-roleswitch`)
- * y `HeaderStatus` (`.mx-topright`) — ver docs/sprints/sprint-3.1.md para el
- * análisis completo del bloque migrado.
+ * Compone `HeaderBrand` (`.mx-brand`), `HeaderUserMenu` (Sprint 4.2.1) y
+ * `HeaderStatus` (`.mx-topright`) — ver docs/sprints/sprint-3.1.md para el
+ * análisis completo del bloque migrado originalmente.
  *
- * Reescrito en el Sprint 3.1 sobre la base creada en Fase 3: el `Header` de
- * Fase 3 exponía un `rightSlot: ReactNode` genérico para `.mx-topright`
- * (placeholder que solo mostraba un badge estático "Sesión local", tomado
- * del snapshot de DOM). Este Sprint reemplaza ese placeholder por la
- * reconstrucción fiel de los 3 condicionales reales de `.mx-topright`
- * definidos en el código fuente — ver `header-status.tsx` y la nota sobre
- * la discrepancia snapshot-vs-código-fuente en docs/sprints/sprint-3.1.md.
- *
- * DECISIÓN DE FASE 3 (vigente, sin cambios) — selector de rol como estado
- * local temporal: ARCHITECTURE.md §4 establece que el selector manual de
- * rol se elimina en la fase de Auth, a favor del rol derivado de la sesión
- * de Supabase. Hasta entonces, `role`/`onRoleChange` los controla el padre
- * (`RootLayout`) con `useState` puro. Ver ARCHITECTURE.md §13.2.
+ * DECISIÓN DE FASE 3, EJECUTADA EN SPRINT 4.2.1 — el selector manual de rol
+ * (`HeaderRoleSwitch`, `.mx-roleswitch`) ya anticipaba desde Fase 3 su
+ * propio retiro ("se elimina en la fase de Auth, a favor del rol derivado
+ * de la sesión de Supabase" — ARCHITECTURE.md §4/§13.2). Este Sprint ejecuta
+ * esa decisión: `HeaderRoleSwitch`/`header-role-switch.tsx` se eliminó por
+ * completo (sin más consumidores, verificado con `grep`) y se reemplaza por
+ * `HeaderUserMenu`, que muestra el usuario autenticado real (`Perfil`
+ * resuelto por `useAuth()`, ver `providers/AuthProvider.tsx` y
+ * `services/profile.service.ts`) en vez de un `<select>` de rol manual.
+ * `role` sigue siendo prop de `Header`/`HeaderStatus` porque `HeaderStatus`
+ * todavía necesita saber el rol activo para sus 3 condicionales — ahora lo
+ * recibe derivado de `profile.rol` (ver `layouts/RootLayout.tsx`), no de un
+ * `useState` local editable.
  */
 export interface HeaderProps {
   role: Rol;
-  onRoleChange: (role: Rol) => void;
+  profile: Perfil;
+  onLogout: () => void;
   sucursalActiva?: string;
   hasActiveJobs?: boolean;
   onReset?: () => void;
@@ -34,7 +36,8 @@ export interface HeaderProps {
 
 export function Header({
   role,
-  onRoleChange,
+  profile,
+  onLogout,
   sucursalActiva,
   hasActiveJobs,
   onReset,
@@ -42,13 +45,13 @@ export function Header({
   return (
     <header className="mx-top">
       <HeaderBrand />
-      <HeaderRoleSwitch role={role} onRoleChange={onRoleChange} />
       <HeaderStatus
         role={role}
         sucursalActiva={sucursalActiva}
         hasActiveJobs={hasActiveJobs}
         onReset={onReset}
       />
+      <HeaderUserMenu profile={profile} onLogout={onLogout} />
     </header>
   );
 }

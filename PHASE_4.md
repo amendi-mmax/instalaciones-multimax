@@ -374,3 +374,34 @@ Con el modelo de datos confirmado como oficial (§9.9 de `ARCHITECTURE.md`), la 
 - Aprobación explícita del usuario sobre esta ronda, en particular sobre la tensión reportada en la sección 6 (¿es correcto interpretar que "mantener compatibilidad con el esquema existente" incluye las conversiones ENUM de `0002`?).
 - Decisiones ya pendientes de rondas anteriores, sin resolver todavía: `UNIQUE (empresa_id, nombre)` en `sucursales` (idempotencia del seed), corrección de `TODO.md`/`MIGRATION_STATUS.md`, instalación/vinculación real de la Supabase CLI, columnas auto-editables en la política de perfil propio.
 - No avanzar al Sprint 4.1 hasta recibir aprobación explícita de esta ronda.
+
+---
+
+## Nota de corrección — el modelo confirmado arriba fue posteriormente superado
+
+Todo lo documentado arriba en esta sección (migraciones `0001_initial_schema.sql`/`0002_auth_roles_rls.sql`, modelo `empresas`/`sucursales`/`usuarios`/`zonas_cobertura`/`trabajos`/`bids`/`notificaciones`/`trabajo_instaladores`) refleja la confirmación por escrito del usuario **en el momento de esa ronda** (2026-07-16). La Auditoría de Sincronización de Base de Datos (Sprint 4.0.2, `docs/database/DATABASE_INVENTORY.md`) y toda la infraestructura construida desde Sprint 4.1.1 en adelante confirman, contra el `pg_dump` real de Producción, que el modelo vigente hoy es el de **8 tablas** `empresas`/`tiendas`/`admins`/`coordinadores`/`instaladores`/`trabajos`/`trabajo_instaladores`/`ofertas` -- exactamente el modelo que esta sección (§ "Sprint 4.0.1 tercera ronda", punto 1) documenta como rechazado por el usuario en esa fecha. Esta sección no se reescribe (es un registro histórico válido de esa decisión, tomada con la información disponible en ese momento) -- se agrega esta nota, en vez de "corregir" retroactivamente el historial, siguiendo el mismo criterio de trazabilidad usado en toda la documentación de este proyecto. Ver `PROJECT_STATUS.md` (cabecera) y `ARCHITECTURE.md §9.9`/`§14.9` para el mismo señalamiento.
+
+---
+
+## Sprint 4.2.1 — Sistema de Autenticación y Experiencia de Inicio de Sesión (2026-07-21)
+
+**Estado:** 🟡 En revisión — bloqueada para `admin`/`coordinador` por una limitación crítica de RLS (ver abajo); el login de `instalador` puede probarse de punta a punta.
+
+Primer Sprint de Fase 4 que implementa autenticación real (los anteriores fueron exclusivamente infraestructura de base de datos/tipos). Detalle técnico completo en `docs/architecture/frontend/SPRINT_4_2_1_AUTH_REPORT.md` y `ARCHITECTURE.md §14.9`; resumen:
+
+1. **Resolución de rol/perfil real** (`src/services/profile.service.ts`, nuevo): el modelo real de 8 tablas no tiene una tabla `usuarios` unificada con columna `rol` -- el rol se determina consultando `admins`/`coordinadores`/`instaladores` por `id = auth.users.id` hasta encontrar una fila.
+2. **`AuthProvider` completado** (`src/providers/AuthProvider.tsx`): expone `session`/`user`/`profile`/`login`/`logout`/`resetPassword`/`refreshSession`. El `AuthContext` legacy (`src/contexts/AuthContext.tsx`) se retiró.
+3. **Rutas/guards reales**: `ProtectedRoute`/`PublicRoute` (nuevos), `/login` (público) y `/` (protegido).
+4. **`LoginPage`/`AuthLayout`** (nuevos): correo/contraseña, mostrar/ocultar contraseña, "Recordar sesión" (solo recuerda el correo, no cambia la persistencia real de Supabase), recuperación de contraseña vía `supabase.auth.resetPasswordForEmail()` únicamente.
+5. **`HeaderUserMenu`** reemplaza al selector manual de rol (`HeaderRoleSwitch`, eliminado).
+
+**Limitación crítica reportada, no resuelta en esta ronda**: `admins`/`coordinadores`/`empresas`/`tiendas` tienen RLS habilitado sin policies de `SELECT` para `authenticated` (auditado desde Sprint 4.0.1/4.1.1) -- un `admin`/`coordinador` real autentica correctamente pero `resolveProfile()` no puede leer su fila (0 filas, no error) y es expulsado con "perfil no encontrado". Requiere una migración nueva (fuera del alcance de este Sprint, no fue pedida) agregando como mínimo `FOR SELECT USING (id = auth.uid())` en esas tablas.
+
+Sin acceso a `registry.npmjs.org`/sin `node_modules/` en este entorno, igual que en toda Fase 4 -- `npm run lint`/`typecheck`/`build`/`dev` no se pudieron ejecutar aquí. Se usó una instalación global de TypeScript 6.0.3 (`tsc --noEmit`, no forma parte de las dependencias del proyecto) para verificar los 19 archivos nuevos/modificados; los únicos diagnósticos son artefactos conocidos de la falta de `node_modules` (mismo patrón verificado en archivos ya aprobados del repositorio).
+
+### Pendiente / próximos pasos
+
+- Decisión del usuario sobre la limitación de RLS (bloqueante para probar `admin`/`coordinador`).
+- Validación real de `npm run lint`/`typecheck`/`build`/`dev` en el entorno del usuario.
+- Pantalla de "definir nueva contraseña" para completar el flujo de recuperación.
+- Pantallas reales para "Mi perfil"/"Configuración"/"Cambiar contraseña" (hoy deshabilitadas en `HeaderUserMenu`).

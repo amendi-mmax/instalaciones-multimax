@@ -2,6 +2,44 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 4 — Sprint 4.2.1 — Sistema de Autenticación y Experiencia de Inicio de Sesión] — 2026-07-21 — 🟡 En revisión
+
+Primer Sprint de Fase 4 con autenticación real de punta a punta: login con correo/contraseña, sesión, resolución de perfil/rol real, recuperación de contraseña, rutas protegidas. Detalle técnico completo en `docs/architecture/frontend/SPRINT_4_2_1_AUTH_REPORT.md` y `ARCHITECTURE.md §14.9`.
+
+### Añadido
+
+- `src/types/perfil.ts` (NUEVO) — tipo `Perfil`/`EstadoPerfil`.
+- `src/services/profile.service.ts` (NUEVO) — resolución real de rol/perfil contra `admins`/`coordinadores`/`instaladores`.
+- `src/components/auth/ProtectedRoute.tsx`, `PublicRoute.tsx` (NUEVOS) — guards de ruta.
+- `src/layouts/AuthLayout.tsx` (NUEVO) — shell centrado para `/login`.
+- `src/pages/auth/LoginPage.tsx` (NUEVO) — pantalla de login completa.
+- `src/components/shared/header-user-menu.tsx` (NUEVO) — menú de usuario autenticado, reemplaza al selector manual de rol.
+- `docs/architecture/frontend/SPRINT_4_2_1_AUTH_REPORT.md` (NUEVO).
+
+### Modificado
+
+- `src/services/auth.service.ts` — agregadas `refreshSession`/`resetPasswordForEmail`.
+- `src/providers/auth.context.ts`/`AuthProvider.tsx` — completados con `profile`/`profileLoading`/`login`/`logout`/`resetPassword`/`refreshSession`.
+- `src/hooks/useAuth.ts` — JSDoc actualizado (ya no hay un `useAuth` legacy paralelo).
+- `src/services/index.ts` — barrel actualizado con las nuevas exportaciones.
+- `src/components/shared/header.tsx` — reemplaza `HeaderRoleSwitch` por `HeaderUserMenu`.
+- `src/layouts/RootLayout.tsx` — `role` se deriva de `profile.rol` (ya no es `useState` editable); nuevas guardas de `profileLoading`/perfil no encontrado/suspendido.
+- `src/routes/AppRouter.tsx` — nuevas rutas `/login` (pública) y `/` (protegida).
+- `src/App.tsx` — monta `AppProviders` (Sprint 4.1.1/4.2.1) en vez del `AuthProvider` legacy.
+- `ARCHITECTURE.md` — nueva adenda `§14.9`; pointers "⚠ SUPERADO" agregados en §7.1/§8/§9.4/§9.5 (secciones legacy de Auth, sin reescribirlas).
+- `PROJECT_STATUS.md`/`PHASE_4.md` — nuevas secciones de Sprint; corrección de la cabecera de `PROJECT_STATUS.md` sobre el modelo de datos oficial (ver nota en `PHASE_4.md`).
+
+### Eliminado
+
+- `src/contexts/AuthContext.tsx` (legacy, Fase 3) — reemplazado por el `AuthProvider`/`useAuth` de `src/providers/`/`src/hooks/`, ya completado con rol/perfil real.
+- `src/components/shared/header-role-switch.tsx` — selector manual de rol, retirado según lo ya anticipado desde Fase 3 ("se elimina en la fase de Auth").
+
+### Limitación crítica reportada, no resuelta
+
+`admins`/`coordinadores`/`empresas`/`tiendas` tienen RLS habilitado sin policies de `SELECT` para `authenticated` -- bloquea la resolución de perfil real para `admin`/`coordinador`. Solo el login de `instalador` puede probarse de punta a punta contra Producción hoy. Ver `SPRINT_4_2_1_AUTH_REPORT.md §8`.
+
+> **Nota de trazabilidad**: este `CHANGELOG.md` no tiene entradas para los Sprints 4.1.1, 4.1.1B, 4.1.1C (dos rondas) ni el Database Synchronization/Frontend Compatibility Audit intermedios -- ninguno de esos briefs incluyó `CHANGELOG.md` en su lista de archivos permitidos (a diferencia de `PROJECT_STATUS.md`/`ARCHITECTURE.md`, sí actualizados en casi todas esas rondas). Reconstruir esas entradas retroactivamente no fue pedido en esta ronda -- se reporta el hueco en vez de rellenarlo sin instrucción explícita. Ver `PROJECT_STATUS.md` para el registro completo Sprint a Sprint de ese período.
+
 ## [Fase 4 — Sprint 4.0.1 (tercera ronda) — Reconstrucción del baseline de Supabase] — 2026-07-16 — 🟡 En revisión
 
 Tercer brief bajo el mismo número de Sprint, con lenguaje absoluto ("prohibido cambiar nombres de tablas", "no debes crear una arquitectura distinta"), pidiendo reconstruir `0001_initial_schema.sql` para representar exactamente un modelo con las tablas `empresas`/`tiendas`/`admins`/`coordinadores`/`instaladores`/`trabajos`/`trabajo_instaladores`/`ofertas`. Antes de tocar cualquier archivo, se verificó ese modelo contra las dos únicas fuentes SQL reales del proyecto (`handymax_supabase_schema_v3.sql`, el archivo originalmente subido, y `0001_initial_schema.sql` actual) — ambas coinciden entre sí y ninguna define esas tablas. Siguiendo la propia "regla final" de ese brief ("si detectas una diferencia, no la corrijas, detente y repórtala"), se detuvo la implementación sin tocar ningún archivo y se reportó la discrepancia al usuario.

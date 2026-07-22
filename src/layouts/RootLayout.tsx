@@ -1,6 +1,6 @@
 import { ClipboardList, Crosshair, XCircle } from 'lucide-react';
-import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Outlet, useNavigate } from 'react-router-dom';
 
 import { AdminPanel } from '@/components/shared/admin-panel';
 import { ConfirmCancelDialog } from '@/components/shared/confirm-cancel-dialog';
@@ -15,8 +15,9 @@ import { MxSubtabs } from '@/components/shared/mx-subtabs';
 import { PublishModal } from '@/components/shared/publish-modal';
 import { Radar, type RadarInstallerState } from '@/components/shared/radar';
 import { SucursalSelect } from '@/components/shared/sucursal-select';
+import { Loading } from '@/components/ui/spinner';
 import { ELIGIBLE_ORDER } from '@/constants';
-import type { Rol } from '@/types/enums';
+import { useAuth } from '@/hooks/useAuth';
 
 /**
  * Props mock de `Radar` para la integración temporal del Sprint 3.7 (ver
@@ -481,17 +482,69 @@ const LIVECOUNTDOWN_DEMO_BID_MINS = 5;
  * criterio ya aplicado a `onPublish` en el Sprint 3.5. Se retirará este botón
  * disparador temporal y se recolocará `ConfirmCancelDialog` dentro de la fila
  * de acciones real en el Sprint que construya `Coordinator`/`QueueBar`.
+ *
+ * ---------------------------------------------------------------------
+ * SPRINT 4.2.1 — `role` deja de ser un `useState` editable a mano
+ * ---------------------------------------------------------------------
+ * Hasta este Sprint, `role` era `useState<Rol>('coordinador')`, controlado
+ * por el selector manual del Header (`HeaderRoleSwitch`, ya retirado — ver
+ * `header.tsx`). Esta era una decisión de Fase 3 explícitamente temporal
+ * ("se elimina en la fase de Auth, a favor del rol derivado de la sesión de
+ * Supabase" — ARCHITECTURE.md §4/§13.2), que este Sprint ejecuta: `role` se
+ * deriva ahora de `profile.rol` (`useAuth()`, resuelto contra
+ * `admins`/`coordinadores`/`instaladores` reales — ver
+ * `services/profile.service.ts`), nunca de un estado local editable.
+ *
+ * Todo el resto de este componente (los 3 bloques `role === '...'`, sus
+ * componentes ya aprobados -- `CoordinatorEmptyState`/`Radar`/
+ * `LiveCountdown`/`InstallerDashboard`/`CountRing`/`AdminPanel`/
+ * `PublishModal`/`ConfirmCancelDialog` -- y sus mocks/integraciones
+ * temporales documentadas arriba) permanece **sin ningún cambio**: la
+ * variable `role` sigue llamándose igual y sigue siendo del mismo tipo
+ * (`Rol`, reexportado desde `types/perfil.ts`), así que ningún bloque
+ * condicional existente necesitó tocarse.
+ *
+ * Se agregan dos guardas nuevas, antes de renderizar ese contenido: (1)
+ * mientras `profileLoading` es `true`, se muestra `Loading` en vez del
+ * shell; (2) si terminó de cargar y `profile` sigue siendo `null` (sin fila
+ * en ninguna de las 3 tablas -- ver la limitación de RLS documentada en
+ * `profile.service.ts` -- o perfil `suspendido`), se cierra la sesión y se
+ * redirige a `/login` con el motivo correspondiente, en vez de renderizar
+ * el shell con un rol adivinado. Ver `SPRINT_4_2_1_AUTH_REPORT.md` para el
+ * detalle completo de esta decisión.
  */
 export function RootLayout() {
-  const [role, setRole] = useState<Rol>('coordinador');
+  const { profile, profileLoading, logout } = useAuth();
+  const navigate = useNavigate();
   const [sucursalCoord, setSucursalCoord] = useState('Multiplaza');
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [meId, setMeId] = useState('pty');
 
+  useEffect(() => {
+    if (profileLoading) return;
+
+    if (!profile) {
+      void logout();
+      navigate('/login', { replace: true, state: { reason: 'profile-not-found' } });
+      return;
+    }
+
+    if (profile.estado === 'suspendido') {
+      void logout();
+      navigate('/login', { replace: true, state: { reason: 'suspended' } });
+    }
+  }, [profile, profileLoading, logout, navigate]);
+
+  if (profileLoading || !profile || profile.estado === 'suspendido') {
+    return <Loading label="Cargando tu perfil…" />;
+  }
+
+  const role = profile.rol;
+
   return (
     <div className="flex min-h-screen flex-col">
-      <Header role={role} onRoleChange={setRole} />
+      <Header role={role} profile={profile} onLogout={() => void logout()} />
       <main className="flex-1">
         {/* TEMPORARY INTEGRATION — Sprint 3.3 (fix de integración visual) + Sprint 3.4 (mx-suc-sel): ver comentario de la función. */}
         {role === 'coordinador' && (

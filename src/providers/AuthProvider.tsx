@@ -1,34 +1,42 @@
-import { useCallback, useContext, useMemo, type ReactNode } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { signInWithPassword, signOut, type SignInWithPasswordParams } from '@/services/auth.service';
+import {
+  signInWithPassword,
+  signOut,
+  refreshSession as refreshSessionService,
+  resetPasswordForEmail,
+  type SignInWithPasswordParams,
+} from '@/services/auth.service';
+import { resolveProfile } from '@/services/profile.service';
+import type { Perfil } from '@/types/perfil';
 import { SessionProvider } from '@/providers/SessionProvider';
 import { SessionContext } from '@/providers/session.context';
-import { AuthContext } from '@/providers/auth.context';
+import { AuthContext, type AuthActionResult } from '@/providers/auth.context';
 
 /**
- * AuthProvider — acciones genéricas de autenticación sobre la sesión de
- * `SessionProvider` (Sprint 4.1.1, Fase 3).
+ * AuthProvider — sesión + perfil real de negocio (Sprint 4.2.1, "Sistema de
+ * Autenticación y Experiencia de Inicio de Sesión").
  *
- * "Sin lógica de negocio": expone `signIn`/`signOut`/`user`/`session`
- * genéricos de Supabase Auth. **No determina rol** (`admin`/`coordinador`/
- * `instalador`) ni consulta las tablas correspondientes -- eso depende de
- * la decisión de arquitectura de sesión todavía pendiente de confirmación
- * explícita del usuario (`docs/frontend/FRONTEND_SYNC_PLAN.md`, Fase 1 y
- * Fase 3, riesgo #1). Cuando esa decisión se tome, un Sprint funcional
- * futuro construye esa resolución de rol *sobre* este Provider, sin
- * necesidad de reescribirlo.
+ * Hasta el Sprint 4.1.1C este Provider era deliberadamente genérico ("sin
+ * lógica de negocio", sin resolver rol -- ver el JSDoc histórico que este
+ * Sprint reemplaza). Este Sprint construye esa resolución *sobre* la misma
+ * base (`SessionProvider` sigue intacto, sin cambios) en vez de reescribirla
+ * desde cero, tal como esos JSDoc anticipaban.
  *
- * Envuelve `SessionProvider` internamente -- quien use `<AuthProvider>` no
- * necesita además envolver `<SessionProvider>` a mano, pero puede seguir
- * usando `useSession()` (Fase 5) directamente si solo necesita la sesión
- * cruda sin las acciones de `AuthProvider`.
+ * Responsabilidades nuevas de este Sprint:
+ * 1. Cuando `session.user` cambia, resolver `profile` real vía
+ *    `resolveProfile()` (`admins`/`coordinadores`/`instaladores`) -- ver
+ *    `services/profile.service.ts` para la estrategia completa y su
+ *    limitación de RLS conocida.
+ * 2. Exponer `login`/`logout`/`resetPassword`/`refreshSession` (nombres
+ *    pedidos explícitamente por el brief de este Sprint para la superficie
+ *    de `AuthProvider`) -- internamente delegan en `auth.service.ts`
+ *    (`signInWithPassword`/`signOut`/`resetPasswordForEmail`/
+ *    `refreshSession`), sin duplicar esa lógica.
  *
- * Desde Sprint 4.1.1C: `AuthContextValue` y el objeto `Context` viven en
- * `auth.context.ts`; este archivo exporta únicamente el componente (+ su
- * tipo de props) -- ver `supabase.context.ts` para el motivo. `Inner` lee
- * `SessionContext` directamente (en vez del hook público `useSession`) para
- * que `providers/` no dependa de `hooks/` -- evita una dependencia
- * circular entre ambas capas.
+ * `Inner` sigue leyendo `SessionContext` directamente (no el hook público
+ * `useSession`) para que `providers/` no dependa de `hooks/` -- mismo
+ * criterio ya establecido en Sprint 4.1.1C.
  */
 function AuthProviderInner({ children }: { children: ReactNode }) {
   const sessionValue = useContext(SessionContext);
@@ -41,36 +49,120 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
     );
   }
   const { session, loading } = sessionValue;
+  const currentUserId = session?.user?.id ?? null;
 
-  const handleSignIn = useCallback(async (params: SignInWithPasswordParams) => {
+  // `profileState.userId` registra para qué usuario es válido
+  // `profileState.profile` -- ver más abajo por qué `profileLoading`/
+  // `profile` se DERIVAN de esta comparación en vez de mantenerse en su
+  // propio `useState` actualizado solo dentro del `useEffect`.
+  const [profileState, setProfileState] = useState<{ userId: string | null; profile: Perfil | null }>({
+    userId: null,
+    profile: null,
+  });
+
+  /**
+   * `profileLoading`/`profile` se calculan en el render, no en el
+   * `useEffect` de abajo -- evita una condición de carrera real: si
+   * `profileLoading` fuera únicamente un `useState` seteado a `true` DENTRO
+   * del `useEffect`, existiría un primer render (el que monta este
+   * Provider/sus consumidores apenas `session.user` deja de ser `null`) en
+   * el que `profileLoading` todavía sería `false` y `profile` todavía
+   * `null` -- exactamente la misma forma que "perfil no encontrado", que
+   * `RootLayout` interpreta como señal para cerrar sesión y redirigir. Al
+   * derivar ambos valores comparando `profileState.userId` contra
+   * `currentUserId` en cada render, `profileLoading` pasa a ser `true` en
+   * el MISMO render en que aparece un `currentUserId` nuevo, sin esperar a
+   * que el efecto se dispare.
+   */
+  const profileLoading = currentUserId !== null && profileState.userId !== currentUserId;
+  const profile = profileState.userId === currentUserId ? profileState.profile : null;
+
+  useEffect(() => {
+    let active = true;
+
+    if (!currentUserId) {
+      setProfileState({ userId: null, profile: null });
+      return;
+    }
+    if (profileState.userId === currentUserId) {
+      // Ya resuelto para este usuario -- evita re-consultar en cada render.
+      return;
+    }
+
+    resolveProfile(currentUserId, session?.user?.email ?? null)
+      .then((result) => {
+        if (!active) return;
+        // `ok:false` cubre tanto un error real de Supabase como
+        // "PROFILE_NOT_FOUND" (ver profile.service.ts) -- en ambos casos
+        // `profile` queda en `null`, nunca en un valor adivinado. El
+        // consumidor (`RootLayout`) es responsable de mostrar el estado
+        // correspondiente, no este Provider (sin lógica de negocio de UI acá).
+        setProfileState({ userId: currentUserId, profile: result.ok ? result.data : null });
+      })
+      .catch(() => {
+        if (active) {
+          setProfileState({ userId: currentUserId, profile: null });
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+    // Solo se re-resuelve cuando cambia el usuario autenticado (por id), no
+    // en cada nuevo objeto `session` (p. ej. un refresh de token no cambia
+    // de usuario y no necesita volver a consultar el perfil).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId]);
+
+  const login = useCallback(async (params: SignInWithPasswordParams): Promise<AuthActionResult> => {
     const result = await signInWithPassword(params);
     if (!result.ok) {
-      return { ok: false as const, error: result.error };
+      return { ok: false, error: result.error };
     }
-    // No se actualiza `session` acá manualmente: `SessionProvider` ya está
-    // suscripto a `onAuthStateChange` y reaccionará solo al evento
-    // `SIGNED_IN` disparado por `signInWithPassword` -- evita mantener dos
-    // fuentes de verdad de la sesión.
-    return { ok: true as const };
+    // No se actualiza `session`/`profile` acá manualmente: `SessionProvider`
+    // ya está suscripto a `onAuthStateChange` y reaccionará solo al evento
+    // `SIGNED_IN`, que dispara el `useEffect` de arriba -- evita mantener
+    // dos fuentes de verdad de la sesión.
+    return { ok: true };
   }, []);
 
-  const handleSignOut = useCallback(async () => {
+  const logout = useCallback(async (): Promise<AuthActionResult> => {
     const result = await signOut();
     if (!result.ok) {
-      return { ok: false as const, error: result.error };
+      return { ok: false, error: result.error };
     }
-    return { ok: true as const };
+    return { ok: true };
+  }, []);
+
+  const resetPassword = useCallback(async (email: string): Promise<AuthActionResult> => {
+    const result = await resetPasswordForEmail(email);
+    if (!result.ok) {
+      return { ok: false, error: result.error };
+    }
+    return { ok: true };
+  }, []);
+
+  const refreshSession = useCallback(async (): Promise<AuthActionResult> => {
+    const result = await refreshSessionService();
+    if (!result.ok) {
+      return { ok: false, error: result.error };
+    }
+    return { ok: true };
   }, []);
 
   const value = useMemo(
     () => ({
       session,
       user: session?.user ?? null,
+      profile,
       loading,
-      signInWithPassword: handleSignIn,
-      signOut: handleSignOut,
+      profileLoading,
+      login,
+      logout,
+      resetPassword,
+      refreshSession,
     }),
-    [session, loading, handleSignIn, handleSignOut],
+    [session, profile, loading, profileLoading, login, logout, resetPassword, refreshSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -70,3 +70,42 @@ export function onAuthStateChange(callback: (session: Session | null) => void): 
 
   return () => subscription.unsubscribe();
 }
+
+/**
+ * Fuerza un refresco del token de la sesión actual (Sprint 4.2.1). Envuelve
+ * `supabase.auth.refreshSession()` tal cual -- Supabase ya refresca el token
+ * automáticamente en segundo plano (`SUPABASE_CLIENT_OPTIONS.auth.
+ * autoRefreshToken`, `src/lib/supabase/config.ts`); esta función existe para
+ * el caso explícito en que `AuthProvider` necesite forzarlo (p. ej. tras
+ * detectar un error 401 en una llamada de datos).
+ */
+export async function refreshSession(): Promise<
+  { ok: true; session: Session | null; user: User | null } | { ok: false; error: HandymaxServiceError }
+> {
+  const { data, error } = await getClient().auth.refreshSession();
+  if (error) {
+    return { ok: false, error: normalizeSupabaseError(error) };
+  }
+  return { ok: true, session: data.session, user: data.user };
+}
+
+/**
+ * Envía el correo de recuperación de contraseña vía
+ * `supabase.auth.resetPasswordForEmail()` -- únicamente ese mecanismo, per
+ * el brief de este Sprint ("NO el flujo SMTP propio, eso queda para un
+ * Sprint futuro de Notificaciones con Amazon SES"). No se pasa `redirectTo`
+ * explícito: no existe todavía, en este Sprint, ninguna pantalla de
+ * "definir nueva contraseña" a la que redirigir tras el click en el correo
+ * (fuera de la lista de entregables pedidos) -- Supabase usa el "Site URL"
+ * ya configurado en el Dashboard del proyecto como destino por defecto.
+ * Documentado como limitación conocida en `SPRINT_4_2_1_AUTH_REPORT.md`.
+ */
+export async function resetPasswordForEmail(
+  email: string,
+): Promise<{ ok: true } | { ok: false; error: HandymaxServiceError }> {
+  const { error } = await getClient().auth.resetPasswordForEmail(email);
+  if (error) {
+    return { ok: false, error: normalizeSupabaseError(error) };
+  }
+  return { ok: true };
+}
