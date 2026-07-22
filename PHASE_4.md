@@ -383,9 +383,9 @@ Todo lo documentado arriba en esta sección (migraciones `0001_initial_schema.sq
 
 ---
 
-## Sprint 4.2.1 — Sistema de Autenticación y Experiencia de Inicio de Sesión (2026-07-21)
+## Sprint 4.2.1 — Sistema de Autenticación y Experiencia de Inicio de Sesión (2026-07-21, cerrado 2026-07-22)
 
-**Estado:** 🟡 En revisión — bloqueada para `admin`/`coordinador` por una limitación crítica de RLS (ver abajo); el login de `instalador` puede probarse de punta a punta.
+**Estado:** ✅ Completado — el usuario validó manualmente contra Producción y confirmó por escrito el cierre del Sprint (ver "Cierre — validación manual" más abajo). La limitación de RLS descrita originalmente abajo (bloqueante para `admin`/`coordinador`) fue resuelta por el usuario directamente en Supabase durante esa validación -- **pendiente formalizarla como migración** (ver cierre).
 
 Primer Sprint de Fase 4 que implementa autenticación real (los anteriores fueron exclusivamente infraestructura de base de datos/tipos). Detalle técnico completo en `docs/architecture/frontend/SPRINT_4_2_1_AUTH_REPORT.md` y `ARCHITECTURE.md §14.9`; resumen:
 
@@ -399,9 +399,20 @@ Primer Sprint de Fase 4 que implementa autenticación real (los anteriores fuero
 
 Sin acceso a `registry.npmjs.org`/sin `node_modules/` en este entorno, igual que en toda Fase 4 -- `npm run lint`/`typecheck`/`build`/`dev` no se pudieron ejecutar aquí. Se usó una instalación global de TypeScript 6.0.3 (`tsc --noEmit`, no forma parte de las dependencias del proyecto) para verificar los 19 archivos nuevos/modificados; los únicos diagnósticos son artefactos conocidos de la falta de `node_modules` (mismo patrón verificado en archivos ya aprobados del repositorio).
 
+### Cierre — validación manual del usuario (2026-07-22)
+
+El usuario reportó, tras validar manualmente contra Producción, que el Sprint debe considerarse **COMPLETADO**: login vía Supabase Auth, `resolveProfile()`, lectura de `admins`, acceso al Dashboard, persistencia de sesión, logout y recarga de página manteniendo la sesión, todos validados correctamente; sin restos de código de depuración.
+
+Los cambios que hicieron esto posible se realizaron **directamente en Supabase, fuera de este repositorio**: creación/ajuste de policies RLS, otorgamiento de `SELECT` a `authenticated`, inserción del registro real en `admins` (con `id` = el `auth.users.id` real, consistente con el diseño de `profile.service.ts` -- sin columna `auth_id` intermedia), y corrección del flujo de autenticación para usar ese usuario real. El usuario indicó explícitamente que estos cambios **no deben revertirse**.
+
+Este entorno de trabajo verificó el proyecto recibido (`handymaxdespachosprint4.1.2authupdate.zip`) contra su propia última entrega: el código de `src/` es **idéntico**, byte a byte -- coherente con que todo lo corregido fue del lado de Supabase, no del código. Se confirmó también la ausencia de código de depuración nuevo (`console.log`/`debugger`) y se encontraron indicios razonables de una compilación local real y limpia (`tsconfig.app.tsbuildinfo` con el árbol de archivos completo del Sprint, rutas normalizadas en minúsculas -- típico de una ejecución de `tsc` en Windows/macOS -- y sin el campo `"errors"` que sí aparecía en compilaciones previas con errores reales). Detalle completo de esta verificación en `docs/architecture/frontend/SPRINT_4_2_1_AUTH_REPORT.md`.
+
+**Pendiente explícito, por decisión del usuario**: no se generaron migraciones SQL para formalizar las policies/GRANTS/triggers creados manualmente -- el usuario pidió explícitamente no reconstruir SQL de seguridad sin poder verificarlo contra el estado real (este entorno de trabajo no tiene acceso de red al proyecto Supabase). Se hará en una ronda futura cuando el usuario exporte el SQL real (`supabase db diff --linked` o el Dashboard). **Hasta entonces, este repositorio no puede reconstruir una base de datos nueva únicamente ejecutando `supabase/migrations/`** -- las policies/GRANTS que hacen funcionar el login de `admin` hoy solo existen en el proyecto real, no en las migraciones versionadas.
+
 ### Pendiente / próximos pasos
 
-- Decisión del usuario sobre la limitación de RLS (bloqueante para probar `admin`/`coordinador`).
-- Validación real de `npm run lint`/`typecheck`/`build`/`dev` en el entorno del usuario.
+- **Generar la(s) migración(es) SQL real(es)** de las policies RLS/GRANTS/triggers agregados manualmente en Supabase -- requiere que el usuario provea el SQL real primero (ver "Pendiente explícito" arriba).
+- Validación real de `npm run lint`/`typecheck`/`build`/`dev` en el entorno del usuario (no confirmada explícitamente línea por línea, aunque los indicios del `tsbuildinfo` son consistentes con una compilación limpia).
 - Pantalla de "definir nueva contraseña" para completar el flujo de recuperación.
 - Pantallas reales para "Mi perfil"/"Configuración"/"Cambiar contraseña" (hoy deshabilitadas en `HeaderUserMenu`).
+- Continuar con el siguiente Sprint de Fase 4 (a definir por el usuario).

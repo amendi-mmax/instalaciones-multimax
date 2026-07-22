@@ -1,6 +1,6 @@
 # Sprint 4.2.1 — Sistema de Autenticación y Experiencia de Inicio de Sesión
 
-**Fecha:** 2026-07-21. **Estado:** 🟡 En revisión — pendiente de validación local del usuario (`npm run lint`/`typecheck`/`build`/`dev`, ver sección 6) y de confirmación explícita sobre la limitación crítica de RLS descrita en la sección 8.
+**Fecha:** 2026-07-21, cerrado 2026-07-22. **Estado:** ✅ Completado — el usuario validó manualmente contra Producción y confirmó el cierre del Sprint. Ver sección 12 (nueva) para el detalle del cierre, incluida la resolución (fuera de este repositorio) de la limitación crítica de RLS de la sección 8, y el punto pendiente sobre migraciones SQL.
 
 ## 0. Nota de traza sobre el entorno de esta ronda
 
@@ -115,3 +115,42 @@ Validación best-effort realizada:
 3. Pantallas reales para "Mi perfil"/"Configuración"/"Cambiar contraseña" (hoy deshabilitadas en `HeaderUserMenu`).
 4. Cuando exista una columna `avatar_url` real en alguna de las 3 tablas, `HeaderUserMenu`/`Perfil` ya están preparados para consumirla sin refactor.
 5. Reconciliar la documentación legacy de Auth en `ARCHITECTURE.md` (§7.1/§8/§9.4/§9.5, magic link + Edge Function + `usuarios.auth_id`) — atendido parcialmente en esta misma ronda vía una nueva adenda `§14.9` que las marca como superadas (ver `ARCHITECTURE.md`), sin reescribir esas secciones históricas.
+
+## 12. Cierre — validación manual del usuario (2026-07-22)
+
+### 12.1 Resultado reportado por el usuario
+
+Tras validar manualmente contra Producción, el usuario confirmó que el Sprint debe considerarse **COMPLETADO**, con lo siguiente validado correctamente: login vía Supabase Auth, resolución de perfil mediante `resolveProfile()`, lectura real de la tabla `admins`, acceso al Dashboard, persistencia de sesión, logout, y recarga de página manteniendo la sesión. También confirmó la eliminación de cualquier log temporal de depuración.
+
+### 12.2 Cambios realizados fuera de este repositorio
+
+Según el propio reporte del usuario, durante esa validación se hicieron los siguientes cambios **directamente en Supabase** (Dashboard/SQL Editor), no en código: creación/ajuste de policies RLS, otorgamiento de permisos `SELECT` a `authenticated`, inserción del registro correspondiente en la tabla `admins`, y corrección del flujo de autenticación para usar el usuario real de `auth.users`. El usuario indicó explícitamente que estos cambios **no deben revertirse**.
+
+Esto resuelve, en la práctica, la limitación crítica descrita en la sección 8 de este informe (RLS sin policies de `SELECT` en `admins`/`coordinadores`/`empresas`/`tiendas`) -- al menos para `admins`, confirmado por la validación real. No hay confirmación explícita de que se haya hecho lo mismo para `coordinadores`/`empresas`/`tiendas` -- se recomienda verificar esos 3 casos también antes de dar por completamente cerrada la sección 8 para los 3 roles.
+
+### 12.3 Verificación del proyecto recibido (`handymaxdespachosprint4.1.2authupdate.zip`)
+
+Se comparó el ZIP recibido contra la última entrega de este mismo entorno de trabajo con `diff -rq`, excluyendo `.git`/`node_modules`/`.env`/artefactos de build: **el código de `src/` es idéntico, sin ninguna diferencia** -- coherente con que todo lo corregido fue del lado de Supabase, no del código (ningún archivo de `src/` necesitaba cambiar para que la validación manual funcionara, una vez agregadas las policies/GRANTS reales).
+
+Se verificó también, explícitamente:
+
+- **Sin código de depuración nuevo**: búsqueda de `console.log`/`console.debug`/`debugger` en todo `src/` -- ninguna coincidencia. El único `console.warn` presente (`src/supabase/client.ts`, cliente legacy de Fase 3, advertencia por variables de entorno faltantes) ya existía antes de este Sprint, no es un resto de esta ronda.
+- **Indicios razonables de una compilación local real y limpia**: `tsconfig.app.tsbuildinfo` incluido en el ZIP contiene el árbol de archivos completo de este Sprint (incluye `ProtectedRoute`/`PublicRoute`/`LoginPage`/`AuthLayout`/`profile.service.ts`/`header-user-menu.tsx`, entre otros), con las rutas normalizadas en minúsculas (`./src/components/auth/protectedroute.tsx`, etc.) -- un artefacto típico de `tsc` ejecutándose en un sistema de archivos case-insensitive (Windows/macOS), consistente con una ejecución real distinta a la de este entorno de trabajo (Linux, case-sensitive). A diferencia de una ronda anterior de este proyecto (Sprint 4.1.1B), este `tsbuildinfo` **no** incluye el campo `"errors": true` -- razonablemente interpretable como una compilación sin errores reportados, aunque este entorno no puede confirmarlo con certeza absoluta (no se recibió un log textual de `tsc`/`npm run build`).
+- **`package-lock.json`** es byte-idéntico al de la entrega anterior -- no se agregaron/actualizaron dependencias en esta ronda, consistente con que no hubo cambios de código.
+- **`supabase/` y `docs/` sin cambios** -- confirma que no se creó ninguna migración local ni archivo de configuración nuevo; todo el trabajo de esta ronda vivió en el Dashboard de Supabase, tal como describió el usuario.
+
+**Hallazgo menor, no bloqueante**: el ZIP recibido todavía contiene `src/components/shared/header-role-switch.tsx` y `src/contexts/AuthContext.tsx` -- ambos retirados explícitamente en la entrega original de este Sprint. Son residuos locales (el usuario aparentemente extrajo el ZIP de esta ronda sobre su carpeta de trabajo existente sin borrar esos dos archivos primero) -- no se reincorporan a este repositorio, que ya no los tiene.
+
+**Nota de seguridad, informativa**: el ZIP recibido incluye un archivo `.env` con credenciales reales (`VITE_SUPABASE_ANON_KEY`, y crucialmente `SUPABASE_SERVICE_ROLE_KEY`, que evade RLS por completo). Ese archivo no se incorpora a este repositorio ni a ninguna entrega -- se recomienda al usuario tener cuidado de no compartir ese archivo en canales no seguros, y considerar rotar esa clave si en algún momento se expuso fuera de este flujo de trabajo controlado.
+
+### 12.4 Pendiente explícito, por decisión del usuario: migraciones SQL de seguridad
+
+Se le preguntó al usuario si prefería proveer el SQL real de las policies/GRANTS (vía `supabase db diff --linked` o export del Dashboard) o que este entorno generara una reconstrucción best-effort basada en el patrón ya usado en `0002_auth_roles_rls.sql`, documentada explícitamente como no verificada. **El usuario eligió no reconstruir SQL de seguridad inventado** y pidió dejar ese punto pendiente hasta que se pueda proveer el SQL real.
+
+En consecuencia, **no se generó ninguna migración en esta ronda**. Esto significa que, tal como está el repositorio hoy, `supabase/migrations/` **no reconstruye correctamente una base nueva** -- las policies RLS/GRANTS que hacen funcionar el login de `admin` (y potencialmente `coordinador`) existen únicamente en el proyecto real de Producción. Es un pendiente explícito y conocido, no un olvido: se documenta con la misma visibilidad en `PROJECT_STATUS.md`/`PHASE_4.md`/`CHANGELOG.md`.
+
+### 12.5 Próximos pasos actualizados
+
+1. Cuando el usuario provea el SQL real (`supabase db diff --linked -f <nombre>` es el comando recomendado, corrido en su propio entorno con la CLI vinculada), este entorno de trabajo puede incorporarlo tal cual a `supabase/migrations/` y actualizar la documentación correspondiente.
+2. Confirmar si las policies de `SELECT` para `authenticated` se agregaron también en `coordinadores`/`empresas`/`tiendas`, o solo en `admins` (sección 12.2).
+3. Los pendientes ya listados en la sección 11 (pantalla de nueva contraseña, pantallas de perfil/configuración, etc.) siguen vigentes para el Sprint siguiente.

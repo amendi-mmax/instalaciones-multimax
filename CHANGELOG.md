@@ -2,9 +2,11 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
-## [Fase 4 — Sprint 4.2.1 — Sistema de Autenticación y Experiencia de Inicio de Sesión] — 2026-07-21 — 🟡 En revisión
+## [Fase 4 — Sprint 4.2.1 — Sistema de Autenticación y Experiencia de Inicio de Sesión] — 2026-07-21, cerrado 2026-07-22 — ✅ Completado
 
 Primer Sprint de Fase 4 con autenticación real de punta a punta: login con correo/contraseña, sesión, resolución de perfil/rol real, recuperación de contraseña, rutas protegidas. Detalle técnico completo en `docs/architecture/frontend/SPRINT_4_2_1_AUTH_REPORT.md` y `ARCHITECTURE.md §14.9`.
+
+**Cierre (2026-07-22)**: el usuario validó manualmente contra Producción (login, `resolveProfile()`, lectura de `admins`, Dashboard, persistencia de sesión, logout, recarga con sesión) y confirmó el Sprint como **COMPLETADO**. Los ajustes que lo permitieron (policies RLS, `GRANT SELECT` a `authenticated`, registro real en `admins`, corrección del flujo de Auth) se hicieron directamente en Supabase, fuera de este repositorio -- **no deben revertirse**. El código de `src/` recibido en esa ronda es idéntico al de esta entrega (verificado con `diff`), consistente con que ningún ajuste fue de código.
 
 ### Añadido
 
@@ -34,9 +36,9 @@ Primer Sprint de Fase 4 con autenticación real de punta a punta: login con corr
 - `src/contexts/AuthContext.tsx` (legacy, Fase 3) — reemplazado por el `AuthProvider`/`useAuth` de `src/providers/`/`src/hooks/`, ya completado con rol/perfil real.
 - `src/components/shared/header-role-switch.tsx` — selector manual de rol, retirado según lo ya anticipado desde Fase 3 ("se elimina en la fase de Auth").
 
-### Limitación crítica reportada, no resuelta
+### Limitación crítica — resuelta manualmente en Supabase, pendiente de formalizar como migración
 
-`admins`/`coordinadores`/`empresas`/`tiendas` tienen RLS habilitado sin policies de `SELECT` para `authenticated` -- bloquea la resolución de perfil real para `admin`/`coordinador`. Solo el login de `instalador` puede probarse de punta a punta contra Producción hoy. Ver `SPRINT_4_2_1_AUTH_REPORT.md §8`.
+`admins`/`coordinadores`/`empresas`/`tiendas` tenían RLS habilitado sin policies de `SELECT` para `authenticated`, bloqueando la resolución de perfil real para `admin`/`coordinador`. El usuario agregó las policies/GRANTS necesarios directamente en Supabase durante la validación de cierre (2026-07-22) -- **no se generó, por decisión explícita del usuario, ninguna migración SQL que lo formalice en el repositorio todavía** (este entorno de trabajo no tiene acceso de red para verificar el SQL real contra el proyecto). Pendiente para una ronda futura, cuando el usuario provea ese SQL (`supabase db diff --linked` o export del Dashboard). Ver `SPRINT_4_2_1_AUTH_REPORT.md §8` y `PHASE_4.md` (cierre) para el detalle completo.
 
 > **Nota de trazabilidad**: este `CHANGELOG.md` no tiene entradas para los Sprints 4.1.1, 4.1.1B, 4.1.1C (dos rondas) ni el Database Synchronization/Frontend Compatibility Audit intermedios -- ninguno de esos briefs incluyó `CHANGELOG.md` en su lista de archivos permitidos (a diferencia de `PROJECT_STATUS.md`/`ARCHITECTURE.md`, sí actualizados en casi todas esas rondas). Reconstruir esas entradas retroactivamente no fue pedido en esta ronda -- se reporta el hueco en vez de rellenarlo sin instrucción explícita. Ver `PROJECT_STATUS.md` para el registro completo Sprint a Sprint de ese período.
 
