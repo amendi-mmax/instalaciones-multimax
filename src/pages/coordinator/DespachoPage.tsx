@@ -3,16 +3,14 @@ import { useOutletContext } from 'react-router-dom';
 import { XCircle } from 'lucide-react';
 
 import { CoordinatorKpiRow } from '@/components/shared/coordinator-kpi-row';
-import { CoordinatorSubtabs } from '@/components/shared/coordinator-subtabs';
 import { CoordinatorEmptyState } from '@/components/shared/coordinator-empty-state';
 import { LiveCountdown } from '@/components/shared/live-countdown';
 import { Radar, type RadarInstallerState } from '@/components/shared/radar';
-import { SucursalSelect } from '@/components/shared/sucursal-select';
 import { Loading } from '@/components/ui/spinner';
 import { ELIGIBLE_ORDER } from '@/constants';
 import { useOperationalContext } from '@/hooks/useOperationalContext';
 import { getCoordinatorKpis, type CoordinatorKpis } from '@/services';
-import type { RootLayoutOutletContext } from '@/layouts/RootLayout';
+import type { CoordinatorLayoutOutletContext } from '@/layouts/CoordinatorLayout';
 
 /**
  * Props mock de `Radar`/`LiveCountdown` -- reubicadas verbatim desde
@@ -39,17 +37,24 @@ const LIVECOUNTDOWN_DEMO_BID_MINS = 5;
  * `AppRouter.tsx`, redirección desde `/`).
  *
  * **Relocación desde `RootLayout.tsx` (sin cambios de comportamiento)**:
- * `SucursalSelect`, `MxSubtabs` (ahora `CoordinatorSubtabs`, real) y las
- * integraciones temporales `CoordinatorEmptyState`/`Radar`/`LiveCountdown`/
- * botón "Cancelar" vivían inline dentro de `RootLayout.tsx` desde los
- * Sprints 3.3-3.15 (ver el JSDoc histórico completo de esas integraciones
- * en el `RootLayout.tsx` anterior a este Sprint, conservado en el
- * historial de git). Este Sprint las traslada tal cual a esta página --
- * mismos componentes, mismas props mock, mismo orden visual -- para que
- * puedan vivir detrás de una ruta real (`/despacho`) en vez de una rama
- * `role === 'coordinador'` sin URL propia. NO es un cambio funcional: el
- * HTML/CSS resultante es idéntico al que veía un Coordinador antes de este
- * Sprint en `/`.
+ * las integraciones temporales `CoordinatorEmptyState`/`Radar`/
+ * `LiveCountdown`/botón "Cancelar" vivían inline dentro de `RootLayout.tsx`
+ * desde los Sprints 3.6/3.7/3.9/3.15 (ver el JSDoc histórico completo de
+ * esas integraciones en `RootLayout.tsx`/`CoordinatorLayout.tsx`). Este
+ * Sprint 5.1 las trasladó tal cual a esta página -- mismos componentes,
+ * mismas props mock, mismo orden visual -- para que pudieran vivir detrás
+ * de una ruta real (`/despacho`) en vez de una rama `role === 'coordinador'`
+ * sin URL propia.
+ *
+ * **Ajuste Sprint 5.1.2** ("Refactor del Layout Operativo del
+ * Coordinador"): `SucursalSelect`/`CoordinatorSubtabs` (que este Sprint 5.1
+ * sí había traído a esta página) se retiran de aquí -- estaban duplicados
+ * (una llamada independiente en cada página del Coordinador, exactamente
+ * el "PROBLEMA ACTUAL" que describe el brief del Sprint 5.1.2). Ahora viven
+ * una única vez en `CoordinatorLayout.tsx`, por encima del `<Outlet/>` que
+ * renderiza esta página -- ver su JSDoc completo. Sin cambio visual: es el
+ * mismo componente, en la misma posición relativa (justo antes del
+ * contenido de esta página), solo movido un nivel más arriba en el árbol.
  *
  * **KPIs (Entregable 4)**: se agrega `CoordinatorKpiRow` como primer
  * elemento del contenido de la página (antes de `CoordinatorEmptyState`),
@@ -78,8 +83,7 @@ const LIVECOUNTDOWN_DEMO_BID_MINS = 5;
  */
 export function DespachoPage() {
   const { tiendaId, loading: contextoLoading, error: contextoError } = useOperationalContext();
-  const { sucursalCoord, setSucursalCoord, onOpenPublish, onOpenConfirmCancel } =
-    useOutletContext<RootLayoutOutletContext>();
+  const { onOpenPublish, onOpenConfirmCancel } = useOutletContext<CoordinatorLayoutOutletContext>();
 
   const [kpis, setKpis] = useState<CoordinatorKpis | null>(null);
   const [kpisError, setKpisError] = useState<string | null>(null);
@@ -135,9 +139,6 @@ export function DespachoPage() {
 
   return (
     <div>
-      <SucursalSelect value={sucursalCoord} onChange={setSucursalCoord} />
-      <CoordinatorSubtabs />
-
       {kpisError ? (
         <p className="mx-sub" style={{ marginBottom: 14 }}>
           {kpisError}
@@ -164,8 +165,10 @@ export function DespachoPage() {
         bidMins={LIVECOUNTDOWN_DEMO_BID_MINS}
       />
       {/* TEMPORARY INTEGRATION — Sprint 3.15 (ConfirmCancelDialog trigger),
-          reubicada verbatim: el diálogo en sí sigue montado en RootLayout.tsx
-          (compartido con el resto del shell), este botón solo lo abre. */}
+          reubicada verbatim: el diálogo en sí vive en CoordinatorLayout.tsx
+          desde el Sprint 5.1.2 (antes en RootLayout.tsx, ver su JSDoc),
+          compartido con el resto del shell del Coordinador -- este botón
+          solo lo abre. */}
       <button
         type="button"
         className="mx-btn mx-btn-ghost"

@@ -607,6 +607,22 @@ Sprint exclusivamente de navegación -- no agrega funcionalidades nuevas, no mod
 
 **Pendiente**: validación real del usuario (`npm run lint`/`typecheck`/`build`/`dev`) -- mismas limitaciones de entorno que el resto del proyecto; se usó `tsc` global cruzado contra archivos ya aprobados (`coordinator-subtabs.tsx`/`TrabajoDetailPage.tsx`) para clasificar diagnósticos como artefactos de entorno, sin errores nuevos atribuibles a este Sprint (incluyendo la ronda de ajuste final).
 
+## Fase 5 — Sprint 5.1.2 — Refactor del Layout Operativo del Coordinador (MVP) (2026-07-22) — 🟡 En revisión
+
+Sprint exclusivamente arquitectónico -- no agrega funcionalidades nuevas, no modifica queries/repositories/Supabase/Auth/roles/RLS/`OperationalContextProvider`. Detalle técnico completo, incluida la auditoría previa obligatoria (3 preguntas vía `AskUserQuestion`), en `docs/architecture/frontend/SPRINT_5_1_2_COORDINATOR_LAYOUT_REPORT.md`.
+
+**Auditoría previa -- 3 discrepancias reales detectadas y resueltas con el usuario antes de escribir código**:
+
+1. **`CoordinatorSidebar`**: el HTML oficial no tiene ningún sidebar para el Coordinador -- ya confirmado en el Sprint 5.1. **Decisión del usuario (verbatim): "No crear ningún `CoordinatorSidebar`... El HTML oficial... es la fuente de verdad"** -- ni siquiera como contenedor vacío/placeholder. Por la misma instrucción, tampoco se agregan placeholders para Auction Engine/Timeline/Assignment Panel en este Sprint.
+2. **`CoordinatorHeader`/`CoordinatorFooter`**: `Header`/`Footer` son componentes reales ya existentes y globales (compartidos por los 3 roles, no exclusivos de Coordinador). **Decisión: reutilizarlos tal cual** en la nueva posición del árbol, sin crear archivos nuevos con esos nombres.
+3. **`CoordinatorKPIs`**: el brief sugería visibilidad en todas las páginas del Coordinador; el Sprint 5.1 ya había decidido explícitamente integrar los KPIs únicamente en `DespachoPage`. **Decisión: no cambiar ese alcance** (elevarlo habría sido un cambio de comportamiento real, prohibido por el propio brief).
+
+El usuario confirmó además extender a `ConfirmCancelDialog` (no mencionado por nombre en el brief) el mismo criterio explícito para `PublishModal` ("deberá depender del CoordinatorLayout, no de RootLayout").
+
+**Construido en este Sprint**: `src/layouts/CoordinatorLayout.tsx` (NUEVO, único punto de entrada de toda la operación del Coordinador) -- compone `Header`/`Footer`/`SucursalSelect`/`CoordinatorSubtabs`/`<Outlet/>`/`PublishModal`/`ConfirmCancelDialog`, todos reutilizados sin cambios, antes repartidos entre `RootLayout.tsx` y duplicados entre `DespachoPage.tsx`/`TrabajosPage.tsx`. `sucursalCoord` permanece en `RootLayout.tsx` (no se movió) porque también alimenta a `OperationalContextProvider`, marcado "NO MODIFICAR" por este brief -- se le pasa a `CoordinatorLayout` como prop en vez de duplicar la fuente de verdad. `RootLayoutOutletContext` se eliminó, reemplazado por `CoordinatorLayoutOutletContext` (misma forma) en el nuevo archivo. Ningún componente duplicado, ninguna ruta nueva, ningún cambio de comportamiento visible -- excepto un aumento deliberado de fidelidad ya documentado: `TrabajoDetailPage` ahora también muestra `SucursalSelect`/`CoordinatorSubtabs` (como en el HTML oficial), algo que no hacía antes de este Sprint.
+
+**Pendiente**: validación real del usuario (`npm run lint`/`typecheck`/`build`/`dev`) -- mismas limitaciones de entorno que el resto del proyecto; se usó `tsc` global sin errores nuevos atribuibles a este Sprint.
+
 ## Qué falta
 
 - **Bloqueante para cerrar el Sprint 5.1**: ejecutar en el entorno del usuario `npm run lint && npm run typecheck && npm run build && npm run dev` en verde, y validación visual/funcional real (login como coordinador, KPIs con datos reales de su tienda, navegación `/despacho`↔`/trabajos`, detalle de un trabajo) -- este entorno de trabajo no tiene `node_modules`/acceso de red para ejecutarlos ni credenciales reales para probar contra Producción.

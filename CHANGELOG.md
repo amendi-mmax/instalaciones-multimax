@@ -2,6 +2,34 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 5 — Sprint 5.1.2 — Refactor del Layout Operativo del Coordinador (MVP)] — 2026-07-22 — 🟡 En revisión
+
+Sprint exclusivamente arquitectónico: sin funcionalidades nuevas, sin queries/repositories/Supabase/Auth/roles/RLS/`OperationalContextProvider` modificados. Objetivo: dejar preparado un único `CoordinatorLayout` como contenedor de toda la operación futura del Coordinador (Sprints 5.2/5.3/5.4). Detalle técnico completo en `docs/architecture/frontend/SPRINT_5_1_2_COORDINATOR_LAYOUT_REPORT.md`.
+
+**Auditoría previa (obligatoria por brief) — 3 discrepancias reales detectadas y resueltas con el usuario antes de escribir código**:
+
+1. `CoordinatorSidebar` (pedido en la "ESTRUCTURA ESPERADA" del brief): el HTML oficial no tiene ningún sidebar para el Coordinador — ya confirmado en el Sprint 5.1. **Decisión del usuario (verbatim): "No crear ningún `CoordinatorSidebar`... El HTML oficial... es la fuente de verdad"** — ni siquiera como contenedor vacío/placeholder. Por la misma instrucción, tampoco se agregan placeholders para Auction Engine/Timeline/Assignment Panel en este Sprint (se incorporan cuando exista un Sprint específico para cada uno).
+2. `CoordinatorHeader`/`CoordinatorFooter`: `Header`/`Footer` son componentes reales ya existentes y globales (compartidos por los 3 roles vía `App()`, no exclusivos de Coordinador). **Decisión: reutilizarlos tal cual** en la nueva posición del árbol — cero archivos nuevos con esos nombres, cero duplicación.
+3. `CoordinatorKPIs`: el brief sugería visibilidad en todas las páginas del Coordinador (hermano de `CoordinatorWorkspace`); el Sprint 5.1 ya había decidido explícitamente integrar `CoordinatorKpiRow` únicamente en `DespachoPage`. **Decisión: no cambiar ese alcance** — elevarlo habría sido un cambio de comportamiento real, prohibido explícitamente por este mismo brief.
+
+El usuario confirmó además extender a `ConfirmCancelDialog` (no mencionado por nombre en el brief) el mismo criterio explícito que el brief da para `PublishModal` ("deberá depender del CoordinatorLayout, no de RootLayout").
+
+### Añadido
+
+- `src/layouts/CoordinatorLayout.tsx` (NUEVO) — único punto de entrada de toda la operación del Coordinador. Compone `Header`/`Footer`/`SucursalSelect`/`CoordinatorSubtabs`/`<Outlet/>`/`PublishModal`/`ConfirmCancelDialog`, todos reutilizados sin ningún cambio en su propio código. Exporta `CoordinatorLayoutOutletContext` (reemplaza a `RootLayoutOutletContext`, misma forma exacta).
+- `docs/architecture/frontend/SPRINT_5_1_2_COORDINATOR_LAYOUT_REPORT.md` (NUEVO).
+
+### Modificado
+
+- `src/layouts/RootLayout.tsx` — se retira el bloque `role === 'coordinador'` inline (Header/Footer/PublishModal/ConfirmCancelDialog cuando `showCoordinador` es `true`); en su lugar se monta `<CoordinatorLayout/>`. `sucursalCoord`/`setSucursalCoord` **permanecen** en este archivo (no se movieron) porque también alimentan a `OperationalContextProvider` (`sucursalCoord` es uno de sus 2 props), marcado "NO MODIFICAR" por este brief — se le pasan a `CoordinatorLayout` como props en vez de duplicar la fuente de verdad. Se elimina `RootLayoutOutletContext`, el `useMemo` de `outletContext`, y el estado `showPublishModal`/`confirmCancelOpen` (movidos a `CoordinatorLayout`). Ningún cambio a `showCoordinador`/`showInstalador`/`showAdminPanel`/`adminVista`/Auth/Supabase/RLS.
+- `src/pages/coordinator/DespachoPage.tsx` / `TrabajosPage.tsx` — se retira el render duplicado de `SucursalSelect`/`CoordinatorSubtabs` (antes una llamada independiente en cada página); ahora viven una única vez en `CoordinatorLayout`, por encima del `<Outlet/>` compartido. `TrabajosPage.tsx` ya no necesita `useOutletContext()` en absoluto. Tipo del outlet context actualizado de `RootLayoutOutletContext` a `CoordinatorLayoutOutletContext`.
+- `PROJECT_STATUS.md` — nueva sección de estado del Sprint 5.1.2.
+- `docs/SPRINTS_INDEX.md` — nueva fila 5.1.2.
+
+**Efecto colateral de fidelidad, documentado (no una regresión ni una funcionalidad inventada)**: en el HTML oficial, el selector de sucursal y las subtabs son siempre visibles mientras se ve al Coordinador, incluido el detalle de un trabajo (`JobDetail` reemplaza solo el contenido de la lista, no a sus hermanos). Antes de este Sprint, `TrabajoDetailPage.tsx` no mostraba `SucursalSelect`/`CoordinatorSubtabs`. Al hoistear ambos componentes a `CoordinatorLayout`, `TrabajoDetailPage` pasa a mostrarlos también — un aumento de fidelidad respecto al HTML oficial, consecuencia directa de eliminar la duplicación de estructura que pedía este Sprint.
+
+**Validación técnica**: `tsc --noEmit` (instalación global) sobre los 4 archivos nuevos/modificados de este Sprint — únicamente diagnósticos del mismo patrón de artefactos de entorno ya clasificado (`TS2307`/`TS2875`/`TS7026`/`TS7006`/`TS2322`), cero `TS6133`, cero errores de sintaxis. `npm run lint`/`typecheck`/`build`/`dev` reales quedan pendientes de ejecución por el usuario (sin `node_modules`/red en este entorno de trabajo).
+
 ## [Fase 5 — Sprint 5.1.1 — AJUSTE FINAL — Contexto Operativo real para el Administrador Superusuario] — 2026-07-22
 
 Ronda de ajuste sobre el mismo Sprint 5.1.1 (no un Sprint nuevo), por instrucción explícita del usuario, que resuelve la "Limitación real, no corregida" documentada en la entrada anterior de este mismo archivo (ver abajo): la vista "Coordinador" en Modo de Visualización superusuario mostraba "Tu perfil de coordinador no tiene una tienda asignada" en vez de datos reales, porque `Perfil.tiendaId` es `null` por diseño para `admins`.

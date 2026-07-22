@@ -1,16 +1,13 @@
 import { ClipboardList } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
-import { CoordinatorSubtabs } from '@/components/shared/coordinator-subtabs';
 import { EmptyState } from '@/components/shared/empty-state';
-import { SucursalSelect } from '@/components/shared/sucursal-select';
 import { TrabajoRow } from '@/components/shared/trabajo-row';
 import { Loading } from '@/components/ui/spinner';
 import { TRABAJOS_FILTROS, type TrabajoEstadoReal } from '@/constants';
 import { useOperationalContext } from '@/hooks/useOperationalContext';
 import { getTrabajosByTienda, type TableRow } from '@/services';
-import type { RootLayoutOutletContext } from '@/layouts/RootLayout';
 
 type FiltroKey = 'todos' | TrabajoEstadoReal;
 
@@ -40,6 +37,17 @@ type FiltroKey = 'todos' | TrabajoEstadoReal;
  * (vía `useAuth()`) directamente -- se leen de `useOperationalContext()`,
  * mismo criterio y misma justificación que `DespachoPage.tsx` (ver su
  * JSDoc). Sin cambio de comportamiento para un Coordinador real.
+ *
+ * **Ajuste Sprint 5.1.2** ("Refactor del Layout Operativo del
+ * Coordinador"): `SucursalSelect`/`CoordinatorSubtabs` (mencionados en el
+ * párrafo de arriba) se retiran de esta página -- estaban duplicados
+ * (misma llamada independiente también en `DespachoPage.tsx`). Ahora viven
+ * una única vez en `CoordinatorLayout.tsx`, por encima del `<Outlet/>` que
+ * renderiza esta página -- ver su JSDoc completo. El selector de sucursal
+ * sigue mostrándose exactamente igual (misma fidelidad visual descrita
+ * arriba), solo movido un nivel más arriba en el árbol -- sin cambio de
+ * comportamiento. Esta página ya no necesita `useOutletContext()` en
+ * absoluto: no consumía ningún otro campo del contexto del Coordinador.
  */
 export function TrabajosPage() {
   const {
@@ -48,7 +56,6 @@ export function TrabajosPage() {
     loading: contextoLoading,
     error: contextoError,
   } = useOperationalContext();
-  const { sucursalCoord, setSucursalCoord } = useOutletContext<RootLayoutOutletContext>();
   const navigate = useNavigate();
 
   const [trabajos, setTrabajos] = useState<TableRow<'trabajos'>[] | null>(null);
@@ -102,9 +109,6 @@ export function TrabajosPage() {
 
   return (
     <div>
-      <SucursalSelect value={sucursalCoord} onChange={setSucursalCoord} />
-      <CoordinatorSubtabs />
-
       <div className="mx-page">
         <div className="mx-pagehead">
           <div>

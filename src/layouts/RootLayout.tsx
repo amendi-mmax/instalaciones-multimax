@@ -1,17 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { AdminPanel } from '@/components/shared/admin-panel';
 import { AdminVistaSwitch, type AdminVista } from '@/components/shared/admin-vista-switch';
-import { ConfirmCancelDialog } from '@/components/shared/confirm-cancel-dialog';
 import { CountRing } from '@/components/shared/countring';
 import { Footer } from '@/components/shared/footer';
 import { Header } from '@/components/shared/header';
 import { InstallerDashboard } from '@/components/shared/installer-dashboard';
-import { PublishModal } from '@/components/shared/publish-modal';
 import { Badge } from '@/components/ui/badge';
 import { Loading } from '@/components/ui/spinner';
 import { useAuth } from '@/hooks/useAuth';
+import { CoordinatorLayout } from '@/layouts/CoordinatorLayout';
 import { OperationalContextProvider } from '@/providers/OperationalContextProvider';
 import type { ModoVisualizacion } from '@/providers/operational-context.context';
 
@@ -589,14 +588,56 @@ const COUNTRING_DEMO_REMAINING = 172;
  * usando; solo se retira, dentro de ese Provider, la rama de resolución
  * `requiereResolucionSuperusuario` (ver `OperationalContextProvider.tsx`),
  * porque a partir de ahí `esSuperusuario` nunca vuelve a ser `true`.
+ *
+ * ---------------------------------------------------------------------
+ * SPRINT 5.1.2 — Refactor del Layout Operativo del Coordinador
+ * ---------------------------------------------------------------------
+ * Refactor puramente arquitectónico (sin funcionalidad nueva, sin queries
+ * nuevas, sin cambios de comportamiento visible): todo lo que antes vivía
+ * aquí y era exclusivo del Coordinador -- `Header`/`Footer`/`PublishModal`/
+ * `ConfirmCancelDialog` cuando `showCoordinador` es `true`, más
+ * `SucursalSelect`/`CoordinatorSubtabs` (antes duplicados dentro de
+ * `DespachoPage.tsx`/`TrabajosPage.tsx`, ver sus JSDoc históricos) -- se
+ * relocalizó a un único archivo nuevo, `src/layouts/CoordinatorLayout.tsx`.
+ * Ningún componente se modificó ni se duplicó: son los mismos archivos de
+ * siempre, solo cambia desde dónde se montan. Ver el JSDoc completo de
+ * `CoordinatorLayout.tsx` para la auditoría previa de este Sprint
+ * (discrepancias reales encontradas contra la "ESTRUCTURA ESPERADA" del
+ * brief -- `CoordinatorSidebar`/`CoordinatorHeader`/`CoordinatorFooter`/
+ * `CoordinatorKPIs`/`CoordinatorWorkspace` -- y su resolución, confirmada
+ * por el usuario).
+ *
+ * `sucursalCoord`/`setSucursalCoord` **no** se movieron a
+ * `CoordinatorLayout.tsx` -- siguen siendo estado de este archivo, porque
+ * también alimentan a `OperationalContextProvider` (`sucursalCoord` es uno
+ * de sus 2 props), un sistema que este mismo brief marca explícitamente
+ * como "NO MODIFICAR". Moverlos habría exigido remontar
+ * `OperationalContextProvider` más abajo en el árbol -- un cambio real a
+ * ese sistema. En cambio, se le pasan a `CoordinatorLayout` como props
+ * (`sucursalCoord`/`onSucursalCoordChange`) -- mismo dato, ninguna
+ * duplicación de fuente de verdad, `OperationalContextProvider` sigue
+ * exactamente en la misma posición del árbol que antes de este Sprint.
+ *
+ * El bloque `role === 'admin' && (<AdminVistaSwitch/>+<Badge/>)` tampoco se
+ * movió -- no es lógica del Coordinador, es el control que decide si
+ * mostrar `CoordinatorLayout` en absoluto (Sprint 5.1.1); se sigue
+ * calculando aquí (`adminSwitchSlot`) y se le pasa a `CoordinatorLayout`
+ * como slot, para que ese archivo no necesite conocer `role`/`adminVista`
+ * en absoluto y siga siendo EXACTAMENTE el mismo Layout tanto para un
+ * Coordinador real como para un admin en modo superusuario (criterio de
+ * aceptación explícito de este Sprint).
+ *
+ * `RootLayoutOutletContext` (más abajo en versiones anteriores de este
+ * archivo) se eliminó -- ya no tiene sentido en `RootLayout.tsx`, que ya no
+ * monta ningún `<Outlet/>` directamente. Su reemplazo,
+ * `CoordinatorLayoutOutletContext`, vive en `CoordinatorLayout.tsx` (mismos
+ * 4 campos, sin ningún cambio de forma).
  */
 export function RootLayout() {
   const { profile, profileLoading, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sucursalCoord, setSucursalCoord] = useState('Multiplaza');
-  const [showPublishModal, setShowPublishModal] = useState(false);
-  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [meId, setMeId] = useState('pty');
   // Sprint 5.1.1 — solo tiene efecto cuando `profile.rol === 'admin'` (ver
   // JSDoc "SPRINT 5.1.1" más arriba); inerte para `coordinador`/`instalador`,
@@ -643,36 +684,6 @@ export function RootLayout() {
     }
   }, [profile?.rol, adminVista, location.pathname, navigate]);
 
-  // Memoizado por el mismo motivo que `AuthProvider.value` (ver
-  // `providers/AuthProvider.tsx`): evita recrear el objeto de contexto -- y
-  // por lo tanto re-renderizar `<Outlet/>` y sus consumidores -- en cada
-  // render de `RootLayout` que no cambie ninguno de estos valores.
-  //
-  // CORRECCIÓN post Sprint 5.1 (Rules of Hooks): este `useMemo` se movió a
-  // este punto -- antes del `return` condicional de abajo -- porque los
-  // Hooks de React deben ejecutarse siempre en el mismo orden en cada
-  // render, y nunca después de un `return` condicional. Antes vivía luego
-  // del `if (profileLoading || !profile || ...) return <Loading .../>`, lo
-  // que hacía que se saltara por completo durante los renders de
-  // carga/perfil-nulo pero sí se ejecutara en los renders normales --
-  // exactamente el error que React reporta como "Rendered more hooks than
-  // during the previous render". `role` se quitó de este objeto (y de
-  // `RootLayoutOutletContext`, ver más abajo) porque ninguna página del
-  // Coordinador lo consume (`DespachoPage.tsx`/`TrabajosPage.tsx` sólo
-  // desestructuran `sucursalCoord`/`setSucursalCoord`/`onOpenPublish`/
-  // `onOpenConfirmCancel`) -- así el memo deja de depender de `profile` y
-  // puede calcularse sin importar si el perfil todavía está cargando o es
-  // `null`, sin necesidad de un valor de reemplazo inerte para `role`.
-  const outletContext: RootLayoutOutletContext = useMemo(
-    () => ({
-      sucursalCoord,
-      setSucursalCoord,
-      onOpenPublish: () => setShowPublishModal(true),
-      onOpenConfirmCancel: () => setConfirmCancelOpen(true),
-    }),
-    [sucursalCoord],
-  );
-
   if (profileLoading || !profile || profile.estado === 'suspendido') {
     return <Loading label="Cargando tu perfil…" />;
   }
@@ -694,82 +705,65 @@ export function RootLayout() {
   // `role` es siempre uno de los 3 valores de `Rol`.
   const modo: ModoVisualizacion = role === 'admin' ? adminVista : role;
 
+  // Sprint 5.1.1 — selector temporal de "modo de visualización", exclusivo
+  // de `role === 'admin'` -- ver JSDoc "SPRINT 5.1.1" más arriba y el JSDoc
+  // de `AdminVistaSwitch` para la justificación completa. Se elimina
+  // íntegramente cuando el MVP sea aprobado.
+  //
+  // Sprint 5.1.2 — se calcula acá (no dentro de `CoordinatorLayout.tsx`)
+  // porque no es lógica del Coordinador: es el control que decide si
+  // `CoordinatorLayout` se muestra en absoluto. Se le pasa como slot
+  // (`adminSwitchSlot`) tanto a `CoordinatorLayout` como, inline, a la rama
+  // Instalador/Admin de abajo -- mismo nodo JSX, sin duplicar su
+  // definición.
+  const adminSwitchSlot = role === 'admin' && (
+    <div className="flex flex-wrap items-center gap-3 px-4 pt-3">
+      <AdminVistaSwitch vista={adminVista} onChange={setAdminVista} />
+      <Badge tone="amber">Modo temporal · MVP</Badge>
+    </div>
+  );
+
   return (
     <OperationalContextProvider modo={modo} sucursalCoord={sucursalCoord}>
-      <div className="flex min-h-screen flex-col">
-        <Header role={role} profile={profile} onLogout={() => void logout()} />
-        <main className="flex-1">
-          {/* Sprint 5.1.1 — selector temporal de "modo de visualización",
-              exclusivo de `role === 'admin'` -- ver JSDoc "SPRINT 5.1.1" más
-              arriba y el JSDoc de `AdminVistaSwitch` para la justificación
-              completa. Se elimina íntegramente cuando el MVP sea aprobado. */}
-          {role === 'admin' && (
-            <div className="flex flex-wrap items-center gap-3 px-4 pt-3">
-              <AdminVistaSwitch vista={adminVista} onChange={setAdminVista} />
-              <Badge tone="amber">Modo temporal · MVP</Badge>
-            </div>
-          )}
-          {/* Sprint 5.1: el contenido de `role === 'coordinador'` vive ahora en
-              rutas reales (`/despacho`, `/trabajos`, `/trabajos/:id`) montadas
-              vía `<Outlet/>` -- ver JSDoc "SPRINT 5.1" más arriba. Sprint
-              5.1.1: `showCoordinador` también es `true` cuando un `admin` real
-              eligió la vista "Coordinador" en `AdminVistaSwitch`. */}
-          {showCoordinador && <Outlet context={outletContext} />}
-          {/* TEMPORARY INTEGRATION — Sprint 3.10 (InstallerDashboard, reemplaza la integración de Sprint 3.2.1/3.2.2): ver comentario de la función.
-              Sprint 5.1.1: `showInstalador` también es `true` cuando un `admin`
-              real eligió la vista "Instalador". */}
-          {showInstalador && (
-            <>
-              <InstallerDashboard meId={meId} onMeIdChange={setMeId} />
-              {/* TEMPORARY INTEGRATION — Sprint 3.8 (CountRing): ver comentario de la función. */}
-              <CountRing remaining={COUNTRING_DEMO_REMAINING} total={COUNTRING_DEMO_TOTAL} />
-            </>
-          )}
-          {/* Sprint 3.13 (AdminPanel): integración real y directa — ver comentario de la función.
-              Sprint 5.1.1: ahora gateado por `showAdminPanel` (`adminVista===
-              'administracion'`, el default) en vez de `role==='admin'` directo
-              -- mismo resultado para un admin real que no cambió de vista. */}
-          {showAdminPanel && <AdminPanel />}
-          {/* TEMPORARY INTEGRATION — Sprint 3.5 (PublishModal): ver comentario de la función. */}
-          <PublishModal
-            sucursal={sucursalCoord}
-            open={showPublishModal}
-            onOpenChange={setShowPublishModal}
-            onPublish={() => {
-              /* Sin lógica de negocio en este Sprint — ver comentario de la función. */
-            }}
-          />
-          {/* TEMPORARY INTEGRATION — Sprint 3.15 (ConfirmCancelDialog): ver comentario de la función. */}
-          <ConfirmCancelDialog
-            open={confirmCancelOpen}
-            onOpenChange={setConfirmCancelOpen}
-            onYes={() => {
-              /* Sin lógica de negocio en este Sprint — ver comentario de la función. */
-            }}
-          />
-        </main>
-        <Footer />
-      </div>
+      {showCoordinador ? (
+        /* Sprint 5.1.2 — todo lo que antes era el bloque `role ===
+           'coordinador'` inline de este archivo (Header/Footer/
+           PublishModal/ConfirmCancelDialog/SucursalSelect/
+           CoordinatorSubtabs/`<Outlet/>`) ahora vive en
+           `CoordinatorLayout.tsx` -- ver su JSDoc completo. `RootLayout`
+           únicamente decide CUÁNDO mostrarlo (`showCoordinador`, sin
+           cambios respecto al Sprint 5.1.1) y le pasa el estado que sigue
+           viviendo acá (`sucursalCoord`, compartido con
+           `OperationalContextProvider`) más el slot del selector de modo. */
+        <CoordinatorLayout
+          sucursalCoord={sucursalCoord}
+          onSucursalCoordChange={setSucursalCoord}
+          adminSwitchSlot={adminSwitchSlot}
+        />
+      ) : (
+        <div className="flex min-h-screen flex-col">
+          <Header role={role} profile={profile} onLogout={() => void logout()} />
+          <main className="flex-1">
+            {adminSwitchSlot}
+            {/* TEMPORARY INTEGRATION — Sprint 3.10 (InstallerDashboard, reemplaza la integración de Sprint 3.2.1/3.2.2): ver comentario de la función.
+                Sprint 5.1.1: `showInstalador` también es `true` cuando un `admin`
+                real eligió la vista "Instalador". */}
+            {showInstalador && (
+              <>
+                <InstallerDashboard meId={meId} onMeIdChange={setMeId} />
+                {/* TEMPORARY INTEGRATION — Sprint 3.8 (CountRing): ver comentario de la función. */}
+                <CountRing remaining={COUNTRING_DEMO_REMAINING} total={COUNTRING_DEMO_TOTAL} />
+              </>
+            )}
+            {/* Sprint 3.13 (AdminPanel): integración real y directa — ver comentario de la función.
+                Sprint 5.1.1: ahora gateado por `showAdminPanel` (`adminVista===
+                'administracion'`, el default) en vez de `role==='admin'` directo
+                -- mismo resultado para un admin real que no cambió de vista. */}
+            {showAdminPanel && <AdminPanel />}
+          </main>
+          <Footer />
+        </div>
+      )}
     </OperationalContextProvider>
   );
-}
-
-/**
- * RootLayoutOutletContext — forma del `<Outlet context={...}/>` que
- * `RootLayout` expone a las rutas anidadas del Coordinador (Sprint 5.1).
- * Consumido vía `useOutletContext<RootLayoutOutletContext>()` en
- * `DespachoPage.tsx`/`TrabajosPage.tsx` -- ver JSDoc "SPRINT 5.1" arriba.
- *
- * CORRECCIÓN post Sprint 5.1: este tipo ya no incluye `role`. Ninguna
- * página del Coordinador lo consumía (verificado por `grep` sobre
- * `DespachoPage.tsx`/`TrabajosPage.tsx`) y quitarlo permite calcular
- * `outletContext` -- vía `useMemo` -- sin depender de `profile`, lo cual
- * era necesario para poder mover ese Hook antes del `return` condicional
- * de `RootLayout` (ver comentario junto al `useMemo` más arriba).
- */
-export interface RootLayoutOutletContext {
-  sucursalCoord: string;
-  setSucursalCoord: (value: string) => void;
-  onOpenPublish: () => void;
-  onOpenConfirmCancel: () => void;
 }
