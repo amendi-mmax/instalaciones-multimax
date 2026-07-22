@@ -843,6 +843,149 @@
   border-color: var(--ice);
 }
 
+/* Sprint 5.1 — "Cola de Trabajos" (CoordinatorJobs) y JobDetail del
+   Coordinador. Portadas verbatim del <style> del HTML fuente
+   (`Multimax_Despacho_v1.3.html`, líneas 298-300, 301-303, 306-321):
+   .mx-jobrow-side/.mx-jobrow-price/.mx-chevr quedaban pendientes desde el
+   Sprint 3.14 (ver comentario de MasterCalendar más abajo, en la sección
+   ".mx-joblist") porque MasterCalendar no los usa -- son de CoordinatorJobs,
+   que este Sprint sí construye. .mx-jobfilter/.mx-detail-grid/.mx-kv* /
+   .mx-timeline/.mx-tl* /.mx-detailacts tampoco tenían Sprint asignado
+   (comentario en la media query de abajo: ".mx-detail-grid (Coordinator, no
+   construido todavía)") -- ídem. */
+.mx-jobrow-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+  flex-shrink: 0;
+}
+.mx-jobrow-price {
+  font-family: var(--fm);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--green);
+}
+.mx-jobrow-side .mx-chevr {
+  color: var(--muted);
+}
+.mx-jobfilter {
+  display: flex;
+  gap: 4px;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 3px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.mx-jobfilter button {
+  font-size: 11.5px;
+  padding: 6px 11px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.mx-jobfilter button.on {
+  background: var(--surf2);
+  color: var(--ice);
+}
+.mx-detail-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 16px;
+  align-items: start;
+}
+.mx-kv {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+.mx-kv-row {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text);
+}
+.mx-kv-row svg {
+  color: var(--ice);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.mx-kv-row b {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 2px;
+  letter-spacing: 0.02em;
+}
+.mx-timeline {
+  display: flex;
+  flex-direction: column;
+}
+.mx-tl {
+  display: flex;
+  gap: 12px;
+  padding-bottom: 16px;
+  position: relative;
+}
+.mx-tl:not(:last-child):before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 18px;
+  bottom: 0;
+  width: 2px;
+  background: var(--line);
+}
+.mx-tl-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--ink);
+  flex-shrink: 0;
+  z-index: 1;
+}
+.mx-tl.done .mx-tl-dot {
+  background: var(--green);
+  border-color: var(--green);
+}
+.mx-tl.act .mx-tl-dot {
+  background: var(--amber);
+  border-color: var(--amber);
+}
+.mx-tl-b {
+  font-size: 13px;
+  font-weight: 600;
+}
+.mx-tl-s {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.mx-detailacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.mx-detailacts button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surf2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 13px;
+}
+.mx-detailacts button:hover {
+  border-color: var(--ice);
+}
+
 /* ---- Phone frame (Installer, estructura genérica) ---- */
 .mx-instwrap {
   display: grid;
@@ -1205,23 +1348,30 @@
   flex-shrink: 0;
   margin-top: 1px;
 }
-/* .mx-detail-grid (Coordinator, no construido todavía) combina esta misma
-   media query en el HTML fuente (línea 376: ".mx-detail-grid,.mx-admingrid
-   {grid-template-columns:1fr}"); se porta aquí únicamente .mx-admingrid,
-   igual que ya se hizo con .mx-phone-empty en el Sprint 3.10. */
+/* `.mx-detail-grid` combina esta misma media query en el HTML fuente (línea
+   376: ".mx-detail-grid,.mx-admingrid{grid-template-columns:1fr}"); en el
+   Sprint 3.10 solo se portó acá `.mx-admingrid` porque `.mx-detail-grid`
+   (JobDetail, Coordinator) todavía no estaba construido -- el Sprint 5.1 ya
+   agregó la regla de `.mx-detail-grid` junto con el resto de sus reglas
+   (ver bloque nuevo antes de "Phone frame" más arriba), así que ambas
+   clases comparten esta media query, igual que en el HTML fuente. */
 @media (max-width: 760px) {
   .mx-admingrid {
     grid-template-columns: 1fr;
   }
+  .mx-detail-grid {
+    grid-template-columns: 1fr;
+  }
 }
 /* Sprint 3.14 — MasterCalendar (líneas 288-300 y 419-440 del <style> original).
-   .mx-jobrow-side/.mx-jobrow-price (línea 298-300) NO se portan aquí: no las
+   .mx-jobrow-side/.mx-jobrow-price (línea 298-300) no se portaron acá: no las
    usa MasterCalendar (su lista de trabajos del día no envuelve el precio en
-   .mx-jobrow-side, lo muestra inline dentro de .mx-jobrow-meta) — pertenecen
-   a CoordinatorJobs(), todavía sin Sprint asignado. .mx-cal-day.other-month
-   (línea 431) tampoco se porta: MasterCalendar nunca aplica esa clase (las
-   celdas antes del día 1 se renderizan como <div> vacíos sin className, no
-   con "other-month"). */
+   .mx-jobrow-side, lo muestra inline dentro de .mx-jobrow-meta) — pertenecían
+   a CoordinatorJobs(), sin Sprint asignado en ese momento; el Sprint 5.1 ya
+   las agregó (ver bloque nuevo antes de "Phone frame" más arriba).
+   .mx-cal-day.other-month (línea 431) tampoco se porta: MasterCalendar nunca
+   aplica esa clase (las celdas antes del día 1 se renderizan como <div>
+   vacíos sin className, no con "other-month"). */
 .mx-joblist {
   display: flex;
   flex-direction: column;

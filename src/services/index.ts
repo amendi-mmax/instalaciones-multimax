@@ -26,3 +26,13 @@ export {
   type TableUpdate,
 } from '@/services/database.service';
 export { resolveProfile } from '@/services/profile.service';
+export {
+  getCoordinatorKpis,
+  getTrabajosByTienda,
+  getTrabajoDetalle,
+  type CoordinatorKpis,
+} from '@/services/dashboard.service';
+export {
+  resolveSuperusuarioTienda,
+  type SuperusuarioTiendaContexto,
+} from '@/services/operational-context.service';

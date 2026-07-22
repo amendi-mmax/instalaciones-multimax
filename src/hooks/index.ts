@@ -5,3 +5,4 @@ export { useSupabase } from '@/hooks/useSupabase';
 export { useSession, type UseSessionResult } from '@/hooks/useSession';
 export { useAuth } from '@/hooks/useAuth';
 export { useRealtime, type RealtimeConnectionStatus, type UseRealtimeResult } from '@/hooks/useRealtime';
+export { useOperationalContext } from '@/hooks/useOperationalContext';

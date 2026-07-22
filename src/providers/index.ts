@@ -24,6 +24,11 @@ export { SupabaseProvider, type SupabaseProviderProps } from '@/providers/Supaba
 export { SessionProvider, type SessionProviderProps } from '@/providers/SessionProvider';
 export { AuthProvider, type AuthProviderProps } from '@/providers/AuthProvider';
 export { AppProviders, type AppProvidersProps } from '@/providers/AppProviders';
+export {
+  OperationalContextProvider,
+  type OperationalContextProviderProps,
+} from '@/providers/OperationalContextProvider';
 
 export type { SessionContextValue } from '@/providers/session.context';
 export type { AuthContextValue } from '@/providers/auth.context';
+export type { ModoVisualizacion, OperationalContextValue } from '@/providers/operational-context.context';

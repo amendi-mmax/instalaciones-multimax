@@ -1,40 +1,19 @@
-import { ClipboardList, Crosshair, XCircle } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { AdminPanel } from '@/components/shared/admin-panel';
+import { AdminVistaSwitch, type AdminVista } from '@/components/shared/admin-vista-switch';
 import { ConfirmCancelDialog } from '@/components/shared/confirm-cancel-dialog';
-import { CoordinatorEmptyState } from '@/components/shared/coordinator-empty-state';
 import { CountRing } from '@/components/shared/countring';
 import { Footer } from '@/components/shared/footer';
 import { Header } from '@/components/shared/header';
 import { InstallerDashboard } from '@/components/shared/installer-dashboard';
-import { LiveCountdown } from '@/components/shared/live-countdown';
-import { MxSubtabButton } from '@/components/shared/mx-subtab-button';
-import { MxSubtabs } from '@/components/shared/mx-subtabs';
 import { PublishModal } from '@/components/shared/publish-modal';
-import { Radar, type RadarInstallerState } from '@/components/shared/radar';
-import { SucursalSelect } from '@/components/shared/sucursal-select';
+import { Badge } from '@/components/ui/badge';
 import { Loading } from '@/components/ui/spinner';
-import { ELIGIBLE_ORDER } from '@/constants';
 import { useAuth } from '@/hooks/useAuth';
-
-/**
- * Props mock de `Radar` para la integración temporal del Sprint 3.7 (ver
- * bloque de documentación más abajo). NO son datos reales de trabajos/bids
- * — son valores fijos de ejemplo, uno por cada color de la leyenda
- * ("Notificado"/"Abrió"/"Respondiendo"/"Respondió"/"Seleccionado"), para
- * poder validar visualmente el componente sin depender de `jobs`/lógica de
- * negocio real (que no existe todavía — ver docs/sprints/sprint-3.7.md).
- */
-const RADAR_DEMO_NOTIFIED = ['pty', 'climatech', 'frio', 'airepro', 'cool'] as const;
-const RADAR_DEMO_INST_STATE: Record<string, RadarInstallerState> = {
-  pty: { state: 'notified' },
-  climatech: { state: 'opened' },
-  frio: { state: 'responding' },
-  airepro: { state: 'responded' },
-  cool: { state: 'selected' },
-};
+import { OperationalContextProvider } from '@/providers/OperationalContextProvider';
+import type { ModoVisualizacion } from '@/providers/operational-context.context';
 
 /**
  * Props mock de `CountRing` para la integración temporal del Sprint 3.8 (ver
@@ -47,20 +26,6 @@ const RADAR_DEMO_INST_STATE: Record<string, RadarInstallerState> = {
  */
 const COUNTRING_DEMO_TOTAL = 300;
 const COUNTRING_DEMO_REMAINING = 172;
-
-/**
- * Props mock de `LiveCountdown` para la integración temporal del Sprint 3.9
- * (ver bloque de documentación más abajo). NO son datos reales de una ronda
- * de bid — en el HTML fuente `publishedAt`/`bidMins` provienen de cada
- * `job` de `jobs` dentro de `QueueBar` (motor de trabajos, todavía no
- * portado). `LIVECOUNTDOWN_DEMO_PUBLISHED_AT` se calcula una única vez, al
- * cargar este módulo, como "hace 60 segundos" (`Date.now() - 60_000`), para
- * que el countdown arranque a mitad de camino en vez de en el valor inicial;
- * `LIVECOUNTDOWN_DEMO_BID_MINS` reproduce el default real `j.bidMins || 5`
- * con `bidMins = 5` (mismo valor usado por `COUNTRING_DEMO_TOTAL` arriba).
- */
-const LIVECOUNTDOWN_DEMO_PUBLISHED_AT = Date.now() - 60_000;
-const LIVECOUNTDOWN_DEMO_BID_MINS = 5;
 
 /**
  * RootLayout — equivalente de "AppShell" pedido en el listado de Layout de
@@ -512,14 +477,133 @@ const LIVECOUNTDOWN_DEMO_BID_MINS = 5;
  * redirige a `/login` con el motivo correspondiente, en vez de renderizar
  * el shell con un rol adivinado. Ver `SPRINT_4_2_1_AUTH_REPORT.md` para el
  * detalle completo de esta decisión.
+ *
+ * ---------------------------------------------------------------------
+ * SPRINT 5.1 — el bloque `role === 'coordinador'` pasa a ser rutas reales
+ * ---------------------------------------------------------------------
+ * Hasta este Sprint, `role === 'coordinador'` renderizaba inline
+ * `SucursalSelect` + `MxSubtabs`/`MxSubtabButton` (literales, sin
+ * `onClick` real, ver Sprint 3.3 más arriba) + las integraciones
+ * temporales `CoordinatorEmptyState`/`Radar`/`LiveCountdown`/botón
+ * "Cancelar" (Sprints 3.6/3.7/3.9/3.15). Todo ese contenido se **relocalizó
+ * verbatim** (mismos componentes, mismas props mock, mismo orden visual,
+ * CERO cambios de comportamiento) a `src/pages/coordinator/DespachoPage.tsx`
+ * (ruta `/despacho`, ver `AppRouter.tsx` y `ARCHITECTURE.md §8`), que ahora
+ * se monta a través de `<Outlet/>` en el lugar donde antes vivía ese bloque
+ * inline. Se agregaron además `src/pages/coordinator/TrabajosPage.tsx`
+ * (`/trabajos`, "Cola de Trabajos" real) y `TrabajoDetailPage.tsx`
+ * (`/trabajos/:id`), ninguna de las dos existía antes de este Sprint.
+ *
+ * `role === 'instalador'`/`role === 'admin'` **no se tocan**: siguen
+ * renderizando `InstallerDashboard`/`CountRing`/`AdminPanel` exactamente
+ * igual que antes, inline, sin rutas propias -- fuera de alcance de este
+ * Sprint (exclusivamente "Coordinador").
+ *
+ * `sucursalCoord`/`setSucursalCoord` (estado de `SucursalSelect`,
+ * compartido con `PublishModal`) y las funciones para abrir
+ * `PublishModal`/`ConfirmCancelDialog` (ambos diálogos siguen montados acá,
+ * a nivel de shell, sin cambios) se exponen a las páginas del Coordinador
+ * vía `<Outlet context={...}/>` -- ver `RootLayoutOutletContext` (tipo
+ * exportado más abajo) y `useOutletContext()` en `DespachoPage.tsx`/
+ * `TrabajosPage.tsx`. No se usa Context de React (`createContext`) para
+ * esto porque es estado exclusivamente de este árbol de rutas, no global
+ * de la aplicación -- el propio mecanismo de Outlet context de React
+ * Router ya cubre ese alcance sin una capa nueva.
+ *
+ * ---------------------------------------------------------------------
+ * SPRINT 5.1.1 — Modo de Visualización del Administrador (superusuario MVP)
+ * ---------------------------------------------------------------------
+ * Regla metodológica nueva, temporal, vigente mientras el MVP no esté
+ * aprobado (ver `PROJECT_STATUS.md`/`README.md`): un usuario real `admin`
+ * puede visualizar temporalmente "Administración"/"Coordinador"/
+ * "Instalador" **sin cambiar de usuario ni de rol autenticado** -- ninguna
+ * llamada a Supabase Auth, ninguna escritura sobre `profile`/`admins`, y
+ * ninguna modificación a políticas RLS ocurre por esto. Es exclusivamente
+ * un cambio de qué rama de este componente se monta.
+ *
+ * **Por qué hizo falta código nuevo** (auditoría previa, reportada al
+ * usuario antes de escribir nada -- ver
+ * `docs/architecture/frontend/SPRINT_5_1_1_ADMIN_SUPERUSER_REPORT.md`):
+ * tanto el HTML oficial (`App()`, línea ~2111) como este archivo, hasta este
+ * Sprint, renderizan Coordinador/Instalador/Admin como 3 ramas
+ * mutuamente excluyentes -- nunca dos a la vez. No existe ningún
+ * `RoleGate`/`allowedRoles` genérico que "ampliar" alcance para lograr que
+ * una misma sesión vea las 3 a la vez; hace falta un estado nuevo que
+ * decida cuál mostrar. `adminVista` (abajo) es ese estado -- solo relevante
+ * cuando `profile.rol === 'admin'`, inerte para `coordinador`/`instalador`
+ * (mismo patrón ya establecido para `meId`, relevante solo para
+ * `instalador`). El control que lo cambia es `AdminVistaSwitch` (nuevo,
+ * ver su propio JSDoc para la justificación completa de por qué no
+ * reconstruye nada del HTML sino que es, por necesidad, un control nuevo).
+ *
+ * **Ramas reutilizadas, sin duplicar ninguna**: `adminVista === 'coordinador'`
+ * reutiliza exactamente el mismo `<Outlet context={outletContext}/>` y las
+ * mismas rutas `/despacho`/`/trabajos`/`/trabajos/:id` del Sprint 5.1 (el
+ * `useEffect` de más abajo navega a `/despacho` al entrar a esa vista, y
+ * de vuelta a `/` al salir, para mantener la URL consistente con lo que se
+ * muestra). `adminVista === 'instalador'` reutiliza exactamente el mismo
+ * `InstallerDashboard`/`CountRing` inline que ya usa `role === 'instalador'`
+ * -- sin ruta propia, igual que ya sucede hoy para instaladores reales
+ * (`/solicitudes`/`/mis-trabajos`/`/perfil` de `ARCHITECTURE.md §8` siguen
+ * sin implementarse para nadie, admin incluido). `adminVista ===
+ * 'administracion'` (default) reutiliza exactamente el mismo `<AdminPanel/>`
+ * que ya renderizaba `role === 'admin'` -- ningún componente "Admin" nuevo.
+ *
+ * **Ítems del brief sin equivalente real, no inventados** (reportados al
+ * usuario, quien confirmó la reinterpretación): "Publicar Trabajo" ya es
+ * alcanzable desde la vista Coordinador (`PublishModal`, botón dentro de
+ * `DespachoPage`, sin cambios) -- no es una pantalla nueva. "Ofertas" no
+ * existe con ese nombre; la pestaña real de `InstallerDashboard` es
+ * "Solicitudes" (`instTab === 'solicitudes'`). "Asignaciones" no existe en
+ * absoluto todavía -- reservado para el futuro Sprint 5.4 ("Asignación de
+ * Instaladores"), no validable en este Sprint.
+ *
+ * ---------------------------------------------------------------------
+ * AJUSTE FINAL (mismo Sprint 5.1.1) — `OperationalContextProvider`
+ * ---------------------------------------------------------------------
+ * Limitación real detectada tras la primera entrega: la vista
+ * "Coordinador" en modo superusuario dependía de `profile.tiendaId`, que
+ * es `null` por diseño para `admins` -- `DespachoPage`/`TrabajosPage`
+ * solo mostraban "Tu perfil de coordinador no tiene una tienda asignada".
+ * Por instrucción explícita del usuario (y como recomendación
+ * arquitectónica para no repetir `role === 'admin' && adminVista ===
+ * '...'` en cada Sprint futuro), este archivo ahora envuelve todo su
+ * árbol con `<OperationalContextProvider modo={modo}
+ * sucursalCoord={sucursalCoord}>` -- una única fuente de verdad
+ * (`useOperationalContext()`) que resuelve `empresaId`/`empresaNombre`/
+ * `tiendaId`/`tiendaNombre` de dos formas distintas según el caso
+ * (síncrona desde `profile` para roles reales; asíncrona, vía consulta
+ * real a `empresas`/`tiendas`, solo para `admin` viendo "Coordinador") --
+ * ver el JSDoc completo de `OperationalContextProvider.tsx` y
+ * `operational-context.service.ts`. `DespachoPage`/`TrabajosPage` ya no
+ * llaman a `useAuth()` para esto -- consumen únicamente
+ * `useOperationalContext()`, sin saber cuál de los dos caminos se usó.
+ *
+ * **Eliminación futura**: `adminVista`, el `useEffect` de sincronización
+ * de URL, `AdminVistaSwitch`, y el ensanchamiento de
+ * `CoordinatorIndexRedirect` en `AppRouter.tsx` se retiran íntegramente
+ * cuando el MVP sea aprobado, sin dejar lógica temporal residual --
+ * documentado también en `PROJECT_STATUS.md`. `OperationalContextProvider`/
+ * `useOperationalContext()` en sí **no** se eliminan -- son la
+ * abstracción permanente que los Sprints 5.2/5.3/5.4/6.x/7.x deben seguir
+ * usando; solo se retira, dentro de ese Provider, la rama de resolución
+ * `requiereResolucionSuperusuario` (ver `OperationalContextProvider.tsx`),
+ * porque a partir de ahí `esSuperusuario` nunca vuelve a ser `true`.
  */
 export function RootLayout() {
   const { profile, profileLoading, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sucursalCoord, setSucursalCoord] = useState('Multiplaza');
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [meId, setMeId] = useState('pty');
+  // Sprint 5.1.1 — solo tiene efecto cuando `profile.rol === 'admin'` (ver
+  // JSDoc "SPRINT 5.1.1" más arriba); inerte para `coordinador`/`instalador`,
+  // mismo criterio ya establecido para `meId` (solo relevante para
+  // `instalador`). Default 'administracion': un admin real sigue viendo su
+  // propia vista real al entrar, sin sorpresas.
+  const [adminVista, setAdminVista] = useState<AdminVista>('administracion');
 
   useEffect(() => {
     if (profileLoading) return;
@@ -536,83 +620,156 @@ export function RootLayout() {
     }
   }, [profile, profileLoading, logout, navigate]);
 
+  // Sprint 5.1.1 — mantiene la URL consistente con `adminVista` para un
+  // admin real (no aplica a `coordinador`/`instalador`, que nunca tienen
+  // `adminVista` distinto de su propio default inerte). "Coordinador" vive
+  // detrás de rutas reales (`/despacho`/`/trabajos`, Sprint 5.1) -- al
+  // entrar a esa vista, navega ahí (reutilizando exactamente esas rutas,
+  // sin crear ninguna); al salir, vuelve a `/` para no dejar la URL de
+  // Coordinador mostrando contenido de Instalador/Administración.
+  // `profile?.rol` (no `role`, todavía sin declarar en este punto) porque
+  // este Hook debe ejecutarse siempre, antes del `return` condicional de
+  // abajo -- mismo criterio que el resto de los Hooks de este componente.
+  useEffect(() => {
+    if (profile?.rol !== 'admin') return;
+
+    const enCoordinador =
+      location.pathname.startsWith('/despacho') || location.pathname.startsWith('/trabajos');
+
+    if (adminVista === 'coordinador' && !enCoordinador) {
+      navigate('/despacho');
+    } else if (adminVista !== 'coordinador' && enCoordinador) {
+      navigate('/', { replace: true });
+    }
+  }, [profile?.rol, adminVista, location.pathname, navigate]);
+
+  // Memoizado por el mismo motivo que `AuthProvider.value` (ver
+  // `providers/AuthProvider.tsx`): evita recrear el objeto de contexto -- y
+  // por lo tanto re-renderizar `<Outlet/>` y sus consumidores -- en cada
+  // render de `RootLayout` que no cambie ninguno de estos valores.
+  //
+  // CORRECCIÓN post Sprint 5.1 (Rules of Hooks): este `useMemo` se movió a
+  // este punto -- antes del `return` condicional de abajo -- porque los
+  // Hooks de React deben ejecutarse siempre en el mismo orden en cada
+  // render, y nunca después de un `return` condicional. Antes vivía luego
+  // del `if (profileLoading || !profile || ...) return <Loading .../>`, lo
+  // que hacía que se saltara por completo durante los renders de
+  // carga/perfil-nulo pero sí se ejecutara en los renders normales --
+  // exactamente el error que React reporta como "Rendered more hooks than
+  // during the previous render". `role` se quitó de este objeto (y de
+  // `RootLayoutOutletContext`, ver más abajo) porque ninguna página del
+  // Coordinador lo consume (`DespachoPage.tsx`/`TrabajosPage.tsx` sólo
+  // desestructuran `sucursalCoord`/`setSucursalCoord`/`onOpenPublish`/
+  // `onOpenConfirmCancel`) -- así el memo deja de depender de `profile` y
+  // puede calcularse sin importar si el perfil todavía está cargando o es
+  // `null`, sin necesidad de un valor de reemplazo inerte para `role`.
+  const outletContext: RootLayoutOutletContext = useMemo(
+    () => ({
+      sucursalCoord,
+      setSucursalCoord,
+      onOpenPublish: () => setShowPublishModal(true),
+      onOpenConfirmCancel: () => setConfirmCancelOpen(true),
+    }),
+    [sucursalCoord],
+  );
+
   if (profileLoading || !profile || profile.estado === 'suspendido') {
     return <Loading label="Cargando tu perfil…" />;
   }
 
   const role = profile.rol;
 
+  // Sprint 5.1.1 — para `coordinador`/`instalador` reales, la vista
+  // efectiva es siempre su propio rol (idéntico a antes de este Sprint,
+  // `adminVista` nunca se lee). Para `admin`, la vista efectiva la decide
+  // `adminVista` (`AdminVistaSwitch`) -- ver JSDoc "SPRINT 5.1.1" arriba.
+  const showCoordinador = role === 'coordinador' || (role === 'admin' && adminVista === 'coordinador');
+  const showInstalador = role === 'instalador' || (role === 'admin' && adminVista === 'instalador');
+  const showAdminPanel = role === 'admin' && adminVista === 'administracion';
+
+  // Sprint 5.1.1 (ajuste final) — "modo" del Contexto Operativo
+  // (`OperationalContextProvider`, ver su JSDoc completo): para
+  // `coordinador`/`instalador` reales coincide siempre con su propio rol;
+  // para `admin`, es la vista elegida en `AdminVistaSwitch`. Exhaustivo:
+  // `role` es siempre uno de los 3 valores de `Rol`.
+  const modo: ModoVisualizacion = role === 'admin' ? adminVista : role;
+
   return (
-    <div className="flex min-h-screen flex-col">
-      <Header role={role} profile={profile} onLogout={() => void logout()} />
-      <main className="flex-1">
-        {/* TEMPORARY INTEGRATION — Sprint 3.3 (fix de integración visual) + Sprint 3.4 (mx-suc-sel): ver comentario de la función. */}
-        {role === 'coordinador' && (
-          <div>
-            <SucursalSelect value={sucursalCoord} onChange={setSucursalCoord} />
-            <MxSubtabs>
-              <MxSubtabButton active icon={<Crosshair size={14} />}>
-                Despacho en vivo
-              </MxSubtabButton>
-              <MxSubtabButton active={false} icon={<ClipboardList size={14} />}>
-                Mis trabajos
-              </MxSubtabButton>
-            </MxSubtabs>
-            {/* TEMPORARY INTEGRATION — Sprint 3.6 (CoordinatorEmptyState): ver comentario de la función. */}
-            <CoordinatorEmptyState onOpenPublish={() => setShowPublishModal(true)} />
-            {/* TEMPORARY INTEGRATION — Sprint 3.7 (Radar): ver comentario de la función. */}
-            <Radar
-              notified={RADAR_DEMO_NOTIFIED}
-              instState={RADAR_DEMO_INST_STATE}
-              eligibleIds={ELIGIBLE_ORDER}
-            />
-            {/* TEMPORARY INTEGRATION — Sprint 3.9 (LiveCountdown): ver comentario de la función. */}
-            <LiveCountdown
-              publishedAt={LIVECOUNTDOWN_DEMO_PUBLISHED_AT}
-              bidMins={LIVECOUNTDOWN_DEMO_BID_MINS}
-            />
-            {/* TEMPORARY INTEGRATION — Sprint 3.15 (ConfirmCancelDialog): ver comentario de la función. */}
-            <button
-              type="button"
-              className="mx-btn mx-btn-ghost"
-              style={{ flex: 'none', color: 'var(--red)', borderColor: 'rgba(255,92,122,.35)' }}
-              onClick={() => setConfirmCancelOpen(true)}
-            >
-              <XCircle size={14} />
-              Cancelar
-            </button>
-          </div>
-        )}
-        {/* TEMPORARY INTEGRATION — Sprint 3.10 (InstallerDashboard, reemplaza la integración de Sprint 3.2.1/3.2.2): ver comentario de la función. */}
-        {role === 'instalador' && (
-          <>
-            <InstallerDashboard meId={meId} onMeIdChange={setMeId} />
-            {/* TEMPORARY INTEGRATION — Sprint 3.8 (CountRing): ver comentario de la función. */}
-            <CountRing remaining={COUNTRING_DEMO_REMAINING} total={COUNTRING_DEMO_TOTAL} />
-          </>
-        )}
-        {/* Sprint 3.13 (AdminPanel): integración real y directa — ver comentario de la función. */}
-        {role === 'admin' && <AdminPanel />}
-        {/* TEMPORARY INTEGRATION — Sprint 3.5 (PublishModal): ver comentario de la función. */}
-        <PublishModal
-          sucursal={sucursalCoord}
-          open={showPublishModal}
-          onOpenChange={setShowPublishModal}
-          onPublish={() => {
-            /* Sin lógica de negocio en este Sprint — ver comentario de la función. */
-          }}
-        />
-        {/* TEMPORARY INTEGRATION — Sprint 3.15 (ConfirmCancelDialog): ver comentario de la función. */}
-        <ConfirmCancelDialog
-          open={confirmCancelOpen}
-          onOpenChange={setConfirmCancelOpen}
-          onYes={() => {
-            /* Sin lógica de negocio en este Sprint — ver comentario de la función. */
-          }}
-        />
-        <Outlet context={{ role }} />
-      </main>
-      <Footer />
-    </div>
+    <OperationalContextProvider modo={modo} sucursalCoord={sucursalCoord}>
+      <div className="flex min-h-screen flex-col">
+        <Header role={role} profile={profile} onLogout={() => void logout()} />
+        <main className="flex-1">
+          {/* Sprint 5.1.1 — selector temporal de "modo de visualización",
+              exclusivo de `role === 'admin'` -- ver JSDoc "SPRINT 5.1.1" más
+              arriba y el JSDoc de `AdminVistaSwitch` para la justificación
+              completa. Se elimina íntegramente cuando el MVP sea aprobado. */}
+          {role === 'admin' && (
+            <div className="flex flex-wrap items-center gap-3 px-4 pt-3">
+              <AdminVistaSwitch vista={adminVista} onChange={setAdminVista} />
+              <Badge tone="amber">Modo temporal · MVP</Badge>
+            </div>
+          )}
+          {/* Sprint 5.1: el contenido de `role === 'coordinador'` vive ahora en
+              rutas reales (`/despacho`, `/trabajos`, `/trabajos/:id`) montadas
+              vía `<Outlet/>` -- ver JSDoc "SPRINT 5.1" más arriba. Sprint
+              5.1.1: `showCoordinador` también es `true` cuando un `admin` real
+              eligió la vista "Coordinador" en `AdminVistaSwitch`. */}
+          {showCoordinador && <Outlet context={outletContext} />}
+          {/* TEMPORARY INTEGRATION — Sprint 3.10 (InstallerDashboard, reemplaza la integración de Sprint 3.2.1/3.2.2): ver comentario de la función.
+              Sprint 5.1.1: `showInstalador` también es `true` cuando un `admin`
+              real eligió la vista "Instalador". */}
+          {showInstalador && (
+            <>
+              <InstallerDashboard meId={meId} onMeIdChange={setMeId} />
+              {/* TEMPORARY INTEGRATION — Sprint 3.8 (CountRing): ver comentario de la función. */}
+              <CountRing remaining={COUNTRING_DEMO_REMAINING} total={COUNTRING_DEMO_TOTAL} />
+            </>
+          )}
+          {/* Sprint 3.13 (AdminPanel): integración real y directa — ver comentario de la función.
+              Sprint 5.1.1: ahora gateado por `showAdminPanel` (`adminVista===
+              'administracion'`, el default) en vez de `role==='admin'` directo
+              -- mismo resultado para un admin real que no cambió de vista. */}
+          {showAdminPanel && <AdminPanel />}
+          {/* TEMPORARY INTEGRATION — Sprint 3.5 (PublishModal): ver comentario de la función. */}
+          <PublishModal
+            sucursal={sucursalCoord}
+            open={showPublishModal}
+            onOpenChange={setShowPublishModal}
+            onPublish={() => {
+              /* Sin lógica de negocio en este Sprint — ver comentario de la función. */
+            }}
+          />
+          {/* TEMPORARY INTEGRATION — Sprint 3.15 (ConfirmCancelDialog): ver comentario de la función. */}
+          <ConfirmCancelDialog
+            open={confirmCancelOpen}
+            onOpenChange={setConfirmCancelOpen}
+            onYes={() => {
+              /* Sin lógica de negocio en este Sprint — ver comentario de la función. */
+            }}
+          />
+        </main>
+        <Footer />
+      </div>
+    </OperationalContextProvider>
   );
+}
+
+/**
+ * RootLayoutOutletContext — forma del `<Outlet context={...}/>` que
+ * `RootLayout` expone a las rutas anidadas del Coordinador (Sprint 5.1).
+ * Consumido vía `useOutletContext<RootLayoutOutletContext>()` en
+ * `DespachoPage.tsx`/`TrabajosPage.tsx` -- ver JSDoc "SPRINT 5.1" arriba.
+ *
+ * CORRECCIÓN post Sprint 5.1: este tipo ya no incluye `role`. Ninguna
+ * página del Coordinador lo consumía (verificado por `grep` sobre
+ * `DespachoPage.tsx`/`TrabajosPage.tsx`) y quitarlo permite calcular
+ * `outletContext` -- vía `useMemo` -- sin depender de `profile`, lo cual
+ * era necesario para poder mover ese Hook antes del `return` condicional
+ * de `RootLayout` (ver comentario junto al `useMemo` más arriba).
+ */
+export interface RootLayoutOutletContext {
+  sucursalCoord: string;
+  setSucursalCoord: (value: string) => void;
+  onOpenPublish: () => void;
+  onOpenConfirmCancel: () => void;
 }

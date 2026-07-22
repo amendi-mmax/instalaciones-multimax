@@ -20,8 +20,15 @@
 | 3.12 | ✅ Completado | `InstallerJobs` (pantalla "Mis trabajos" del teléfono del Instalador, `function InstallerJobs()`) — nombre del brief confirmado exacto, ver notas abajo | `feature/sprint-3-12-installer-jobs` |
 | 3.13 | ✅ Completado | `AdminPanel`/`AdminInstaladores` (raíz del panel de Administrador, `function AdminPanel()` + `function AdminInstaladores()`) — no "Admin Dashboard" (nombre genérico, sin función real equivalente), ver notas abajo | `feature/sprint-3-13-admin-dashboard` |
 | 3.14 | ✅ Completado | `MasterCalendar` (calendario maestro del panel de Administrador, `function MasterCalendar()`) — nombre "Calendar" del brief confirmado exacto, integrado dentro de `AdminPanel`, ver notas abajo | `feature/sprint-3-14-calendar` |
-| 3.15 | ⏳ Pendiente | Shared Dialogs | `feature/sprint-3-15-dialogs` |
-| 3.16 | ⏳ Pendiente | Shared Components | `feature/sprint-3-16-shared-components` |
+| 3.15 | ✅ Completado | `ConfirmCancelDialog` (`function ConfirmCancel({ onYes, onNo })`) — no "Shared Dialogs" (nombre genérico), ver notas abajo | `feature/sprint-3-15-dialogs` |
+| 3.16 | ✅ Completado | `AssignedPanel`/`NoResponsePanel` (bloques de `Coordinator(props)` reconstruibles sin `jobs.length > 0`) — no "Shared Components" (nombre genérico) | `feature/sprint-3-16-shared-components` |
+
+> **Nota (Sprint 5.1, 2026-07-22)**: esta tabla quedó desactualizada tras el Sprint 3.14 — 3.15/3.16 ya estaban completados (confirmado por el JSDoc histórico de `RootLayout.tsx` y por `TODO.md`), pero seguían marcados "⏳ Pendiente" acá; se corrige en esta misma edición. A partir de Fase 4 (backend: Sprints 4.0.1, 4.0.2, 4.1.1 y sub-iteraciones, 4.1.1B, 4.1.1C, 4.2.1) el seguimiento Sprint-a-Sprint se llevó en `PROJECT_STATUS.md`/`PHASE_4.md` (formato distinto, ya no "un bloque HTML por Sprint" sino infraestructura/Auth) -- este archivo no se extendió para esos Sprints. Fase 5 ("Flujo Operativo") retoma este archivo desde Sprint 5.1 -- ver fila y detalle abajo -- sin backfillear retroactivamente las filas de Fase 4 (fuera de alcance de este Sprint; `PROJECT_STATUS.md`/`PHASE_4.md` siguen siendo la fuente autorizada para esos Sprints).
+
+| 5.1 | ✅ Completado | `DespachoPage`/`TrabajosPage`/`TrabajoDetailPage` (rutas reales `/despacho`/`/trabajos`/`/trabajos/:id`, `ARCHITECTURE.md §8`) — primer Sprint de Fase 5 ("Flujo Operativo") | *(sin rama Git — flujo Git manual del usuario)* |
+| 5.1.1 | 🟡 En revisión | `AdminVistaSwitch` (selector temporal "Modo de Visualización del Administrador" — Administración/Coordinador/Instalador, exclusivo de `admin`, sin tocar Auth/Supabase/RLS) — Sprint de navegación puro, sin funcionalidades nuevas. **Ajuste final (misma fecha)**: nueva abstracción permanente `OperationalContextProvider`/`useOperationalContext()` (`src/providers/`, `src/hooks/`), resuelve empresa/tienda reales (tablas `empresas`/`tiendas`) para el admin en Modo Coordinador sin usar `profile.tiendaId`; Coordinador real sin cambios. Ver `docs/architecture/frontend/SPRINT_5_1_1_ADMIN_SUPERUSER_REPORT.md` (secc. 11) | *(sin rama Git — flujo Git manual del usuario)* |
+
+> **Actualización de metodología documental (2026-07-22)**: a partir de la Fase 5, este archivo queda formalizado como el **índice maestro** del proyecto (todas las fases, todos los Sprints, orden cronológico, estado, dependencias, roadmap) y reemplaza por completo a los futuros archivos `PHASE_X.md` — no se crean `PHASE_5.md`/`PHASE_6.md`/etc. Los `PHASE_1.md`–`PHASE_4.md` existentes quedan como registro histórico de las fases que ya documentan, no como plantilla para las siguientes. Ver `PROJECT_STATUS.md` (sección "Actualización de metodología documental") para el detalle completo de esta decisión.
 
 ## Estado real del proyecto (resumen, actualizado 2026-07-10)
 
@@ -85,3 +92,5 @@ Para el análisis previo, implementación, correcciones y validaciones línea po
 - `docs/sprints/sprint-3.12.md`
 - `docs/sprints/sprint-3.13.md`
 - `docs/sprints/sprint-3.14.md`
+
+Desde Fase 4, el detalle por Sprint se documenta en `docs/architecture/frontend/SPRINT_<fase>_<n>_<nombre>_REPORT.md` en vez de `docs/sprints/sprint-X.Y.md` (convención vigente desde Sprint 4.1.1B). Para Sprint 5.1 ("Dashboard y Vista Operativa del Coordinador"), ver `docs/architecture/frontend/SPRINT_5_1_COORDINATOR_REPORT.md`.

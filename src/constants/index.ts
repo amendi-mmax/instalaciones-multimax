@@ -691,3 +691,90 @@ export const REVEAL: RevealMock = {
     telefono: '+507 6123-4567',
   },
 };
+
+/**
+ * `TRABAJO_ESTADO_INFO` / `trabajoEstadoInfo` — mapeo tono/etiqueta para la
+ * columna `estado` REAL de la tabla `trabajos` (Sprint 5.1, "Dashboard y
+ * Vista Operativa del Coordinador"). NO confundir con `ESTADO`/`EstadoUiKey`
+ * (arriba en este mismo archivo): ese catálogo es del mock `MISJOBS`/
+ * `TRABAJOS` del HTML fuente (vocabulario en español: `en_vivo`/`asignado`/
+ * `completado`/`cancelado`/`confirmado`/`pendiente`), un dataset de
+ * demostración sin relación con la tabla real de Producción.
+ *
+ * `trabajos.estado` en Producción es `text` libre, **sin CHECK ni ENUM**
+ * (confirmado en `docs/database/DATABASE_INVENTORY.md` §2.6 -- "0 tipos
+ * ENUM personalizados en `public`"), con default `'live'` (también
+ * confirmado ahí). Los otros 3 valores de `TrabajoEstadoReal` de abajo
+ * (`assigned`/`completed`/`cancelled`) son **inferidos, no verificados
+ * contra Producción**: se toman del modelo `job.phase` del prototipo
+ * original (`Multimax_Despacho_v1.3.html`, línea ~139:
+ * `CHECK (phase IN ('live','assigned','completed','cancelled'))`, en el
+ * schema legacy) porque `asignar_instalador`/`set_bid_cierra_at` (las
+ * únicas funciones reales que escriben esta columna, ver
+ * `DATABASE_INVENTORY.md` §2.6) no tienen su cuerpo SQL documentado en
+ * ningún archivo de este repositorio -- no hay forma de confirmar el
+ * vocabulario exacto sin ejecutar `SELECT DISTINCT estado FROM trabajos`
+ * contra Producción real (bloqueado en este entorno de trabajo, ver
+ * `SPRINT_4_2_1_AUTH_REPORT.md` sobre la restricción de red del sandbox).
+ *
+ * Por eso `trabajoEstadoInfo()` es defensiva: si `estado` no es una de las
+ * 4 claves conocidas, no oculta el dato ni lo reclasifica -- devuelve un
+ * tono `muted` con la etiqueta siendo el valor crudo tal cual vino de la
+ * base de datos. Ningún trabajo queda invisible por un valor inesperado.
+ */
+export type TrabajoEstadoReal = 'live' | 'assigned' | 'completed' | 'cancelled';
+
+export const TRABAJO_ESTADO_INFO: Record<TrabajoEstadoReal, EstadoUiInfo> = {
+  live: { tone: 'amber', label: 'En vivo' },
+  assigned: { tone: 'violet', label: 'Asignado' },
+  completed: { tone: 'green', label: 'Completado' },
+  cancelled: { tone: 'red', label: 'Cancelado' },
+};
+
+export function trabajoEstadoInfo(estado: string): EstadoUiInfo {
+  return (
+    TRABAJO_ESTADO_INFO[estado as TrabajoEstadoReal] ?? {
+      tone: 'muted',
+      label: estado,
+    }
+  );
+}
+
+/**
+ * `TRABAJOS_FILTROS` — chips de filtro de "Mis trabajos" (Sprint 5.1),
+ * mismo patrón visual que `filtros` dentro de `CoordinatorJobs()`
+ * (`Multimax_Despacho_v1.3.html`, línea 2671: `[["todos","Todos"],
+ * ["en_vivo","En vivo"], ["asignado","Asignados"],
+ * ["completado","Completados"], ["cancelado","Cancelados"]]`), pero con
+ * las claves de `TrabajoEstadoReal` (arriba) en vez del vocabulario en
+ * español del mock, ya que este Sprint filtra trabajos reales.
+ */
+export const TRABAJOS_FILTROS: readonly (readonly [
+  'todos' | TrabajoEstadoReal,
+  string,
+])[] = [
+  ['todos', 'Todos'],
+  ['live', 'En vivo'],
+  ['assigned', 'Asignados'],
+  ['completed', 'Completados'],
+  ['cancelled', 'Cancelados'],
+] as const;
+
+/**
+ * EMPRESA_MVP_SLUG — slug real (`empresas.slug`, columna `UNIQUE`) de la
+ * única empresa que administra el proyecto durante el MVP (Sprint 5.1.1,
+ * "Ajuste final -- Modo Administrador Superusuario"). Verificado contra la
+ * fuente real: `supabase/seed.sql` §1 (`INSERT INTO empresas (nombre, slug)
+ * VALUES ('Multimax', 'multimax')`) -- no es un valor inventado ni un UUID
+ * hardcodeado, es el mismo slug real ya sembrado en Producción.
+ *
+ * Único consumidor: `operational-context.service.ts`, para resolver la
+ * "empresa activa" del Modo de Visualización del Administrador *sin*
+ * depender de `profile.empresaId` del admin autenticado -- instrucción
+ * explícita del usuario ("La empresa NO deberá obtenerse del perfil del
+ * administrador. La empresa deberá obtenerse desde la configuración real
+ * existente del proyecto"), independientemente de que hoy coincidan. Un
+ * Coordinador/Instalador real nunca usa esta constante -- siguen
+ * resolviendo su empresa desde `profile.empresaId`, sin cambios.
+ */
+export const EMPRESA_MVP_SLUG = 'multimax' as const;

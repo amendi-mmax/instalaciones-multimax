@@ -2,6 +2,111 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 5 — Sprint 5.1.1 — AJUSTE FINAL — Contexto Operativo real para el Administrador Superusuario] — 2026-07-22
+
+Ronda de ajuste sobre el mismo Sprint 5.1.1 (no un Sprint nuevo), por instrucción explícita del usuario, que resuelve la "Limitación real, no corregida" documentada en la entrada anterior de este mismo archivo (ver abajo): la vista "Coordinador" en Modo de Visualización superusuario mostraba "Tu perfil de coordinador no tiene una tienda asignada" en vez de datos reales, porque `Perfil.tiendaId` es `null` por diseño para `admins`.
+
+**Regla temporal del ajuste (obligatoria, respetada)**: la nueva lógica solo corre cuando `role === 'admin'` **y** el selector temporal indica `adminVista === 'coordinador'`. Un Coordinador real continúa usando exactamente `profile.tiendaId`, sin ningún cambio de comportamiento.
+
+**Auditoría previa — 1 discrepancia real detectada y resuelta antes de escribir código** (no requirió `AskUserQuestion`, se resolvió cruzando fuentes de verdad ya existentes en el proyecto): `supabase/migrations/0001_initial_schema.sql` define una tabla `sucursales`, pero esa migración está **stale/superada** -- el schema real confirmado por pg_dump (`src/types/database.generated.ts`, generado vía `supabase gen types typescript --linked`), el `TABLES` de `src/lib/supabase/config.ts`, y el repositorio ya existente `src/repositories/tiendas.repository.ts` (Sprint 4.1.1) confirman que la tabla real es **`tiendas`**, no `sucursales`. Esta tensión es preexistente y ya documentada en el proyecto (las migraciones nunca se regeneraron contra el pg_dump real); no se corrigió la migración en este ajuste por estar fuera de alcance -- solo se evitó el error de escribir código nuevo contra la tabla equivocada.
+
+**Nueva abstracción permanente — "Contexto Operativo"** (recomendación arquitectónica obligatoria del propio brief: no distribuir `role === 'admin' && adminVista === 'coordinador'` en múltiples archivos): sigue el patrón ya establecido en el proyecto para contextos de React (`AuthContext`/`AuthProvider`/`useAuth`, `SessionContext`/`SessionProvider`/`useSession`):
+
+- `src/providers/operational-context.context.ts` (NUEVO) — `OperationalContext`, tipos `ModoVisualizacion` y `OperationalContextValue` (`modo`, `esSuperusuario`, `empresaId`, `empresaNombre`, `tiendaId`, `tiendaNombre`, `loading`, `error`).
+- `src/providers/OperationalContextProvider.tsx` (NUEVO) — recibe `modo`/`sucursalCoord`/`children`. Para un Coordinador/Instalador real (o un admin fuera de Modo Coordinador), reexpone síncronamente los datos ya existentes de `profile` (`empresaId`/`empresaNombre`/`tiendaId`/`tiendaNombre`), sin tocarlos. Solo cuando `esSuperusuario && modo === 'coordinador'`, resuelve de forma asíncrona y real la tienda activa contra las tablas reales `empresas`/`tiendas`, usando la sucursal ya seleccionada en el `SucursalSelect` existente (sin crear ningún selector nuevo).
+- `src/services/operational-context.service.ts` (NUEVO) — `resolveSuperusuarioTienda(sucursalNombre)`: `empresasRepository.getBySlug('multimax')` (empresa real Multimax, único tenant activo del proyecto, slug confirmado en `supabase/seed.sql`) → `tiendasRepository.getByEmpresaId(empresa.id)` → busca la fila cuyo `nombre` coincide con la sucursal seleccionada. Reutiliza únicamente repositorios ya existentes (`empresasRepository`/`tiendasRepository`, Sprint 4.1.1); ningún mock, ninguna constante duplicada, ningún UUID hardcodeado.
+- `src/hooks/useOperationalContext.ts` (NUEVO) — hook público, mismo patrón exacto que `useAuth.ts`.
+- `src/constants/index.ts` — agregado `EMPRESA_MVP_SLUG = 'multimax'` (el slug real sembrado, no un mock ni un UUID).
+
+### Modificado
+
+- `src/layouts/RootLayout.tsx` — envuelve el árbol renderizado en `<OperationalContextProvider modo={modo} sucursalCoord={sucursalCoord}>`, con `modo = role === 'admin' ? adminVista : role`. Ningún cambio a `adminVista`/`AdminVistaSwitch`/las 3 rutas ya existentes.
+- `src/pages/coordinator/DespachoPage.tsx` — ya no lee `profile.tiendaId` (vía `useAuth()`); lee `tiendaId`/`loading`/`error` de `useOperationalContext()`. Limpia `kpis`/`kpisError` mientras el contexto resuelve, para no dejar en pantalla datos de la tienda anterior al cambiar de sucursal.
+- `src/pages/coordinator/TrabajosPage.tsx` — mismo cambio, para `tiendaId`/`tiendaNombre`.
+- `src/services/index.ts`, `src/providers/index.ts`, `src/hooks/index.ts` — nuevos exports de barrel para lo anterior.
+- `PROJECT_STATUS.md` — addendum "ACTUALIZACIÓN — Ajuste final..." en la sección de metodología y en el estado del Sprint 5.1.1, marcando la limitación anterior como resuelta (sin borrar la narrativa original).
+- `docs/SPRINTS_INDEX.md` — fila `5.1.1` actualizada con una nota del ajuste.
+- `docs/architecture/frontend/SPRINT_5_1_1_ADMIN_SUPERUSER_REPORT.md` — nueva sección 11 ("Ajuste final...") agregada al final, sin modificar las secciones 0-10 originales.
+
+**Confirmaciones explícitas**: NO se modificó Autenticación, Roles, Supabase, Policies ni RLS -- `AuthProvider.tsx`/`SessionProvider.tsx`/`auth.service.ts`/`supabase.service.ts`/migraciones/escrituras de `profile.rol` permanecen intactos. Un Coordinador real sigue usando exactamente `profile.tiendaId` (comportamiento idéntico, cero regresión). El admin autenticado sigue siendo `admin` en todo momento -- no hay impersonación.
+
+**Validación técnica**: `tsc --noEmit` (instalación global) ejecutado 3 veces durante este ajuste (tras crear el Provider, tras actualizar las páginas, y una corrida final consolidada) sobre los 13 archivos nuevos/modificados de este ajuste -- únicamente diagnósticos del mismo patrón de artefactos de entorno ya clasificado (`TS2307`/`TS2875`/`TS7026`/`TS2322`/`TS7006`), cero `TS6133` (import/variable sin usar), cero errores de sintaxis. `npm run lint`/`typecheck`/`build`/`dev` reales quedan pendientes de ejecución por el usuario en su propio entorno (sin `node_modules`/red en este entorno de trabajo).
+
+## [Fase 5 — Sprint 5.1.1 — Implementación del modo Administrador Superusuario (MVP)] — 2026-07-22 — 🟡 En revisión
+
+Sprint exclusivamente de navegación, sin funcionalidades nuevas, sin modificar la lógica de Coordinador/Instalador, Auth, Supabase, RLS ni políticas (por instrucción explícita del usuario). Detalle técnico completo en `docs/architecture/frontend/SPRINT_5_1_1_ADMIN_SUPERUSER_REPORT.md`.
+
+**Auditoría previa (obligatoria por brief) — 2 discrepancias detectadas y resueltas con el usuario antes de escribir código**:
+
+1. El brief pedía "ampliar `allowedRoles`, no inventar UI" -- ni el HTML oficial ni el código tenían un `RoleGate` genérico; Coordinador/Instalador/Admin son 3 ramas mutuamente excluyentes en ambos, y ampliar un array de roles no alcanza para alternar entre las 3 en una misma sesión. **Decisión del usuario: selector temporal de modo, exclusivo de `admin`**, sin tocar `profile.rol`/Auth/Supabase/RLS.
+2. "Publicar Trabajo"/"Ofertas"/"Asignaciones" del checklist del brief no tienen equivalente real exacto. **Decisión: reinterpretar los dos primeros contra lo real** (`PublishModal` ya existente / pestaña real "Solicitudes"), **"Asignaciones" documentada como no validable** (no existe, reservada para Sprint 5.4).
+
+### Añadido
+
+- `src/components/shared/admin-vista-switch.tsx` (NUEVO, único componente nuevo de este Sprint) — selector presentacional "Administración/Coordinador/Instalador", reutiliza `MxSubtabs`/`MxSubtabButton` (Sprint 3.3) sin estilos/markup nuevos.
+- `docs/architecture/frontend/SPRINT_5_1_1_ADMIN_SUPERUSER_REPORT.md` (NUEVO).
+
+### Modificado
+
+- `src/layouts/RootLayout.tsx` — nuevo estado `adminVista` (inerte para `coordinador`/`instalador`), 1 `useEffect` de sincronización de URL (navega a `/despacho` al entrar a la vista Coordinador, vuelve a `/` al salir), y 3 booleanos derivados (`showCoordinador`/`showInstalador`/`showAdminPanel`) que amplían las comparaciones de rol existentes con `role === 'admin' && adminVista === '...'`. Montaje condicional de `AdminVistaSwitch` + `Badge` ("Modo temporal · MVP"), visible solo para `role === 'admin'`.
+- `src/routes/AppRouter.tsx` — `CoordinatorIndexRedirect` ampliado de `profile?.rol === 'coordinador'` a incluir `admin` (seguro: solo se monta cuando `RootLayout` ya decidió mostrar el `Outlet` de Coordinador). Ninguna ruta nueva creada.
+- `PROJECT_STATUS.md` — nueva sección "Regla permanente del MVP — Modo de Visualización del Administrador" + estado del Sprint 5.1.1.
+- `docs/SPRINTS_INDEX.md` — nueva fila 5.1.1.
+
+**Limitación real, no corregida (fuera de alcance de este Sprint)**: la vista "Coordinador" en modo superusuario no muestra KPIs/Cola de Trabajos reales para el admin -- `Perfil.tiendaId` es `null` por diseño para `admins` (solo `coordinadores` tiene `tienda_id` en el schema real), así que se ve el mismo mensaje ya existente "Tu perfil de coordinador no tiene una tienda asignada". Corregirlo requeriría modificar `dashboard.service.ts`/la lógica de scoping del Coordinador, explícitamente fuera de alcance ("no modificar la lógica del Coordinador"). La vista "Instalador" no tiene esta limitación (100% presentacional/mock, sin dependencia de `profile` todavía).
+
+**Validación técnica**: `tsc --noEmit` (instalación global) sobre los 3 archivos tocados/nuevos -- únicamente diagnósticos del mismo patrón de artefactos de entorno ya clasificado (`TS2307`/`TS2875`/`TS7026`/`TS2322`, verificado cruzando contra `coordinator-subtabs.tsx`/`TrabajoDetailPage.tsx`, ya aprobados, que producen el mismo patrón). Sin `TS6133` (imports/variables sin usar), sin errores de sintaxis, sin diagnósticos nuevos atribuibles a este Sprint. Revisión manual confirma que el orden de Hooks de `RootLayout.tsx` (corregido en la ronda anterior) se mantiene intacto. `npm run lint`/`typecheck`/`build`/`dev` reales quedan pendientes de ejecución por el usuario (sin `node_modules`/red en este entorno de trabajo).
+
+## [Actualización de metodología documental — no más archivos PHASE_X.md] — 2026-07-22
+
+Ronda exclusivamente documental, sin cambios de código fuente, componentes, rutas, Supabase ni permisos (por instrucción explícita del usuario). Formaliza una regla permanente adicional sobre la metodología ya vigente desde el Sprint 3.1: **a partir de la Fase 5 no se crean más archivos `PHASE_X.md`** (`PHASE_5.md`, `PHASE_6.md`, `PHASE_7.md`, etc.).
+
+**Verificación previa realizada**: se buscó (`grep -rn` recursivo sobre todo `.md` del proyecto, incluidos `supabase/README.md` y `docs/`) cualquier referencia a `PHASE_5.md`/`PHASE_6.md`/`PHASE_7.md`/`PHASE_X.md`. No se encontró ninguna — no había ninguna referencia futura que eliminar o sustituir.
+
+**Regla formalizada**: `PHASE_1.md`–`PHASE_4.md` (ya existentes) se conservan únicamente como documentación histórica de las fases que documentan; no se modifican salvo correcciones puntuales de contenido ya escrito, y no sirven de plantilla para fases nuevas. Toda la planificación y el estado del proyecto se mantienen de aquí en adelante mediante: `PROJECT_STATUS.md` (estado general), `docs/SPRINTS_INDEX.md` (índice maestro de fases/Sprints, reemplaza a los futuros `PHASE_X.md`), `CHANGELOG.md` (historial de cambios), `README.md` (solo cuando cambie arquitectura/instalación/estructura general/estado del MVP) y un reporte técnico por Sprint (`docs/architecture/frontend/SPRINT_<fase>_<n>_..._REPORT.md`).
+
+### Modificado
+
+- `PROJECT_STATUS.md` — nueva sección "Actualización de metodología documental (Fase 5, 2026-07-22)".
+- `docs/SPRINTS_INDEX.md` — nueva nota formalizando este archivo como índice maestro, reemplazo de los futuros `PHASE_X.md`.
+- `README.md` — nueva regla permanente documentando que no se crean más archivos `PHASE_X.md` a partir de la Fase 5.
+
+**Hallazgo reportado, no corregido en esta ronda** (fuera del alcance "exclusivamente documental" de este brief, que pedía aplicar la metodología, no auditar/backfillear contenido de Sprints ya cerrados): la sección "Estado del proyecto" de `README.md` sigue sin mencionar la Fase 5/Sprint 5.1 — quedó desactualizada desde el cierre de Sprint 4.2.1 y no se actualizó cuando se implementó el Sprint 5.1. Se deja reportado para que el usuario decida si se corrige en una ronda futura.
+
+## [Fase 5 — Sprint 5.1 — Dashboard y Vista Operativa del Coordinador] — 2026-07-22 — 🟡 En revisión
+
+Primer Sprint de la nueva Fase 5 ("Flujo Operativo"). Construye la Vista Operativa real del Coordinador sobre la infraestructura de Auth de Fase 4 (`useAuth()`/`profile.tiendaId`) y los componentes visuales ya aprobados de Fase 3 (`Radar`/`LiveCountdown`/`CoordinatorEmptyState`/`MxSubtabs`/`SucursalSelect`/`StatTile`). Detalle técnico completo, incluida la auditoría previa obligatoria contra `Multimax_Despacho_v1.3.html`, en `docs/architecture/frontend/SPRINT_5_1_COORDINATOR_REPORT.md`.
+
+**Auditoría previa (obligatoria por brief) — 3 discrepancias detectadas y resueltas con el usuario antes de escribir código** (ver el reporte completo para el detalle y la evidencia de cada una):
+
+1. El brief pedía un Sidebar lateral -- el HTML oficial no tiene ninguno (navegación real: 2 subtabs horizontales). **Decisión del usuario: no crear Sidebar**, reutilizar `MxSubtabs`/`MxSubtabButton` (Sprint 3.3) con routing real.
+2. El brief pedía una pantalla "Dashboard" con KPIs -- no existe en el HTML oficial. **Decisión del usuario: integrar los KPIs como fila superior de la vista oficial "Despacho en vivo"**, sin crear una pantalla nueva.
+3. El brief pedía "Calendario"/"Instaladores" en el menú del Coordinador -- ambos son Admin-only en el HTML oficial, y el propio brief excluye "Gestión de Instaladores" de este Sprint. **Decisión del usuario: omitir ambos** por ahora.
+
+### Añadido
+
+- `src/services/dashboard.service.ts` (NUEVO) — `getCoordinatorKpis`/`getTrabajosByTienda`/`getTrabajoDetalle`, capa de servicio real (no mock) sobre `trabajosRepository`, ya con policies RLS reales para coordinadores.
+- `src/components/shared/coordinator-kpi-row.tsx` (NUEVO) — KPIs (pendientes/activos/finalizados/programados hoy) reutilizando `StatGrid`/`StatTile` (Fase 3).
+- `src/components/shared/coordinator-subtabs.tsx` (NUEVO) — conecta `MxSubtabs`/`MxSubtabButton` (Sprint 3.3, antes sin `onClick`) a rutas reales `/despacho`/`/trabajos`.
+- `src/components/shared/trabajo-row.tsx` (NUEVO) — fila de "Cola de Trabajos" (Cliente/Dirección/Instalación/Estado/Fecha/Prioridad/Acciones), extiende `.mx-jobrow` (Sprint 3.14).
+- `src/pages/coordinator/DespachoPage.tsx` (NUEVO) — ruta `/despacho`, landing real del Coordinador.
+- `src/pages/coordinator/TrabajosPage.tsx` (NUEVO) — ruta `/trabajos`, "Cola de Trabajos" real.
+- `src/pages/coordinator/TrabajoDetailPage.tsx` (NUEVO) — ruta `/trabajos/:id`, primera implementación de esta ruta planificada desde `ARCHITECTURE.md §8`.
+- `docs/architecture/frontend/SPRINT_5_1_COORDINATOR_REPORT.md` (NUEVO).
+- `src/constants/index.ts` — `TRABAJO_ESTADO_INFO`/`trabajoEstadoInfo`/`TRABAJOS_FILTROS` (vocabulario real de `trabajos.estado`, documentado como inferido/no verificado contra Producción).
+- `src/styles/globals.css` — `.mx-jobrow-side`/`.mx-jobrow-price`/`.mx-chevr`/`.mx-jobfilter`/`.mx-detail-grid`/`.mx-kv*`/`.mx-timeline`/`.mx-tl*`/`.mx-detailacts`, portadas verbatim del HTML fuente (pendientes desde los Sprints 3.10/3.14).
+
+### Modificado
+
+- `src/layouts/RootLayout.tsx` — el bloque `role === 'coordinador'` (antes inline: `SucursalSelect`+subtabs estáticas+`CoordinatorEmptyState`/`Radar`/`LiveCountdown`/botón "Cancelar") pasa a `<Outlet context={...}/>`, con ese mismo contenido reubicado verbatim a `DespachoPage.tsx` (cero cambios de comportamiento). `role === 'instalador'`/`role === 'admin'` sin cambios.
+- `src/routes/AppRouter.tsx` — rutas hijas de `/` (`index`, `/despacho`, `/trabajos`, `/trabajos/:id`); `CoordinatorIndexRedirect` redirige `/` a `/despacho` cuando `profile.rol === 'coordinador'`.
+- `src/services/index.ts` — exporta las nuevas funciones de `dashboard.service.ts`.
+- `PROJECT_STATUS.md`/`TODO.md`/`docs/SPRINTS_INDEX.md` — nuevas secciones/filas de Sprint 5.1; corrección de 2 filas desactualizadas en `SPRINTS_INDEX.md` (Sprints 3.15/3.16 ya estaban completados, seguían marcados "⏳ Pendiente").
+
+### Qué NO se hizo (excluido explícitamente por el propio brief de este Sprint)
+
+Motor de "Flujo de Ofertas" (radar/bids en tiempo real contra un trabajo activo -- Sprint 5.3), conexión real de `PublishModal` a la tabla `trabajos` (Sprint 5.2), Asignación de Instaladores (Sprint 5.4), Gestión de Empresas, Gestión de Instaladores, CRUD de Coordinadores, Notificaciones. Ningún código de autenticación validado (Sprint 4.2.1) fue modificado.
+
 ## [Fase 4 — Sprint 4.2.1 — Sistema de Autenticación y Experiencia de Inicio de Sesión] — 2026-07-21, cerrado 2026-07-22 — ✅ Completado
 
 Primer Sprint de Fase 4 con autenticación real de punta a punta: login con correo/contraseña, sesión, resolución de perfil/rol real, recuperación de contraseña, rutas protegidas. Detalle técnico completo en `docs/architecture/frontend/SPRINT_4_2_1_AUTH_REPORT.md` y `ARCHITECTURE.md §14.9`.
