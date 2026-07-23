@@ -8,6 +8,9 @@ import { Header } from '@/components/shared/header';
 import type { JobSummaryCardJob } from '@/components/shared/job-summary-card';
 import { PublishModal, type PublishForm } from '@/components/shared/publish-modal';
 import { SucursalSelect } from '@/components/shared/sucursal-select';
+import { Toast, ToastViewport, type ToastTone } from '@/components/ui/toast';
+import { trabajosRepository } from '@/repositories';
+import type { TableInsert } from '@/services/database.service';
 import { useAuth } from '@/hooks/useAuth';
 import { useOperationalContext } from '@/hooks/useOperationalContext';
 
@@ -214,6 +217,78 @@ import { useOperationalContext } from '@/hooks/useOperationalContext';
  * `CoordinatorEmptyState`). El propio `ConfirmDialog` ya cierra el diálogo
  * (`onOpenChange(false)`) después de invocar `onConfirm`/`onYes` — no hace
  * falta ningún cambio adicional acá para eso.
+ *
+ * ---------------------------------------------------------------------
+ * Cambio — Sprint 5.2.2.1 ("Persistencia del trabajo publicado — Supabase")
+ * ---------------------------------------------------------------------
+ * `onPublish` deja de construir un Job 100% en memoria — ahora persiste el
+ * trabajo real en Supabase antes de llamar a `setActiveJob`. Único cambio de
+ * arquitectura permitido por este Sprint ("reemplazar el origen del
+ * ActiveJob", nada más): el flujo pasa de
+ * `PublishForm → objeto temporal → setActiveJob()` a
+ * `PublishForm → INSERT en "trabajos" (Supabase) → fila creada →
+ * ActiveJob → setActiveJob()`.
+ *
+ * **Auditoría previa (resumen; ver el reporte técnico completo para el
+ * detalle línea por línea, incluida la consulta previa al usuario sobre 3
+ * puntos que el propio brief pedía confirmar antes de escribir código)**:
+ *
+ * - **Tabla real**: `trabajos` (`TABLES.trabajos`,
+ *   `trabajos.repository.ts`, `docs/database/DATABASE_INVENTORY.md` §2.6),
+ *   coincide con `database.generated.ts` — se reutiliza
+ *   `trabajosRepository.create()` TAL CUAL (ya existía desde el Sprint
+ *   4.1.1, cero cambios a ese archivo, `Regla: no modificar el
+ *   repositorio`).
+ * - **Columnas obligatorias del INSERT** (sin `?` en `TableInsert<'trabajos'>`):
+ *   `codigo` (generado con el mismo criterio que el HTML oficial,
+ *   `"JOB-" + Math.floor(Math.random()*9000+1000)` — ya usado antes de este
+ *   Sprint para el `id` del Job temporal), `coordinador_id` (`profile.id`,
+ *   el mismo id de `auth.users`/`coordinadores` del Coordinador
+ *   autenticado), `empresa_id`/`tienda_id` (`useOperationalContext()`, ya
+ *   resueltos por ese mismo Provider para el bloque de KPIs — ninguna
+ *   consulta nueva), `fecha`/`hora`/`provincia`/`tipo`/`zona` (directos del
+ *   `PublishForm` ya validado por Sprint 5.2.1 Fix). El resto de columnas
+ *   (`tipo_inmueble`/`calle`/`equipo`/`requisitos`/`extra`/
+ *   `precio_sugerido`/`urgente`/`bid_minutos`) son opcionales/nullable en el
+ *   schema real — se envían igual, directas del formulario, sin inventar
+ *   ningún valor.
+ * - **`ActiveJob` se construye con un único `INSERT...RETURNING`** (el mismo
+ *   `.select().single()` que ya usa `trabajosRepository.create()`) — sin
+ *   consultas adicionales. Única excepción: `sucursal` (nombre visible de la
+ *   tienda, ej. "San Francisco") NO se guarda como columna en `trabajos`
+ *   (la tabla solo tiene `tienda_id`, un uuid) — se toma directo de
+ *   `form.sucursal` (el mismo string ya tecleado/elegido en el formulario),
+ *   igual que el Job temporal anterior ya hacía.
+ * - **RLS**: existe una policy real, "coordinadores publican en su tienda"
+ *   (INSERT, scope "tienda propia" — `docs/database/DATABASE_INVENTORY.md`
+ *   §7, fila 7). Por instrucción explícita del usuario, este Sprint NO
+ *   introduce ningún caso especial para el modo Administrador/superusuario
+ *   (`esSuperusuario`) — el INSERT se intenta igual para cualquier rol; si
+ *   la policy lo rechaza, el mismo manejo de error de abajo lo cubre sin
+ *   ninguna rama adicional. La primera prueba real de este flujo se hará
+ *   con el usuario Coordinador ya sembrado en Supabase (mismo UUID en
+ *   `auth.users`/`coordinadores`) — pendiente de esa prueba para confirmar
+ *   si hace falta algún ajuste futuro.
+ * - **Mensaje de error ("mostrar mensaje de error existente")**: se
+ *   auditó que no existía ningún elemento ya cableado en el flujo Publish
+ *   para un error de envío (`FieldError`, Sprint 5.2.1 Fix, es un concepto
+ *   distinto — validación de formulario, no fallo de Supabase). Por
+ *   instrucción explícita del usuario, se reutiliza el ÚNICO precedente real
+ *   de la app (`Toast`/`ToastViewport`, `ui/toast.tsx`, ya existentes,
+ *   documentados ahí como "estructura solamente, sin cola/Provider global")
+ *   con el MISMO patrón de cola local (`useState`+`pushToast`/`dismissToast`)
+ *   ya establecido en `LoginPage.tsx` — ningún componente nuevo, ningún
+ *   sistema de mensajes nuevo, segunda aplicación de un patrón ya aprobado.
+ *   `FieldError` no se toca -- sigue exclusivamente para validación de
+ *   campos.
+ *
+ * **Qué NO cambió**: `PublishModal` (props/estructura/validaciones,
+ * intactas), `ConfirmCancelDialog`, `Header`/`Footer`/`SucursalSelect`/
+ * `CoordinatorSubtabs`, `CoordinatorLayoutOutletContext` (misma forma de
+ * siempre — `DespachoPage.tsx` no necesitó ningún cambio, sigue leyendo
+ * `activeJob` igual que antes; solo cambió CÓMO se produce ese valor).
+ * `trabajos.repository.ts`/policies RLS/`OperationalContextProvider.tsx`:
+ * cero cambios.
  */
 export interface CoordinatorLayoutProps {
   sucursalCoord: string;
@@ -231,6 +306,26 @@ export interface CoordinatorLayoutProps {
   adminSwitchSlot?: ReactNode;
 }
 
+/**
+ * Toast local de esta capa — Sprint 5.2.2.1. Mismo patrón exacto ya
+ * aprobado y en producción en `LoginPage.tsx` (cola `useState` +
+ * `pushToast`/`dismissToast`, sin Provider/Context global — ver JSDoc
+ * "Cambio — Sprint 5.2.2.1" más arriba para la justificación completa de
+ * por qué se replica este patrón en vez de crear uno nuevo). Reservado
+ * EXCLUSIVAMENTE para errores de Supabase (RLS/permisos/timeout/conexión/
+ * constraint) del flujo Publish -- `FieldError` (`publish-modal.tsx`, Sprint
+ * 5.2.1 Fix) sigue siendo el único mecanismo para errores de validación de
+ * formulario, sin ningún cambio.
+ */
+interface CoordinatorLayoutToast {
+  id: number;
+  tone: ToastTone;
+  title: string;
+  description?: string;
+}
+
+let coordinatorToastIdSeq = 0;
+
 export function CoordinatorLayout({
   sucursalCoord,
   onSucursalCoordChange,
@@ -242,7 +337,24 @@ export function CoordinatorLayout({
   // Sprint 5.2.1 Fix ("Publish Workflow Stabilization") — `activeJob`/
   // `setActiveJob` ya no son un `useState` local de este archivo, ver JSDoc
   // "Cambio — Sprint 5.2.1 Fix" más arriba.
-  const { activeJob, setActiveJob } = useOperationalContext();
+  // Sprint 5.2.2.1 — se agrega `tiendaId`/`empresaId` a esta misma
+  // desestructuración (mismo hook ya usado, ningún consumo nuevo del
+  // Contexto Operativo): son los valores reales ya resueltos por
+  // `OperationalContextProvider` (idénticos a los que ya consume
+  // `DespachoPage.tsx` para los KPIs), necesarios para el INSERT real de
+  // `trabajos`.
+  const { activeJob, setActiveJob, tiendaId, empresaId } = useOperationalContext();
+
+  // Sprint 5.2.2.1 — cola local de Toasts, ver JSDoc de
+  // `CoordinatorLayoutToast` arriba.
+  const [toasts, setToasts] = useState<CoordinatorLayoutToast[]>([]);
+  const pushToast = (tone: ToastTone, title: string, description?: string) => {
+    const id = (coordinatorToastIdSeq += 1);
+    setToasts((prev) => [...prev, { id, tone, title, description }]);
+  };
+  const dismissToast = (id: number) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  };
 
   const outletContext: CoordinatorLayoutOutletContext = useMemo(
     () => ({
@@ -289,28 +401,113 @@ export function CoordinatorLayout({
         sucursal={sucursalCoord}
         open={showPublishModal}
         onOpenChange={setShowPublishModal}
-        onPublish={(form: PublishForm) => {
-          // Sprint 5.2.1 ("Publish Workflow — Estado Local MVP") — Job
-          // temporal en memoria (Reglas 13-16: sin Supabase/API/persistencia,
-          // se pierde al recargar), reutilizando exactamente el mismo tipo
-          // `JobSummaryCardJob` que ya consume `DespachoPage`/`JobSummaryCard`
-          // (Regla del brief: "no inventar propiedades nuevas... reutilizar
-          // el mismo tipo existente"). `id` generado con el mismo criterio
-          // del HTML oficial (`App()`, línea 1934: `"JOB-" +
-          // Math.floor(Math.random()*9000+1000)`).
-          const newJob: JobSummaryCardJob = {
-            id: `JOB-${Math.floor(Math.random() * 9000 + 1000)}`,
+        onPublish={async (form: PublishForm) => {
+          // Sprint 5.2.2.1 ("Persistencia del trabajo publicado — Supabase")
+          // — reemplaza el Job 100% en memoria del Sprint 5.2.1 por un
+          // INSERT real en `trabajos`. Ver JSDoc "Cambio — Sprint 5.2.2.1"
+          // arriba para la auditoría completa.
+          //
+          // Guarda defensiva: `tiendaId`/`empresaId` deberían estar
+          // resueltos siempre que un Coordinador real llegó hasta acá (para
+          // un Coordinador real, `OperationalContextProvider` los resuelve
+          // de forma síncrona desde `profile`, sin ningún `loading`
+          // intermedio -- ver ese Provider). Se verifica igual, sin asumir,
+          // antes de construir un payload con un valor nulo que Postgres
+          // rechazaría de todas formas por las columnas `NOT NULL`.
+          if (!tiendaId || !empresaId) {
+            pushToast(
+              'error',
+              'No se pudo publicar el trabajo',
+              'Todavía no se resolvió la tienda/empresa desde el Contexto Operativo. Intentá de nuevo en unos segundos.',
+            );
+            return;
+          }
+
+          // Mismo criterio de generación que el HTML oficial (`App()`,
+          // línea 1934: `"JOB-" + Math.floor(Math.random()*9000+1000)`) —
+          // ya usado antes de este Sprint para el `id` del Job temporal,
+          // ahora es el valor real de la columna `codigo` (única columna de
+          // texto libre, sin default, que identifica al trabajo de forma
+          // legible -- `id`, la PK real, es un uuid autogenerado que este
+          // Sprint no necesita superficie en `ActiveJob`).
+          const codigo = `JOB-${Math.floor(Math.random() * 9000 + 1000)}`;
+
+          const payload: TableInsert<'trabajos'> = {
+            empresa_id: empresaId,
+            tienda_id: tiendaId,
+            coordinador_id: profile.id,
+            codigo,
             tipo: form.tipo,
-            zona: form.zona,
             provincia: form.provincia,
+            zona: form.zona,
+            tipo_inmueble: form.tipoInmueble,
+            calle: form.calle,
             fecha: form.fecha,
             hora: form.hora,
-            sucursal: form.sucursal,
-            bidMins: form.bidMins,
+            equipo: form.equipo,
+            requisitos: form.requisitos,
+            extra: form.extra,
+            precio_sugerido: form.precioSugerido,
             urgente: form.urgente,
+            bid_minutos: form.bidMins,
           };
-          setActiveJob(newJob);
-          setShowPublishModal(false);
+
+          // `trabajosRepository.create()` ya existía (Sprint 4.1.1, sin
+          // ningún cambio en este Sprint -- Regla explícita "no modificar el
+          // repositorio"). Se envuelve en try/catch (no solo el `!result.ok`
+          // de abajo) por la misma razón ya documentada en
+          // `DespachoPage.tsx` (Sprint 5.2.1 Fix, "Publish Workflow
+          // Stabilization"): `toServiceResult()` no atrapa una excepción de
+          // red genuina (a diferencia de un error normal de Postgrest/RLS,
+          // que sí vuelve como `{ok:false}` sin lanzar) -- sin este
+          // try/catch, una falla de red dejaría el error sin mostrarse
+          // (excepción no controlada) en vez de mostrar el Toast.
+          try {
+            const result = await trabajosRepository.create(payload);
+
+            if (!result.ok) {
+              // Cubre, sin ningún caso especial, tanto un error de
+              // Postgrest/constraint normal como un rechazo real de RLS (ej.
+              // "coordinadores publican en su tienda" si quien publica no es
+              // una fila real de `coordinadores` dueña de esa tienda) -- por
+              // instrucción explícita del usuario, este Sprint no distingue
+              // ni agrega ninguna rama para el modo Administrador/
+              // superusuario: el mismo mensaje de error cubre cualquier
+              // motivo de rechazo real de Supabase.
+              pushToast('error', 'No se pudo publicar el trabajo', result.error.message);
+              return;
+            }
+
+            // ActiveJob se construye con la fila real devuelta por el
+            // `INSERT ... RETURNING` (mismo `.select().single()` de
+            // `trabajosRepository.create()`) -- sin ninguna consulta
+            // adicional. Única excepción: `sucursal` (nombre visible de la
+            // tienda) no es una columna de `trabajos` (solo existe
+            // `tienda_id`, un uuid) -- se toma directo de `form.sucursal`,
+            // el mismo string ya elegido en el formulario.
+            const row = result.data;
+            const newJob: JobSummaryCardJob = {
+              id: row.codigo,
+              tipo: row.tipo,
+              zona: row.zona,
+              provincia: row.provincia,
+              fecha: row.fecha,
+              hora: row.hora,
+              sucursal: form.sucursal,
+              bidMins: row.bid_minutos,
+              urgente: row.urgente,
+            };
+            setActiveJob(newJob);
+            setShowPublishModal(false);
+          } catch (err: unknown) {
+            pushToast(
+              'error',
+              'No se pudo publicar el trabajo',
+              err instanceof Error
+                ? err.message
+                : 'Error de red inesperado al publicar el trabajo.',
+            );
+          }
         }}
       />
       {/* TEMPORARY INTEGRATION — Sprint 3.15 (ConfirmCancelDialog): ver JSDoc
@@ -328,6 +525,21 @@ export function CoordinatorLayout({
           setActiveJob(null);
         }}
       />
+      {/* Sprint 5.2.2.1 — Toast local exclusivo para errores de Supabase del
+          flujo Publish (ver JSDoc `CoordinatorLayoutToast` arriba). `Toast`/
+          `ToastViewport` ya existían (`ui/toast.tsx`); ningún componente
+          nuevo. */}
+      <ToastViewport>
+        {toasts.map((toast) => (
+          <Toast
+            key={toast.id}
+            tone={toast.tone}
+            toastTitle={toast.title}
+            description={toast.description}
+            onClose={() => dismissToast(toast.id)}
+          />
+        ))}
+      </ToastViewport>
     </div>
   );
 }
