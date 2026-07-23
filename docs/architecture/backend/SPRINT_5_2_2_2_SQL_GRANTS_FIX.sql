@@ -1,0 +1,124 @@
+-- ============================================================
+-- HANDYMAX · Multimax Despacho — Sprint 5.2.2.2
+-- Corrección de privilegios SQL (GRANT) — 42501 permission denied
+-- for table trabajos
+-- ============================================================
+-- Ejecutar en: Supabase Dashboard → SQL Editor (mismo proyecto real
+-- de Producción donde ya se corrigió el 42P17 del Sprint 5.2.2.1 Fix).
+--
+-- CONTEXTO (ver diagnóstico completo en PROJECT_STATUS.md / CHANGELOG.md,
+-- sección "Sprint 5.2.2.2"): tras corregir la recursión de RLS (42P17),
+-- el INSERT de `trabajosRepository.create()` (Publish) ahora sí llega a
+-- evaluarse contra las policies -- pero Postgres lo rechaza antes de
+-- eso, con SQLSTATE 42501 "permission denied for table trabajos". Esto
+-- ocurre en la capa de privilegios SQL estándar (GRANT), que Postgres
+-- siempre evalúa ANTES de RLS: si el rol que ejecuta la consulta no
+-- tiene el privilegio base (INSERT/SELECT/UPDATE/DELETE) sobre la
+-- tabla, RLS nunca llega a evaluarse -- no importa cuántas policies lo
+-- permitirían.
+--
+-- QUÉ SE AUDITÓ (evidencia, no supuestos):
+--   • `trabajos.id` es `uuid DEFAULT gen_random_uuid()` -- NO hay
+--     SERIAL/IDENTITY ni secuencia asociada a esta tabla (confirmado en
+--     `docs/database/DATABASE_INVENTORY.md` §2.6 y en el propio
+--     `CREATE TABLE` de `supabase/migrations/0001_initial_schema.sql`).
+--     => "falta USAGE sobre secuencia" queda descartado: no existe
+--     ninguna secuencia que otorgar.
+--   • Ninguna migración de este repositorio (`0001_initial_schema.sql`,
+--     `0002_auth_roles_rls.sql`, ni sus versiones `legacy/`) contiene
+--     jamás una sola sentencia GRANT/REVOKE/OWNER TO -- confirmado por
+--     búsqueda exhaustiva. Esto es consistente con un patrón YA
+--     documentado y confirmado en este mismo proyecto (Sprint 4.2.1):
+--     los privilegios de tabla para `authenticated` se han venido
+--     aplicando manualmente en el Dashboard de Supabase, tabla por
+--     tabla, según se necesitan -- nunca se formalizaron como
+--     migración. `admins`/`coordinadores`/`empresas`/`tiendas`
+--     necesitaron ese mismo tipo de ajuste manual (`GRANT SELECT ...
+--     TO authenticated`) para que funcionara el login end-to-end.
+--   • `USAGE ON SCHEMA public` para `authenticated` YA está confirmado
+--     funcional en Producción -- de lo contrario ninguna lectura ya
+--     validada (login, `resolveProfile()`, lectura de `admins` durante
+--     el cierre del Sprint 4.2.1) habría podido funcionar nunca. No se
+--     incluye en este fix por no ser la causa (no se "asume" un
+--     problema donde ya hay evidencia de que no lo hay).
+--   • El flujo de Publish usa exclusivamente la clave pública `anon`
+--     (`VITE_SUPABASE_ANON_KEY`, `src/lib/supabase/client.ts`); una vez
+--     hay sesión, PostgREST resuelve el rol de Postgres como
+--     `authenticated` (no `anon`) vía el JWT. `service_role` NUNCA se
+--     usa en el frontend (confirmado por búsqueda en `src/` -- solo
+--     aparece en `src/lib/supabase/server.ts`, un archivo de servidor
+--     no usado por este flujo, y en `.env.example` sin valor real). El
+--     rol de tabla `postgres` (owner) ya tiene privilegios implícitos
+--     completos por ser el dueño del objeto -- no aplica.
+--   • `trabajosRepository.create()` ejecuta
+--     `.insert(row).select().single()` -- PostgREST traduce esto en
+--     UNA sola sentencia `INSERT ... RETURNING`, no dos consultas
+--     separadas. El `RETURNING` obliga a Postgres a evaluar también el
+--     privilegio SELECT sobre la tabla (mismo mecanismo, a nivel de
+--     privilegios SQL, que ya obligó a evaluar las policies SELECT de
+--     RLS en el Sprint anterior). El mensaje de error de Postgres para
+--     42501 es genérico ("permission denied for table trabajos") y no
+--     distingue cuál privilegio en particular falta -- por eso este
+--     fix otorga exactamente los dos que la operación en cuestión
+--     necesita (INSERT + SELECT), ni uno más.
+--   • UPDATE/DELETE sobre `trabajos` NO se auditan como rotos -- no hay
+--     evidencia (ni un solo reporte de error) de que algún flujo real
+--     ya probado los necesite y falle. Deliberadamente NO se otorgan
+--     en este fix, para mantener el GRANT estrictamente mínimo y
+--     trazable al único síntoma confirmado (el 42501 del Publish
+--     INSERT). Si un Sprint futuro prueba UPDATE (p. ej. reasignación
+--     de instalador vía `asignar_instalador`, que tampoco es
+--     `SECURITY DEFINER`) y falla con el mismo 42501, se auditará y
+--     corregirá en ese momento, no antes.
+--
+-- QUÉ NO CAMBIA: ninguna policy RLS, ninguna función SQL, el modelo de
+-- seguridad ("Coordinador únicamente publica trabajos de su tienda")
+-- sigue dependiendo exclusivamente de la policy "coordinadores publican
+-- en su tienda" (intacta). No se usa `service_role`. No se elimina
+-- ningún objeto existente.
+-- ============================================================
+
+
+-- 1. GRANT mínimos necesarios ---------------------------------------
+-- Exactamente los dos privilegios que requiere la operación que hoy
+-- falla (`INSERT ... RETURNING` del Publish): INSERT para escribir la
+-- fila, SELECT para que el RETURNING pueda devolverla. Ninguno de los
+-- dos afecta a qué filas puede ver/insertar el rol -- eso lo siguen
+-- decidiendo, sin cambios, las policies RLS ya vigentes sobre
+-- `trabajos` (auditadas y corregidas en el Sprint 5.2.2.1 Fix).
+GRANT INSERT, SELECT ON TABLE public.trabajos TO authenticated;
+
+
+-- ============================================================
+-- VALIDACIÓN (ejecutar antes y después del GRANT de arriba)
+-- ============================================================
+-- Antes: confirmar qué privilegios tiene hoy `authenticated` sobre
+-- `trabajos` (para verificar el diagnóstico contra el catálogo real,
+-- ya que este entorno de trabajo no tuvo acceso de red para leerlo
+-- directamente):
+--
+-- select grantee, privilege_type
+-- from information_schema.role_table_grants
+-- where table_schema = 'public'
+-- and table_name = 'trabajos'
+-- order by grantee, privilege_type;
+--
+-- Después: repetir la misma consulta y confirmar que aparecen las filas
+-- ('authenticated', 'INSERT') y ('authenticated', 'SELECT').
+--
+-- Validación funcional: repetir la publicación de un trabajo real con
+-- el Coordinador ya sembrado (mismo flujo de la app, sin ningún cambio
+-- de frontend) -- el INSERT ... RETURNING debe completar sin 42501
+-- (ni reaparecer el 42P17 ya corregido en el Sprint anterior).
+
+
+-- ============================================================
+-- ROLLBACK (solo si algo sale mal -- restaura el mismo defecto
+-- original de este Sprint; el 42P17 del Sprint anterior no se ve
+-- afectado por este rollback)
+-- ============================================================
+-- REVOKE INSERT, SELECT ON TABLE public.trabajos FROM authenticated;
+
+-- ============================================================
+-- FIN
+-- ============================================================
