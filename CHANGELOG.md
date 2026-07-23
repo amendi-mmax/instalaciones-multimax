@@ -2,6 +2,33 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 5 — Sprint 5.2.1 — Publish Workflow (Estado Local MVP)] — 2026-07-23 — 🟡 En revisión
+
+Primer Sprint de lógica de negocio real de la Fase 5: flujo completo de publicación de un trabajo, 100% en memoria React (sin Supabase/API/persistencia, Reglas 13-16 de este brief). Detalle técnico completo en `docs/architecture/frontend/SPRINT_5_2_1_PUBLISH_WORKFLOW_REPORT.md`.
+
+**Auditoría previa — contradicción real detectada y resuelta con el usuario (`AskUserQuestion`) antes de escribir código**:
+
+- El brief esperaba tocar "preferiblemente únicamente" `DespachoPage.tsx`/`PublishModal.tsx` y su Regla 12 decía "No modificar `CoordinatorLayout`" — pero `PublishModal`/su único callback `onPublish` viven exclusivamente en `CoordinatorLayout.tsx` desde el Sprint 5.1.2, nunca en `DespachoPage.tsx`. Sin tocar `CoordinatorLayout.tsx` no había forma de que el `PublishForm` confirmado llegara a `activeJob`. **Decisión del usuario (verbatim): "Procede con la opción 1. Autorizo una modificación mínima de `CoordinatorLayout` exclusivamente para conectar el flujo Publish Workflow... `CoordinatorLayout` debe seguir siendo el único propietario de `PublishModal`. La modificación debe ser la mínima indispensable..."**
+
+### Añadido
+
+- `docs/architecture/frontend/SPRINT_5_2_1_PUBLISH_WORKFLOW_REPORT.md` (NUEVO).
+- `activeJob`/`setActiveJob` (estado nuevo, `src/layouts/CoordinatorLayout.tsx`) — `JobSummaryCardJob | null`, mismo tipo ya existente.
+- Campo `activeJob: JobSummaryCardJob | null` en `CoordinatorLayoutOutletContext`.
+
+### Modificado
+
+- `src/layouts/CoordinatorLayout.tsx` — `onPublish` de `PublishModal` (antes no-op) ahora construye el Job temporal desde el `PublishForm` recibido (mismo criterio de `id` que el HTML oficial: `"JOB-" + Math.floor(Math.random()*9000+1000)`) y llama a `setActiveJob`/`setShowPublishModal(false)`; `activeJob` expuesto vía `CoordinatorLayoutOutletContext`.
+- `src/pages/coordinator/DespachoPage.tsx` — se retiran por completo `JOB_DEMO`/`JOB_DEMO_REMAINING_SECONDS`/`DEMO_MODE` (Regla 17); `activeJob` ahora se lee del Outlet Context; `remainingSeconds` se deriva como `activeJob.bidMins * 60`.
+- `PROJECT_STATUS.md` — nueva sección de estado del Sprint 5.2.1.
+- `docs/SPRINTS_INDEX.md` — nueva fila 5.2.1.
+
+### Sin cambios
+
+`PublishModal` (mismo archivo, misma instancia única, mismas props, sin cambio visual — Regla 10), `CoordinatorEmptyState` (Regla 11), estructura visual completa de `CoordinatorLayout.tsx` (Header/Footer/SucursalSelect/CoordinatorSubtabs/`ConfirmCancelDialog`/`adminSwitchSlot` — Regla 12 salvo la excepción mínima autorizada), `job-summary-card.tsx`, `job-indicadores-card.tsx`, `coordinator-kpi-row.tsx`, `live-dispatch-card.tsx`, `responses-panel.tsx`, `TwoColumnLayout`, `RootLayout.tsx`, `AppRouter.tsx`, Auth/Roles/RLS/Policies/Providers/`OperationalContext`/Servicios/Hooks/Repositories/Supabase/Router.
+
+**Validación técnica**: `tsc --noEmit` (instalación global) — distribución de diagnósticos idéntica al cierre del Sprint 5.1.5 (cero delta), cero categorías nuevas, cero `TS6133`, cero errores de sintaxis. `npm run lint`/`typecheck`/`build`/`dev` reales quedan pendientes de ejecución por el usuario (sin `node_modules`/red en este entorno de trabajo).
+
 ## [Fase 5 — Sprint 5.1.5 — Corrección definitiva del Coordinator Workspace (Fix Visual + Estados)] — 2026-07-23 — 🟡 En revisión
 
 Sprint exclusivamente correctivo — el Sprint 5.1.4 dejó la arquitectura lista (`activeJob` como estado único de control) pero el comportamiento VISUAL renderizado seguía sin coincidir con el HTML oficial. Regla 23 ("un Sprint visual no puede darse por terminado únicamente porque la arquitectura esté preparada") y Regla 24 ("no debes asumir que un componente aprobado anteriormente sigue siendo correcto") de este brief. Detalle técnico completo en `docs/architecture/frontend/SPRINT_5_1_5_COORDINATOR_LAYOUT_FIX_REPORT.md`.

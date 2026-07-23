@@ -5,7 +5,8 @@ import { ConfirmCancelDialog } from '@/components/shared/confirm-cancel-dialog';
 import { CoordinatorSubtabs } from '@/components/shared/coordinator-subtabs';
 import { Footer } from '@/components/shared/footer';
 import { Header } from '@/components/shared/header';
-import { PublishModal } from '@/components/shared/publish-modal';
+import type { JobSummaryCardJob } from '@/components/shared/job-summary-card';
+import { PublishModal, type PublishForm } from '@/components/shared/publish-modal';
 import { SucursalSelect } from '@/components/shared/sucursal-select';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -136,6 +137,56 @@ import { useAuth } from '@/hooks/useAuth';
  * ningún componente "Admin" alternativo, cumpliendo el criterio de
  * aceptación explícito de este Sprint ("deberá renderizar EXACTAMENTE el
  * mismo CoordinatorLayout").
+ *
+ * ---------------------------------------------------------------------
+ * Cambio mínimo — Sprint 5.2.1 ("Publish Workflow — Estado Local MVP")
+ * ---------------------------------------------------------------------
+ * Este Sprint pedía implementar el flujo Publish tocando "preferiblemente
+ * únicamente" `DespachoPage.tsx`/`publish-modal.tsx`, y su Regla 12 dice "No
+ * modificar `CoordinatorLayout`". Auditoría previa detectó una contradicción
+ * real e irresoluble sin excepción: `PublishModal` — y el único callback
+ * `onPublish` real que recibe su envío — vive AQUÍ (decisión explícita del
+ * Sprint 5.1.2, "`CoordinatorLayout` debe seguir siendo el único propietario
+ * de `PublishModal`"), NUNCA dentro de `DespachoPage.tsx` (que solo recibe
+ * `onOpenPublish`, para ABRIR el modal, vía este mismo Outlet Context). Sin
+ * tocar este archivo, `DespachoPage.tsx` no tenía ninguna forma de recibir
+ * el `PublishForm` real al confirmarse. Consultado con el usuario
+ * (`AskUserQuestion`) antes de escribir código; resolución explícita
+ * (verbatim): "Procede con la opción 1. Autorizo una modificación mínima de
+ * `CoordinatorLayout` exclusivamente para conectar el flujo Publish
+ * Workflow... Únicamente puedes incorporar el callback necesario para que
+ * el resultado de `PublishModal` actualice el estado `activeJob` utilizado
+ * por `DespachoPage`. `CoordinatorLayout` debe seguir siendo el único
+ * propietario de `PublishModal`."
+ *
+ * El cambio, y solo este, fue el mínimo indispensable para ese único
+ * propósito:
+ * 1. Nuevo estado `activeJob`/`setActiveJob` (`JobSummaryCardJob | null`,
+ *    mismo tipo YA EXISTENTE que consume `JobSummaryCard`/`DespachoPage` —
+ *    "no inventar propiedades nuevas... reutilizar el mismo tipo existente",
+ *    instrucción explícita de este Sprint) — mismo patrón que
+ *    `showPublishModal`/`confirmCancelOpen`, estado exclusivo del
+ *    Coordinador sin dependencia cruzada con ningún otro sistema.
+ * 2. El `onPublish` de `PublishModal` (antes un no-op documentado "pendiente
+ *    para el Sprint 5.2") ahora construye el Job temporal a partir del
+ *    `PublishForm` recibido — reutilizando EXACTAMENTE los mismos campos que
+ *    `JobSummaryCardJob` ya define (id generado igual que el HTML oficial:
+ *    `"JOB-" + Math.floor(Math.random()*9000+1000)`, `App()` línea 1934) —
+ *    y llama a `setActiveJob`/`setShowPublishModal(false)`. Cero lógica de
+ *    Supabase/API/persistencia (Reglas 13-16) — 100% estado React en
+ *    memoria, se pierde al recargar, igual que `App()` en el HTML oficial.
+ * 3. `activeJob` se agrega a `CoordinatorLayoutOutletContext` (mismo patrón
+ *    ya usado para `onOpenPublish`/`onOpenConfirmCancel`) para que
+ *    `DespachoPage.tsx` lo lea vía `useOutletContext()`.
+ *
+ * Qué NO cambió en este archivo: `PublishModal` sigue siendo el ÚNICO
+ * propietario/instancia (no se duplicó, no se movió — sigue viviendo
+ * exactamente aquí, con las mismas props `sucursal`/`open`/`onOpenChange`);
+ * su estructura visual no se tocó (Regla 10); `ConfirmCancelDialog`,
+ * `Header`/`Footer`/`SucursalSelect`/`CoordinatorSubtabs`, el JSX/estructura
+ * visual completa de este Layout, y `sucursalCoord`/`OperationalContext`
+ * permanecen exactamente iguales — el único cambio es el estado nuevo y el
+ * cuerpo, antes vacío, de `onPublish`.
  */
 export interface CoordinatorLayoutProps {
   sucursalCoord: string;
@@ -161,6 +212,9 @@ export function CoordinatorLayout({
   const { profile, logout } = useAuth();
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+  // Sprint 5.2.1 ("Publish Workflow") — único estado nuevo de este Sprint,
+  // ver JSDoc "Cambio mínimo" más arriba.
+  const [activeJob, setActiveJob] = useState<JobSummaryCardJob | null>(null);
 
   const outletContext: CoordinatorLayoutOutletContext = useMemo(
     () => ({
@@ -168,8 +222,9 @@ export function CoordinatorLayout({
       setSucursalCoord: onSucursalCoordChange,
       onOpenPublish: () => setShowPublishModal(true),
       onOpenConfirmCancel: () => setConfirmCancelOpen(true),
+      activeJob,
     }),
-    [sucursalCoord, onSucursalCoordChange],
+    [sucursalCoord, onSucursalCoordChange, activeJob],
   );
 
   // `profile` está garantizado no-nulo en este punto: `RootLayout.tsx` solo
@@ -206,8 +261,28 @@ export function CoordinatorLayout({
         sucursal={sucursalCoord}
         open={showPublishModal}
         onOpenChange={setShowPublishModal}
-        onPublish={() => {
-          /* Sin lógica de negocio en este Sprint — pendiente para el Sprint 5.2. */
+        onPublish={(form: PublishForm) => {
+          // Sprint 5.2.1 ("Publish Workflow — Estado Local MVP") — Job
+          // temporal en memoria (Reglas 13-16: sin Supabase/API/persistencia,
+          // se pierde al recargar), reutilizando exactamente el mismo tipo
+          // `JobSummaryCardJob` que ya consume `DespachoPage`/`JobSummaryCard`
+          // (Regla del brief: "no inventar propiedades nuevas... reutilizar
+          // el mismo tipo existente"). `id` generado con el mismo criterio
+          // del HTML oficial (`App()`, línea 1934: `"JOB-" +
+          // Math.floor(Math.random()*9000+1000)`).
+          const newJob: JobSummaryCardJob = {
+            id: `JOB-${Math.floor(Math.random() * 9000 + 1000)}`,
+            tipo: form.tipo,
+            zona: form.zona,
+            provincia: form.provincia,
+            fecha: form.fecha,
+            hora: form.hora,
+            sucursal: form.sucursal,
+            bidMins: form.bidMins,
+            urgente: form.urgente,
+          };
+          setActiveJob(newJob);
+          setShowPublishModal(false);
         }}
       />
       {/* TEMPORARY INTEGRATION — Sprint 3.15 (ConfirmCancelDialog): ver JSDoc
@@ -239,10 +314,17 @@ export function CoordinatorLayout({
  * Sprint 5.1 — solo cambia el archivo donde vive, consistente con que el
  * estado que describe (`sucursalCoord`/`showPublishModal`/
  * `confirmCancelOpen`) ahora se resuelve/expone desde este Layout.
+ *
+ * Sprint 5.2.1 — se agrega el campo `activeJob` (único campo nuevo, ver
+ * JSDoc "Cambio mínimo" de `CoordinatorLayout` arriba): expone el Job
+ * temporal creado por el flujo Publish para que `DespachoPage.tsx` decida
+ * entre `CoordinatorEmptyState`/`CoordinatorWorkspace` (Regla 18/19 de ese
+ * Sprint: "toda la UI debe depender únicamente del estado `activeJob`").
  */
 export interface CoordinatorLayoutOutletContext {
   sucursalCoord: string;
   setSucursalCoord: (value: string) => void;
   onOpenPublish: () => void;
   onOpenConfirmCancel: () => void;
+  activeJob: JobSummaryCardJob | null;
 }
