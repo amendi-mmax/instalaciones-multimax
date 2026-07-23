@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 
-import { CoordinatorKpiRow } from '@/components/shared/coordinator-kpi-row';
+import { CoordinatorEmptyState } from '@/components/shared/coordinator-empty-state';
+import { JobIndicadoresCard } from '@/components/shared/job-indicadores-card';
 import { JobSummaryCard, type JobSummaryCardJob } from '@/components/shared/job-summary-card';
 import { LiveDispatchCard } from '@/components/shared/live-dispatch-card';
 import { ResponsesPanel } from '@/components/shared/responses-panel';
 import { TwoColumnLayout } from '@/components/shared/two-column-layout';
 import type { RadarInstallerState } from '@/components/shared/radar';
-import { Loading } from '@/components/ui/spinner';
 import { ELIGIBLE_ORDER } from '@/constants';
 import { useOperationalContext } from '@/hooks/useOperationalContext';
 import { getCoordinatorKpis, type CoordinatorKpis } from '@/services';
@@ -26,6 +26,11 @@ import type { CoordinatorLayoutOutletContext } from '@/layouts/CoordinatorLayout
  * sucursal Multiplaza) para no inventar datos nuevos -- ese mock es de
  * "Mis trabajos" (`CoordinatorJobs`), no del motor de despacho, pero sus
  * valores de campo son reales del propio HTML, no fabricados.
+ *
+ * **Sprint 5.1.4**: este valor ahora se asigna a `activeJob` (ver JSDoc de
+ * `DespachoPage` más abajo) en vez de usarse directamente -- el propio
+ * nombre `JOB_DEMO` no cambia, sigue siendo el mismo dato de demostración
+ * ya aprobado en el Sprint 5.1.3.
  */
 const JOB_DEMO: JobSummaryCardJob = {
   id: 'JOB-4821',
@@ -81,40 +86,69 @@ const LIVECOUNTDOWN_DEMO_BID_MINS = 5;
  * -- viven una única vez en `CoordinatorLayout.tsx`. Ver su JSDoc completo.
  *
  * **Ajuste Sprint 5.1.3** ("Implementación del Workspace Operativo del
- * Coordinador"): reemplaza por completo el bloque anterior
+ * Coordinador"): reemplazó por completo el bloque anterior
  * (`CoordinatorEmptyState`+`Radar`+`LiveCountdown`+botón "Cancelar" sueltos,
  * coexistiendo sin exclusión mutua desde los Sprints 3.6/3.7/3.9/3.15 --
  * una inconsistencia visual respecto al HTML oficial, donde esas 2 ramas
- * (`jobs.length === 0` vs. `jobs.length > 0`) nunca se muestran juntas,
- * documentada como temporal en cada uno de esos Sprints y ya prevista para
- * resolverse "cuando exista la tarjeta real de Despacho en vivo") por el
- * Workspace real: `TwoColumnLayout` (`variant="despacho"`, YA EXISTENTE
- * desde Fase 3, sin cambios) con `JobSummaryCard`+`LiveDispatchCard`+
- * `CoordinatorKpiRow` en la columna izquierda (`mx-col`, mismo orden de
- * anidación que `Coordinator()` en el HTML oficial: `mx-jobcard` primero,
- * luego la tarjeta "Despacho en vivo") y `ResponsesPanel` en la derecha.
+ * (`jobs.length === 0` vs. `jobs.length > 0`) nunca se muestran juntas) por
+ * el Workspace real: `TwoColumnLayout` (`variant="despacho"`, YA EXISTENTE
+ * desde Fase 3, sin cambios) con `JobSummaryCard`+`LiveDispatchCard`+KPIs
+ * en la columna izquierda (`mx-col`, mismo orden de anidación que
+ * `Coordinator()` en el HTML oficial: `mx-jobcard` primero, luego "Despacho
+ * en vivo", luego "Indicadores") y `ResponsesPanel` en la derecha.
  *
- * Por instrucción explícita del usuario para este Sprint, se usa un job de
- * demostración fijo (`JOB_DEMO`, fase `live` implícita, 0 respuestas) --
- * "únicamente con fines de reconstrucción visual del layout", sin ningún
- * flag/condicional para alternar con el estado vacío: `CoordinatorEmptyState`
- * queda **eliminado del flujo principal** de esta página en este Sprint
- * (no borrado del proyecto -- el componente sigue existiendo en
- * `coordinator-empty-state.tsx` para cuando el Sprint 5.2 implemente la
- * publicación real de trabajos y la lista pueda estar genuinamente vacía).
+ * **Ajuste Sprint 5.1.4** ("Finalización del Workspace Operativo del
+ * Coordinador"): el Sprint 5.1.3 dejó el Workspace SIEMPRE visible, sin
+ * ninguna posibilidad estructural de mostrar el estado vacío -- una
+ * corrección pendiente detectada por el propio brief de este Sprint
+ * ("Actualmente siempre se muestra `CoordinatorWorkspace`. Debe
+ * corregirse", Regla 21: "el render deberá estar gobernado por un estado
+ * único de control"). Se introduce `activeJob` (`JobSummaryCardJob | null`,
+ * ver más abajo) como ese estado de control único: cuando es `null` se
+ * renderiza EXCLUSIVAMENTE `CoordinatorEmptyState` (ningún
+ * `JobSummaryCard`/`LiveDispatchCard`/`ResponsesPanel`/KPIs); cuando existe,
+ * se renderiza el Workspace completo -- ambos estados son mutuamente
+ * excluyentes (Regla 19), nunca simultáneos, igual que las 2 ramas reales
+ * de `Coordinator(props)` (`jobs.length === 0` vs. `jobs.length > 0`) en el
+ * HTML oficial.
  *
- * **KPIs**: `CoordinatorKpiRow` (Sprint 5.1, agregado dashboard sin
- * equivalente en el HTML oficial) se reubica dentro de la columna
- * izquierda del nuevo grid, como último elemento -- mismo componente, mismo
- * fetch (`dashboard.service.ts`/`getCoordinatorKpis`), sin recalcular ni
- * modificar sus datos, solo su posición visual (instrucción explícita del
- * brief: "Mover los KPIs existentes... únicamente reorganizar el layout").
+ * `activeJob` se fija temporalmente a `JOB_DEMO` (no `null`) -- valor
+ * explícitamente admitido por el propio brief como ejemplo válido ("`const
+ * activeJob = JOB_DEMO;`") -- para preservar, sin regresión visual, la
+ * reconstrucción del Workspace ya aprobada en el Sprint 5.1.3 (el usuario
+ * ya había pedido explícitamente reemplazar por completo el estado vacío
+ * del flujo principal en esa ronda: "El estado vacío queda eliminado del
+ * flujo principal del Coordinador"). `CoordinatorEmptyState` sigue
+ * existiendo (no se borra del proyecto) y ahora es estructuralmente
+ * alcanzable de nuevo, lista para cuando el Sprint 5.2 reemplace este valor
+ * fijo por el trabajo activo real de la sucursal (`trabajos` con
+ * `estado='live'`/`'assigned'`, o `null` si no hay ninguno) -- sin tener
+ * que modificar de nuevo la estructura de este archivo, solo el origen del
+ * valor de `activeJob` (Objetivo 10 de este Sprint: "Este Sprint termina
+ * exactamente donde comienza `PublishModal`").
+ *
+ * **KPIs / "Indicadores"**: `CoordinatorKpiRow` (Sprint 5.1, agregado
+ * dashboard sin equivalente en el HTML oficial) permanece SIN NINGÚN
+ * CAMBIO -- mismo componente, mismo fetch (`dashboard.service.ts`/
+ * `getCoordinatorKpis`), mismo contrato (`{ kpis: CoordinatorKpis }`). Este
+ * Sprint lo envuelve con `JobIndicadoresCard` (NUEVO), que reconstruye
+ * únicamente el MARCO visual del bloque real "Indicadores" de
+ * `Coordinator()` (título/ícono/`mx-goal`) -- decisión explícita del
+ * usuario (`AskUserQuestion`) tras la discrepancia real detectada en la
+ * auditoría de este Sprint: el HTML oficial no tiene ningún "Dashboard",
+ * así que sus 6 métricas reales de `jobView()` (1ª respuesta/3 respuestas/
+ * Asignación/Notificados/Abiertos/Respuestas) no tienen ninguna fuente real
+ * en este Sprint (dependen del motor de subasta, Sprint 5.3) -- se reutiliza
+ * en su lugar el dato real ya existente (`CoordinatorKpiRow`), sin inventar
+ * ninguna métrica ni tocar ningún cálculo. Ver JSDoc completo de
+ * `job-indicadores-card.tsx`.
  *
  * **Qué NO hace este Sprint** (excluido explícitamente por el propio
  * brief): motor de subasta real, publicación real, asignación real, tiempo
  * real -- `JobSummaryCard`/`LiveDispatchCard`/`ResponsesPanel` siguen
- * usando props de demostración fijas, exactamente como sus predecesores
- * sueltos antes de este Sprint.
+ * usando props de demostración fijas, exactamente como en el Sprint 5.1.3.
+ * `PublishModal` sigue sin conectarse a lógica real (pendiente del Sprint
+ * 5.2).
  *
  * **Ajuste Sprint 5.1.1** ("Ajuste final -- Modo Administrador
  * Superusuario"): `tiendaId` ya no se lee de `profile.tiendaId` (vía
@@ -139,12 +173,13 @@ export function DespachoPage() {
     // Sprint 5.1.1 -- mientras el Contexto Operativo todavía resuelve
     // `tiendaId` (solo ocurre para un `admin` viendo "Coordinador", ver
     // `OperationalContextProvider.tsx`), no se toca `kpisError` todavía --
-    // el fallback de más abajo (`<Loading/>`) ya cubre este instante, sin
-    // mostrar por error "sin tienda asignada" mientras la resolución real
-    // sigue en curso. Para un Coordinador real, `contextoLoading` siempre
-    // es `false` -- este `if` nunca frena nada para ese caso. Se limpian
-    // `kpis`/`kpisError` para no dejar en pantalla el número de la tienda
-    // anterior mientras un `admin` cambia de sucursal en `SucursalSelect`.
+    // el fallback de `JobIndicadoresCard` (`<Loading/>`) ya cubre este
+    // instante, sin mostrar por error "sin tienda asignada" mientras la
+    // resolución real sigue en curso. Para un Coordinador real,
+    // `contextoLoading` siempre es `false` -- este `if` nunca frena nada
+    // para ese caso. Se limpian `kpis`/`kpisError` para no dejar en pantalla
+    // el número de la tienda anterior mientras un `admin` cambia de
+    // sucursal en `SucursalSelect`.
     if (contextoLoading) {
       setKpis(null);
       setKpisError(null);
@@ -182,13 +217,24 @@ export function DespachoPage() {
     };
   }, [tiendaId, contextoLoading, contextoError]);
 
+  // Sprint 5.1.4 -- estado único de control (Regla 21) que decide, de forma
+  // mutuamente excluyente (Regla 19), entre `CoordinatorEmptyState` (sin
+  // trabajo activo) y el Workspace completo (con trabajo activo). Ver el
+  // JSDoc completo de este archivo ("Ajuste Sprint 5.1.4") sobre por qué se
+  // fija temporalmente a `JOB_DEMO` (no `null`) en esta ronda.
+  const activeJob: JobSummaryCardJob | null = JOB_DEMO;
+
+  if (!activeJob) {
+    return <CoordinatorEmptyState onOpenPublish={onOpenPublish} />;
+  }
+
   return (
     <TwoColumnLayout
       variant="despacho"
       left={
         <section className="mx-col">
           <JobSummaryCard
-            job={JOB_DEMO}
+            job={activeJob}
             remainingSeconds={JOB_DEMO_REMAINING_SECONDS}
             onOpenPublish={onOpenPublish}
           />
@@ -200,15 +246,7 @@ export function DespachoPage() {
             bidMins={LIVECOUNTDOWN_DEMO_BID_MINS}
             onCancel={onOpenConfirmCancel}
           />
-          {kpisError ? (
-            <p className="mx-sub" style={{ marginBottom: 14 }}>
-              {kpisError}
-            </p>
-          ) : kpis ? (
-            <CoordinatorKpiRow kpis={kpis} />
-          ) : (
-            <Loading label="Cargando indicadores…" />
-          )}
+          <JobIndicadoresCard kpis={kpis} kpisError={kpisError} bidMins={activeJob.bidMins} />
         </section>
       }
       right={

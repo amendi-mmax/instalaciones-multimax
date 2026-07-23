@@ -635,6 +635,22 @@ Sprint exclusivamente de reconstrucción de interfaz -- sin lógica de negocio n
 
 **Pendiente**: validación real del usuario (`npm run lint`/`typecheck`/`build`/`dev`) -- mismas limitaciones de entorno que el resto del proyecto; se usó `tsc` global sin errores nuevos atribuibles a este Sprint.
 
+## Fase 5 — Sprint 5.1.4 — Finalización del Workspace Operativo del Coordinador (MVP) (2026-07-23) — 🟡 En revisión
+
+Sprint exclusivamente de reconstrucción de interfaz -- sin motor de subasta, sin publicación real, sin Supabase nuevo. Cierra la serie 5.1.x: deja el `CoordinatorWorkspace` estabilizado para que el Sprint 5.2 se concentre únicamente en lógica de negocio. Detalle técnico completo en `docs/architecture/frontend/SPRINT_5_1_4_COORDINATOR_WORKSPACE_COMPLETION_REPORT.md`.
+
+**Auditoría previa -- discrepancia real detectada y resuelta con el usuario (`AskUserQuestion`) antes de escribir código**: el brief pedía "completar `CoordinatorKpiRow`... debe contener todos los indicadores presentes en el HTML oficial". El bloque real "Indicadores" de `Coordinator()` (líneas 2318-2354 del HTML oficial) son 6 `StatTile` derivados de `jobView()` (1ª respuesta/3 respuestas/Asignación/Notificados/Abiertos/Respuestas) -- un componente DISTINTO al `CoordinatorKpiRow` existente (Pendientes/Activos/Finalizados/Programados hoy, decisión de producto ya reafirmada en los Sprints 5.1/5.1.2: "el HTML oficial no tiene ningún Dashboard"), alimentado por datos REALES (`getCoordinatorKpis`). **Decisión del usuario (verbatim): "Mantener `CoordinatorKpiRow` como fuente de datos y crear el bloque visual de Indicadores del HTML oficial utilizando esos datos. No reemplazar ni eliminar `CoordinatorKpiRow`... podrá convertirse posteriormente en un wrapper del bloque Indicadores cuando finalice la Fase 5, pero no debe eliminarse ni cambiar su contrato en este Sprint."**
+
+**Construido en este Sprint**:
+
+- **`activeJob` (estado único de control, Reglas 19/21)** en `DespachoPage.tsx`: corrige que el Workspace se mostrara siempre sin ninguna posibilidad estructural de estado vacío (bug detectado por el propio brief). Cuando `activeJob` es `null` se renderiza EXCLUSIVAMENTE `CoordinatorEmptyState` (reincorporado al flujo de esta página); cuando existe, se renderiza el Workspace completo -- mutuamente excluyentes, nunca simultáneos. Se fija temporalmente a `JOB_DEMO` (valor explícitamente admitido por el propio brief como ejemplo) para no revertir la reconstrucción visual ya aprobada en el Sprint 5.1.3; el Sprint 5.2 solo necesitará cambiar el origen de este valor, no la estructura del archivo.
+- **`JobIndicadoresCard` (NUEVO, `src/components/shared/`)**: reconstruye el MARCO visual real del bloque "Indicadores" (`Card`+`CardHeader` con ícono `TrendingUp`+título, y pie `.mx-goal`, CSS nunca portado -- agregado verbatim en este Sprint), envolviendo el `CoordinatorKpiRow` YA EXISTENTE sin ningún cambio de código/contrato/cálculo, per la decisión del usuario arriba. El texto de la meta reutiliza `activeJob.bidMins` (mismo dato de demostración ya aprobado, no uno nuevo).
+- Verificado y confirmado sin cambios necesarios: `JobSummaryCard` (todos los campos pedidos por el brief -- código JOB/estado/tipo/ubicación/fecha/sucursal/tiempo restante/Publicar otro -- ya estaban completos desde el Sprint 5.1.3) y `ResponsesPanel` (ya coincide con el HTML oficial para el alcance de este Sprint -- 0 respuestas, fase `live`).
+
+**Sin cambios**: `CoordinatorKpiRow` (mismo archivo, mismo contrato, cero modificaciones), `LiveDispatchCard`, `TwoColumnLayout`, `RootLayout.tsx`, `CoordinatorLayout.tsx`, `AppRouter.tsx`, `AuthProvider`/`SessionProvider`/`OperationalContextProvider`/Supabase/Services/Repositories/Router/Roles/Policies/RLS.
+
+**Pendiente**: validación real del usuario (`npm run lint`/`typecheck`/`build`/`dev`) -- mismas limitaciones de entorno que el resto del proyecto; se usó `tsc` global (distribución de diagnósticos idéntica al patrón de artefactos ya clasificado, sin categorías nuevas, cero `TS6133`, cero errores de sintaxis).
+
 ## Qué falta
 
 - **Bloqueante para cerrar el Sprint 5.1**: ejecutar en el entorno del usuario `npm run lint && npm run typecheck && npm run build && npm run dev` en verde, y validación visual/funcional real (login como coordinador, KPIs con datos reales de su tienda, navegación `/despacho`↔`/trabajos`, detalle de un trabajo) -- este entorno de trabajo no tiene `node_modules`/acceso de red para ejecutarlos ni credenciales reales para probar contra Producción.

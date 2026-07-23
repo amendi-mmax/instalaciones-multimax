@@ -2,6 +2,34 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 5 — Sprint 5.1.4 — Finalización del Workspace Operativo del Coordinador (MVP)] — 2026-07-23 — 🟡 En revisión
+
+Sprint exclusivamente de reconstrucción visual: sin lógica de negocio nueva, sin motor de subasta, sin Supabase. Cierra la serie 5.1.x — deja el `CoordinatorWorkspace` estabilizado para que el Sprint 5.2 ("Publicación de Trabajos") se concentre únicamente en lógica de negocio. Detalle técnico completo en `docs/architecture/frontend/SPRINT_5_1_4_COORDINATOR_WORKSPACE_COMPLETION_REPORT.md`.
+
+**Auditoría previa (obligatoria por brief) — 1 discrepancia real resuelta con el usuario (`AskUserQuestion`) antes de escribir código**:
+
+- El brief pedía "completar `CoordinatorKpiRow`... debe contener todos los indicadores presentes en el HTML oficial". El bloque real "Indicadores" de `Coordinator()` (líneas 2318-2354 del HTML oficial) son 6 `StatTile` derivados de `jobView()` (1ª respuesta/3 respuestas/Asignación/Notificados/Abiertos/Respuestas) — un componente DISTINTO al `CoordinatorKpiRow` existente (Pendientes/Activos/Finalizados/Programados hoy), decisión de producto ya reafirmada en los Sprints 5.1/5.1.2 ("el HTML oficial no tiene ningún Dashboard"), alimentado por datos REALES (`getCoordinatorKpis`). **Decisión del usuario (verbatim): "Mantener `CoordinatorKpiRow` como fuente de datos y crear el bloque visual de Indicadores del HTML oficial utilizando esos datos. No reemplazar ni eliminar `CoordinatorKpiRow`... podrá convertirse posteriormente en un wrapper del bloque Indicadores cuando finalice la Fase 5, pero no debe eliminarse ni cambiar su contrato en este Sprint."**
+- Se verificó que `JobSummaryCard`/`ResponsesPanel` ya satisfacían íntegramente los requisitos de "completar"/"revisar" del brief (campos y comportamiento comparados uno a uno contra el HTML oficial y contra el propio checklist del brief) — cero cambios necesarios en ninguno de los dos.
+- Se identificó y corrigió el bug estructural señalado por el propio brief: `DespachoPage` no tenía ninguna posibilidad de mostrar el estado vacío (`CoordinatorEmptyState` había quedado fuera del flujo desde el Sprint 5.1.3) — se introduce `activeJob` como estado único de control (Reglas 19/21), mutuamente excluyente entre estado vacío y Workspace.
+
+### Añadido
+
+- `src/components/shared/job-indicadores-card.tsx` (NUEVO) — `JobIndicadoresCard`, reconstruye el marco visual real del bloque "Indicadores" (`Card`+`CardHeader` con ícono/título + `.mx-goal`), envolviendo `CoordinatorKpiRow` sin modificarlo.
+- `docs/architecture/frontend/SPRINT_5_1_4_COORDINATOR_WORKSPACE_COMPLETION_REPORT.md` (NUEVO).
+- `src/styles/globals.css` — clases `.mx-goal`/`.mx-goal svg`, portadas verbatim (líneas 96-97 del `<style>` original, nunca portadas antes).
+
+### Modificado
+
+- `src/pages/coordinator/DespachoPage.tsx` — se introduce `activeJob: JobSummaryCardJob | null` (fijado temporalmente a `JOB_DEMO`, valor explícitamente admitido por el brief) con `if (!activeJob) return <CoordinatorEmptyState .../>` antes del Workspace; se reincorpora el import de `CoordinatorEmptyState`; se reemplaza el render directo de `CoordinatorKpiRow`/`Loading`/mensaje de error por `JobIndicadoresCard` (mismo estado `kpis`/`kpisError`, mismo `useEffect`, sin cambios de lógica).
+- `PROJECT_STATUS.md` — nueva sección de estado del Sprint 5.1.4.
+- `docs/SPRINTS_INDEX.md` — nueva fila 5.1.4.
+
+### Sin cambios
+
+`coordinator-kpi-row.tsx` (mismo archivo, mismo contrato `{ kpis: CoordinatorKpis }`, cero modificaciones de código ni de cálculo), `job-summary-card.tsx`, `live-dispatch-card.tsx`, `responses-panel.tsx`, `coordinator-empty-state.tsx` (reincorporado al flujo, sin cambios de código), `RootLayout.tsx`, `CoordinatorLayout.tsx`, `AppRouter.tsx`, `TrabajosPage.tsx`, `TrabajoDetailPage.tsx`, `Auth`/`Session`/`OperationalContext` providers, repositories, services, hooks existentes, `Router`/`Roles`/`Policies`/`RLS`. Sin regresiones en Admin/Instalador.
+
+**Validación técnica**: `tsc --noEmit` (instalación global) sobre los archivos nuevos/modificados — distribución de diagnósticos idéntica al patrón de artefactos de entorno ya clasificado (`TS2307`/`TS2875`/`TS7026`/`TS7006`/`TS2322`), cero categorías nuevas, cero `TS6133`, cero errores de sintaxis. `npm run lint`/`typecheck`/`build`/`dev` reales quedan pendientes de ejecución por el usuario (sin `node_modules`/red en este entorno de trabajo).
+
 ## [Fase 5 — Sprint 5.1.3 — Implementación del Workspace Operativo del Coordinador (MVP)] — 2026-07-22 — 🟡 En revisión
 
 Sprint exclusivamente de reconstrucción visual: sin lógica de negocio nueva, sin motor de subasta, sin publicación real, sin asignación real, sin tiempo real. Objetivo: reconstruir el Workspace Operativo del Coordinador (rama `jobs.length>0` de `Coordinator()`) para que coincida visual y estructuralmente con `Multimax_Despacho_v1.3.html`. Detalle técnico completo en `docs/architecture/frontend/SPRINT_5_1_3_COORDINATOR_WORKSPACE_REPORT.md`.

@@ -451,6 +451,28 @@
   color: var(--ice);
 }
 
+/* JobIndicadoresCard (mx-goal) — Sprint 5.1.4 ("Finalización del Workspace
+   Operativo del Coordinador"), portada verbatim de Multimax_Despacho_v1.3.html
+   (líneas 96-97 del <style> original), nunca portada antes: el bloque real
+   "Indicadores" de Coordinator() nunca se había reconstruido hasta este
+   Sprint (ver JSDoc de job-indicadores-card.tsx). */
+.mx-goal {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #bcd;
+  background: rgba(52, 225, 232, 0.06);
+  border: 1px solid rgba(52, 225, 232, 0.2);
+  border-radius: 10px;
+  padding: 9px 11px;
+}
+.mx-goal svg {
+  color: var(--ice);
+  flex-shrink: 0;
+}
+
 /* ---- Button ---- */
 .mx-btn {
   display: inline-flex;
