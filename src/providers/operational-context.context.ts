@@ -17,6 +17,8 @@
  */
 import { createContext } from 'react';
 
+import type { JobSummaryCardJob } from '@/components/shared/job-summary-card';
+
 /**
  * Modo de visualización actual -- para `coordinador`/`instalador` reales,
  * siempre coincide con su propio `profile.rol`; para `admin`, es el valor
@@ -59,6 +61,23 @@ export interface OperationalContextValue {
    * este contexto).
    */
   error: string | null;
+  /**
+   * Sprint 5.2.1 Fix ("Publish Workflow Stabilization") -- único par de
+   * campos nuevos de esta ronda, agregados aquí (y no a un nivel superior,
+   * `RootLayout.tsx`, ni a un Context/Provider nuevo) tras auditoría
+   * explícita solicitada y autorizada por el usuario -- ver el JSDoc
+   * "AJUSTE — Sprint 5.2.1 Fix" de `OperationalContextProvider.tsx` para la
+   * evidencia completa (por qué `CoordinatorLayout` se desmonta al cambiar
+   * de vista, por qué este Provider es el único nodo del árbol que
+   * sobrevive esa transición sin ser `RootLayout`, y por qué agregar estos
+   * 2 campos no altera su responsabilidad documentada de "empresa/tienda
+   * actual"). `activeJob` es el trabajo temporal publicado por el flujo
+   * `PublishModal` (Sprint 5.2.1) -- vive en memoria únicamente, nunca en
+   * Supabase/`localStorage`/`sessionStorage` (Reglas del Sprint 5.2.1/
+   * 5.2.1 Fix).
+   */
+  activeJob: JobSummaryCardJob | null;
+  setActiveJob: (job: JobSummaryCardJob | null) => void;
 }
 
 export const OperationalContext = createContext<OperationalContextValue | null>(null);

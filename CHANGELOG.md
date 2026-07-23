@@ -2,6 +2,37 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 5 — Sprint 5.2.1 Fix — Publish Workflow Stabilization] — 2026-07-23 — 🟡 En revisión
+
+Sprint exclusivamente de estabilización del flujo Publish (Sprint 5.2.1) — sin funcionalidades nuevas. Detalle técnico completo en `docs/architecture/frontend/SPRINT_5_2_1_PUBLISH_WORKFLOW_FIX_REPORT.md`.
+
+**Auditoría y consultas previas (2 decisiones explícitas del usuario)**:
+
+- `activeJob` no sobrevivía la navegación Coordinador↔Instalador↔Administración porque `CoordinatorLayout.tsx` se desmonta de verdad en ese escenario (`RootLayout.tsx` alterna tipos de elemento distintos vía ternario). Tras 2 rondas de `AskUserQuestion` (el usuario rechazó subir el estado a `RootLayout.tsx` y rechazó mantener `CoordinatorLayout` siempre montado), se audita `OperationalContextProvider` (envuelve el ternario completo, nunca se desmonta) y se confirma viable sin romper su responsabilidad ni a sus consumidores existentes. **Decisión del usuario (verbatim): "Si después de la auditoría concluyes que OperationalContextProvider puede asumir ese estado sin romper la arquitectura existente, implementa esa solución."**
+- Mapeo de los 8 campos de validación del brief contra los campos reales de `PublishForm` (no existe "categoría" distinta de "tipo de instalación" ni "ciudad") — resuelto vía la propia regla del brief ("No agregar nuevos campos").
+
+### Añadido
+
+- `docs/architecture/frontend/SPRINT_5_2_1_PUBLISH_WORKFLOW_FIX_REPORT.md` (NUEVO).
+- Validaciones de `PublishModal`: 7 campos obligatorios (`sucursal`/`tipo`/`zona`/`calle`/`fecha`/`hora`/`bidMins`), estado local `errors`/`submitAttempted`, sin librerías externas.
+- `.catch()` en la promesa de `getCoordinatorKpis()` dentro de `DespachoPage.tsx` — corrige la causa real del bloqueo indefinido en "Cargando indicadores…".
+- Campos `activeJob`/`setActiveJob` en `OperationalContextValue` (`operational-context.context.ts`) y su implementación (`useState`) en `OperationalContextProvider.tsx`.
+
+### Modificado
+
+- `src/providers/operational-context.context.ts` / `OperationalContextProvider.tsx` — nuevo estado `activeJob`/`setActiveJob`, ortogonal a la resolución de empresa/tienda existente (sin cambios ahí).
+- `src/layouts/CoordinatorLayout.tsx` — `activeJob`/`setActiveJob` dejan de ser `useState` local, se leen/escriben vía `useOperationalContext()`; `ConfirmCancelDialog.onYes` ahora llama a `setActiveJob(null)` (antes no-op).
+- `src/components/shared/publish-modal.tsx` — validaciones agregadas (ver "Añadido"), sin cambios visuales fuera de los mensajes de error integrados al diseño existente.
+- `src/pages/coordinator/DespachoPage.tsx` — `.catch()` agregado a la promesa de KPIs; sin cambios en cómo lee `activeJob` (sigue siendo `useOutletContext<CoordinatorLayoutOutletContext>()`, forma sin cambios).
+- `PROJECT_STATUS.md` — nueva sección de estado.
+- `docs/SPRINTS_INDEX.md` — nueva fila "5.2.1 Fix".
+
+### Sin cambios
+
+`PublishModal` (visual), `CoordinatorWorkspace`/`JobSummaryCard`/`LiveDispatchCard`/`ResponsesPanel`/`JobIndicadoresCard`/`CoordinatorKpiRow` (ningún bug demostrado, ninguna modificación), `Header`/`Footer`/`Sidebar`/`TwoColumnLayout`, `RootLayout.tsx`, `AppRouter.tsx`, `dashboard.service.ts`/`supabase.service.ts`/repositorios, Auth/Roles/Policies/Router/Supabase.
+
+**Validación técnica**: `tsc --noEmit` (instalación global) — delta de +2 `TS7026` respecto al cierre del Sprint 5.2.1, atribuible a la nueva JSX de mensajes de validación, cero categorías nuevas, cero `TS6133`, cero errores de sintaxis. `npm run lint`/`typecheck`/`build`/`dev` reales quedan pendientes de ejecución por el usuario (sin `node_modules`/red en este entorno de trabajo).
+
 ## [Fase 5 — Sprint 5.2.1 — Publish Workflow (Estado Local MVP)] — 2026-07-23 — 🟡 En revisión
 
 Primer Sprint de lógica de negocio real de la Fase 5: flujo completo de publicación de un trabajo, 100% en memoria React (sin Supabase/API/persistencia, Reglas 13-16 de este brief). Detalle técnico completo en `docs/architecture/frontend/SPRINT_5_2_1_PUBLISH_WORKFLOW_REPORT.md`.

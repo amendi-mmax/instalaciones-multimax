@@ -9,6 +9,7 @@ import type { JobSummaryCardJob } from '@/components/shared/job-summary-card';
 import { PublishModal, type PublishForm } from '@/components/shared/publish-modal';
 import { SucursalSelect } from '@/components/shared/sucursal-select';
 import { useAuth } from '@/hooks/useAuth';
+import { useOperationalContext } from '@/hooks/useOperationalContext';
 
 /**
  * CoordinatorLayout — Sprint 5.1.2 ("Refactor del Layout Operativo del
@@ -187,6 +188,32 @@ import { useAuth } from '@/hooks/useAuth';
  * visual completa de este Layout, y `sucursalCoord`/`OperationalContext`
  * permanecen exactamente iguales — el único cambio es el estado nuevo y el
  * cuerpo, antes vacío, de `onPublish`.
+ *
+ * ---------------------------------------------------------------------
+ * Cambio — Sprint 5.2.1 Fix ("Publish Workflow Stabilization")
+ * ---------------------------------------------------------------------
+ * `activeJob`/`setActiveJob` YA NO son un `useState` local de este archivo
+ * — se leen/escriben ahora vía `useOperationalContext()`, viven físicamente
+ * en `OperationalContextProvider.tsx` (ver su JSDoc "AJUSTE — Sprint 5.2.1
+ * Fix" para la auditoría completa de por qué era necesario y por qué se
+ * autorizó reutilizar ese Provider en vez de subir el estado a
+ * `RootLayout.tsx` o crear un Context nuevo). Motivo: el Objetivo 1 de ese
+ * Sprint ("el trabajo activo debe sobrevivir la navegación
+ * Coordinador↔Instalador↔Administración") es imposible de cumplir con el
+ * estado viviendo aquí, porque `RootLayout.tsx` desmonta por completo este
+ * componente (y todo su árbol) cada vez que un `admin` cambia de vista en
+ * `AdminVistaSwitch` — cualquier `useState` local de este archivo se pierde
+ * en ese momento. `CoordinatorLayoutOutletContext` (más abajo) NO cambió de
+ * forma — sigue exponiendo `activeJob` con el mismo tipo de siempre,
+ * `DespachoPage.tsx` no necesitó ningún cambio para seguir leyéndolo igual
+ * que antes; solo cambió el ORIGEN del valor.
+ *
+ * También en este Sprint: `onYes` de `ConfirmCancelDialog` (antes un no-op
+ * documentado "sin lógica de negocio en este Sprint") ahora llama a
+ * `setActiveJob(null)` — Objetivo 2 ("Cancelar" → `activeJob` → `null` →
+ * `CoordinatorEmptyState`). El propio `ConfirmDialog` ya cierra el diálogo
+ * (`onOpenChange(false)`) después de invocar `onConfirm`/`onYes` — no hace
+ * falta ningún cambio adicional acá para eso.
  */
 export interface CoordinatorLayoutProps {
   sucursalCoord: string;
@@ -212,9 +239,10 @@ export function CoordinatorLayout({
   const { profile, logout } = useAuth();
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
-  // Sprint 5.2.1 ("Publish Workflow") — único estado nuevo de este Sprint,
-  // ver JSDoc "Cambio mínimo" más arriba.
-  const [activeJob, setActiveJob] = useState<JobSummaryCardJob | null>(null);
+  // Sprint 5.2.1 Fix ("Publish Workflow Stabilization") — `activeJob`/
+  // `setActiveJob` ya no son un `useState` local de este archivo, ver JSDoc
+  // "Cambio — Sprint 5.2.1 Fix" más arriba.
+  const { activeJob, setActiveJob } = useOperationalContext();
 
   const outletContext: CoordinatorLayoutOutletContext = useMemo(
     () => ({
@@ -293,7 +321,11 @@ export function CoordinatorLayout({
         open={confirmCancelOpen}
         onOpenChange={setConfirmCancelOpen}
         onYes={() => {
-          /* Sin lógica de negocio en este Sprint — ver comentario histórico. */
+          // Sprint 5.2.1 Fix ("Publish Workflow Stabilization") — Objetivo 2:
+          // activeJob → null → CoordinatorEmptyState. `ConfirmDialog` ya
+          // cierra el diálogo (`onOpenChange(false)`) después de llamar a
+          // este callback, sin necesidad de hacerlo acá también.
+          setActiveJob(null);
         }}
       />
     </div>

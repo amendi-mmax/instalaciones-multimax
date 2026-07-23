@@ -154,14 +154,40 @@ export function DespachoPage() {
     }
 
     setKpisError(null);
-    getCoordinatorKpis(tiendaId).then((result) => {
-      if (!active) return;
-      if (result.ok) {
-        setKpis(result.data);
-      } else {
-        setKpisError(result.error.message);
-      }
-    });
+    getCoordinatorKpis(tiendaId)
+      .then((result) => {
+        if (!active) return;
+        if (result.ok) {
+          setKpis(result.data);
+        } else {
+          setKpisError(result.error.message);
+        }
+      })
+      // Sprint 5.2.1 Fix ("Publish Workflow Stabilization") — Objetivo 4:
+      // causa real, verificada por lectura de código (auditoría documentada
+      // en `SPRINT_5_2_1_PUBLISH_WORKFLOW_FIX_REPORT.md`, sección
+      // "Auditoría realizada"): esta promesa no tenía ningún `.catch()`. Si
+      // `getCoordinatorKpis(tiendaId)` rechaza (p. ej. una falla de red al
+      // llamar a Supabase, en vez de un error normal de Postgrest, que ya
+      // se maneja arriba vía `result.ok === false`), ni `kpis` ni
+      // `kpisError` se actualizaban nunca -- `JobIndicadoresCard` quedaba
+      // mostrando "Cargando indicadores…" para siempre, sin ningún mensaje.
+      // `getCoordinatorKpis()`/`trabajosRepository.getByTiendaId()` en sí
+      // NO son el origen (ambos ya delegan correctamente en
+      // `toServiceResult`, que si la promesa se RESUELVE -- con datos o con
+      // un error de Postgrest -- siempre entrega un `ServiceResult`
+      // explícito) -- el origen real es que este componente, el único
+      // consumidor de esa promesa, no protegía contra un rechazo. Se
+      // corrige acá, en el componente responsable, sin tocar ningún
+      // archivo de la capa Supabase/servicios/repositorios.
+      .catch((err: unknown) => {
+        if (!active) return;
+        setKpisError(
+          err instanceof Error
+            ? err.message
+            : 'No se pudieron cargar los indicadores (error de red inesperado).',
+        );
+      });
     return () => {
       active = false;
     };

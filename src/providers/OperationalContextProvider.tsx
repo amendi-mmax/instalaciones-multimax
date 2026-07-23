@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import type { JobSummaryCardJob } from '@/components/shared/job-summary-card';
 import { useAuth } from '@/hooks/useAuth';
 import { resolveSuperusuarioTienda } from '@/services/operational-context.service';
 import {
@@ -51,6 +52,80 @@ import {
  * `SupabaseProvider`) fue modificado -- este es aditivo, se monta por
  * encima de ellos (ya montados más arriba en `App.tsx`), consumiendo
  * `useAuth()` como cualquier otro componente de la aplicación.
+ *
+ * ---------------------------------------------------------------------
+ * AJUSTE — Sprint 5.2.1 Fix ("Publish Workflow Stabilization")
+ * ---------------------------------------------------------------------
+ * Este Sprint agrega `activeJob`/`setActiveJob` (único cambio de esta
+ * ronda a este archivo) — el trabajo temporal creado por el flujo Publish
+ * (Sprint 5.2.1), antes `useState` local de `CoordinatorLayout.tsx`.
+ *
+ * **Por qué se movió (auditoría solicitada explícitamente por el usuario
+ * antes de tocar código, con autorización condicionada al resultado)**:
+ * el Objetivo 1 de este brief exige que el trabajo activo sobreviva la
+ * navegación Coordinador↔Instalador↔Administración (solo alcanzable, en la
+ * práctica, por un `admin` usando `AdminVistaSwitch` — un Coordinador/
+ * Instalador real nunca cambia de vista). Se auditó `RootLayout.tsx` línea
+ * por línea para responder las 5 preguntas exactas del usuario:
+ *
+ * 1. **¿`CoordinatorLayout` se destruye o solo cambia su contenido?**
+ *    Se DESTRUYE de verdad. `RootLayout.tsx` retorna
+ *    `{showCoordinador ? <CoordinatorLayout .../> : <div>...</div>}` — un
+ *    ternario de JavaScript que alterna entre 2 TIPOS de elemento
+ *    distintos en la misma posición del árbol. React desmonta el subárbol
+ *    completo (limpia efectos, descarta todo `useState` local) cada vez
+ *    que `showCoordinador` cambia de `true` a `false` o viceversa — no es
+ *    un cambio de contenido interno, es un unmount/mount real.
+ * 2. **¿Quién decide el cambio de vista?** `RootLayout.tsx` mismo, vía su
+ *    propio estado `adminVista` (`useState`, alimentado por
+ *    `AdminVistaSwitch.onChange`) — el cálculo de `showCoordinador`/
+ *    `showInstalador`/`showAdminPanel` ocurre ahí, no en el Router ni en
+ *    `<Outlet/>`. El `useEffect` que sincroniza la URL es un efecto
+ *    secundario de esa decisión, no la causa del unmount.
+ * 3. **¿Existe ya un componente padre del módulo Despacho que sobreviva sin
+ *    subir a `RootLayout`?** No. El árbol es
+ *    `RootLayout` → `OperationalContextProvider` → (ternario) →
+ *    `CoordinatorLayout` → `<Outlet/>` → `DespachoPage`. Cualquier estado
+ *    dentro de la rama `showCoordinador` (incluido el propio
+ *    `CoordinatorLayout`) se destruye junto con ella. Los ÚNICOS 2 nodos
+ *    que sobreviven el cambio de `adminVista` son `RootLayout` (dueño del
+ *    estado que causa el cambio) y `OperationalContextProvider` (envuelve
+ *    el ternario, montado una sola vez, nunca dentro de él) — ninguno vive
+ *    "dentro" del módulo Despacho en el sentido de estar más abajo que
+ *    `CoordinatorLayout`.
+ * 4. **¿Puede mantenerse `CoordinatorLayout` montado, solo cambiando su
+ *    contenido interno?** Técnicamente sí, pero exige restructurar el
+ *    render condicional de `RootLayout.tsx` (montar los 3 bloques de rol
+ *    siempre, alternando visibilidad por CSS) — una modificación real y no
+ *    trivial a la arquitectura de layout (Header/Footer duplicados en el
+ *    DOM oculto, `useEffect`s de KPIs/PublishModal quedarían "vivos" en
+ *    segundo plano). El usuario evaluó esta alternativa explícitamente y
+ *    **no la autorizó**.
+ * 5. **¿Existe ya un Context del módulo Despacho reutilizable?** Sí:
+ *    `OperationalContext` (este archivo) — es, de los 2 nodos que
+ *    sobreviven (pregunta 3), el único que no es `RootLayout` y el único
+ *    que el usuario autorizó tocar. Su responsabilidad documentada
+ *    ("para qué empresa/tienda estoy operando") es distinta de `activeJob`
+ *    ("qué trabajo está activo en el flujo de Despacho"), pero ambos son,
+ *    en los hechos, "estado operativo compartido del Coordinador" — se
+ *    verificó que agregar estos 2 campos NO requiere ningún cambio a la
+ *    lógica de resolución de empresa/tienda existente (`activeJob` es
+ *    completamente independiente de `resolveSuperusuarioTienda`/
+ *    `esSuperusuario`/`modo`), no introduce ningún Context/Provider nuevo
+ *    (Regla arquitectónica permanente), y no rompe a ninguno de sus 2
+ *    consumidores reales existentes (`DespachoPage.tsx`/`TrabajosPage.tsx`,
+ *    ninguno de los 2 desestructura `activeJob`/`setActiveJob` hoy, así
+ *    que agregar estos campos es aditivo, no rompe nada existente).
+ *
+ * **Qué NO cambió por este ajuste**: la resolución de
+ * `empresaId`/`empresaNombre`/`tiendaId`/`tiendaNombre`/`loading`/`error`
+ * (arriba) permanece exactamente igual, mismo código, mismas 2 ramas.
+ * `activeJob`/`setActiveJob` es un `useState` adicional, ortogonal, que no
+ * participa en ningún cálculo de `useMemo` existente salvo para incluirse
+ * en el objeto final. `CoordinatorLayout.tsx` deja de declarar su propio
+ * `useState(null)` para `activeJob` y pasa a leerlo/escribirlo de aquí
+ * vía `useOperationalContext()` -- ver su JSDoc "Cambio mínimo — Sprint
+ * 5.2.1 Fix" para el detalle de ese lado del cambio.
  */
 export interface OperationalContextProviderProps {
   modo: ModoVisualizacion;
@@ -79,6 +154,11 @@ export function OperationalContextProvider({
     error: string | null;
   }>({ empresaId: null, empresaNombre: null, tiendaId: null, tiendaNombre: null, error: null });
   const [loading, setLoading] = useState(false);
+  // Sprint 5.2.1 Fix — único estado nuevo de esta ronda, ver JSDoc "AJUSTE
+  // — Sprint 5.2.1 Fix" más arriba. Independiente de `resuelto`/`loading`
+  // (empresa/tienda) -- ninguna de las 2 ramas de `value` (abajo) necesita
+  // condicionar su lectura/escritura.
+  const [activeJob, setActiveJob] = useState<JobSummaryCardJob | null>(null);
 
   useEffect(() => {
     if (!requiereResolucionSuperusuario) {
@@ -136,6 +216,8 @@ export function OperationalContextProvider({
         tiendaNombre: resuelto.tiendaNombre,
         loading,
         error: resuelto.error,
+        activeJob,
+        setActiveJob,
       };
     }
 
@@ -148,8 +230,18 @@ export function OperationalContextProvider({
       tiendaNombre: profile?.tiendaNombre ?? null,
       loading: false,
       error: null,
+      activeJob,
+      setActiveJob,
     };
-  }, [requiereResolucionSuperusuario, modo, esSuperusuario, resuelto, loading, profile]);
+  }, [
+    requiereResolucionSuperusuario,
+    modo,
+    esSuperusuario,
+    resuelto,
+    loading,
+    profile,
+    activeJob,
+  ]);
 
   return <OperationalContext.Provider value={value}>{children}</OperationalContext.Provider>;
 }
