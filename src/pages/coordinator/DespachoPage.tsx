@@ -25,12 +25,18 @@ import type { CoordinatorLayoutOutletContext } from '@/layouts/CoordinatorLayout
  * "Instalación A/A 12,000 BTU", Paitilla/Panamá, 2026-06-22 2:00 p.m.,
  * sucursal Multiplaza) para no inventar datos nuevos -- ese mock es de
  * "Mis trabajos" (`CoordinatorJobs`), no del motor de despacho, pero sus
- * valores de campo son reales del propio HTML, no fabricados.
+ * valores de campo son reales del propio HTML, no fabricados. `urgente:
+ * false` (Sprint 5.1.5) porque ese mock no incluye ese campo -- valor menos
+ * presuntuoso, no fabrica una urgencia que no existe.
  *
- * **Sprint 5.1.4**: este valor ahora se asigna a `activeJob` (ver JSDoc de
- * `DespachoPage` más abajo) en vez de usarse directamente -- el propio
- * nombre `JOB_DEMO` no cambia, sigue siendo el mismo dato de demostración
- * ya aprobado en el Sprint 5.1.3.
+ * **Sprint 5.1.4**: este valor se asigna a `activeJob` (ver JSDoc de
+ * `DespachoPage` más abajo) en vez de usarse directamente.
+ *
+ * **Sprint 5.1.5** ("Corrección definitiva del Coordinator Workspace"):
+ * `JOB_DEMO` permanece en el proyecto ÚNICAMENTE como dato temporal --
+ * `activeJob` YA NO se fija a este valor por defecto (Objetivo 1: "activeJob
+ * NO debe inicializarse con JOB_DEMO. Debe comenzar como: null"). Ver
+ * `DEMO_MODE` más abajo.
  */
 const JOB_DEMO: JobSummaryCardJob = {
   id: 'JOB-4821',
@@ -41,6 +47,7 @@ const JOB_DEMO: JobSummaryCardJob = {
   hora: '2:00 p.m.',
   sucursal: 'Multiplaza',
   bidMins: 5,
+  urgente: false,
 };
 
 /**
@@ -75,6 +82,22 @@ const LIVECOUNTDOWN_DEMO_PUBLISHED_AT = Date.now() - 60_000;
 const LIVECOUNTDOWN_DEMO_BID_MINS = 5;
 
 /**
+ * `DEMO_MODE` -- Sprint 5.1.5. Flag manual, temporal, NO conectado a
+ * ninguna fuente real (Supabase/servicio/hook) -- únicamente decide si
+ * `activeJob` (más abajo) toma el valor de `JOB_DEMO` o `null`. Permanece en
+ * `false` por defecto (Objetivo 1/2 del brief: "`activeJob` NO debe
+ * inicializarse con `JOB_DEMO`... debe comenzar como `null`"; "`JOB_DEMO`
+ * debe utilizarse exclusivamente cuando se invoque explícitamente. Nunca
+ * debe renderizar automáticamente la vista"). Cambiarlo a `true` es la única
+ * forma de "invocar explícitamente" el job de demostración -- una edición
+ * manual y deliberada de este archivo, nunca un estado que se active solo.
+ * El Sprint 5.2 retira este flag por completo, reemplazándolo por el
+ * trabajo activo real de la sucursal (`trabajos` con
+ * `estado='live'`/`'assigned'`).
+ */
+const DEMO_MODE = false;
+
+/**
  * DespachoPage — "Despacho en vivo", ruta `/despacho` (Sprint 5.1, primera
  * ruta real de `ARCHITECTURE.md §8` para el Coordinador). Es el landing
  * real del Coordinador autenticado (Entregable 1: "cuando rol=coordinador,
@@ -88,67 +111,56 @@ const LIVECOUNTDOWN_DEMO_BID_MINS = 5;
  * **Ajuste Sprint 5.1.3** ("Implementación del Workspace Operativo del
  * Coordinador"): reemplazó por completo el bloque anterior
  * (`CoordinatorEmptyState`+`Radar`+`LiveCountdown`+botón "Cancelar" sueltos,
- * coexistiendo sin exclusión mutua desde los Sprints 3.6/3.7/3.9/3.15 --
- * una inconsistencia visual respecto al HTML oficial, donde esas 2 ramas
- * (`jobs.length === 0` vs. `jobs.length > 0`) nunca se muestran juntas) por
+ * coexistiendo sin exclusión mutua desde los Sprints 3.6/3.7/3.9/3.15) por
  * el Workspace real: `TwoColumnLayout` (`variant="despacho"`, YA EXISTENTE
  * desde Fase 3, sin cambios) con `JobSummaryCard`+`LiveDispatchCard`+KPIs
  * en la columna izquierda (`mx-col`, mismo orden de anidación que
  * `Coordinator()` en el HTML oficial: `mx-jobcard` primero, luego "Despacho
  * en vivo", luego "Indicadores") y `ResponsesPanel` en la derecha.
  *
- * **Ajuste Sprint 5.1.4** ("Finalización del Workspace Operativo del
- * Coordinador"): el Sprint 5.1.3 dejó el Workspace SIEMPRE visible, sin
- * ninguna posibilidad estructural de mostrar el estado vacío -- una
- * corrección pendiente detectada por el propio brief de este Sprint
- * ("Actualmente siempre se muestra `CoordinatorWorkspace`. Debe
- * corregirse", Regla 21: "el render deberá estar gobernado por un estado
- * único de control"). Se introduce `activeJob` (`JobSummaryCardJob | null`,
- * ver más abajo) como ese estado de control único: cuando es `null` se
- * renderiza EXCLUSIVAMENTE `CoordinatorEmptyState` (ningún
- * `JobSummaryCard`/`LiveDispatchCard`/`ResponsesPanel`/KPIs); cuando existe,
- * se renderiza el Workspace completo -- ambos estados son mutuamente
- * excluyentes (Regla 19), nunca simultáneos, igual que las 2 ramas reales
- * de `Coordinator(props)` (`jobs.length === 0` vs. `jobs.length > 0`) en el
- * HTML oficial.
+ * **Ajuste Sprint 5.1.4**: introdujo `activeJob` como estado único de
+ * control (Reglas 19/21) entre `CoordinatorEmptyState` y el Workspace
+ * completo -- pero lo fijó a `JOB_DEMO` por defecto, dejando el Workspace
+ * visible siempre en la práctica (mismo síntoma original, solo con la
+ * estructura condicional ya lista).
  *
- * `activeJob` se fija temporalmente a `JOB_DEMO` (no `null`) -- valor
- * explícitamente admitido por el propio brief como ejemplo válido ("`const
- * activeJob = JOB_DEMO;`") -- para preservar, sin regresión visual, la
- * reconstrucción del Workspace ya aprobada en el Sprint 5.1.3 (el usuario
- * ya había pedido explícitamente reemplazar por completo el estado vacío
- * del flujo principal en esa ronda: "El estado vacío queda eliminado del
- * flujo principal del Coordinador"). `CoordinatorEmptyState` sigue
- * existiendo (no se borra del proyecto) y ahora es estructuralmente
- * alcanzable de nuevo, lista para cuando el Sprint 5.2 reemplace este valor
- * fijo por el trabajo activo real de la sucursal (`trabajos` con
- * `estado='live'`/`'assigned'`, o `null` si no hay ninguno) -- sin tener
- * que modificar de nuevo la estructura de este archivo, solo el origen del
- * valor de `activeJob` (Objetivo 10 de este Sprint: "Este Sprint termina
- * exactamente donde comienza `PublishModal`").
+ * **Corrección Sprint 5.1.5** ("Corrección definitiva del Coordinator
+ * Workspace"): Regla 23 ("un Sprint visual no puede darse por terminado
+ * únicamente porque la arquitectura esté preparada... debe reproducir
+ * exactamente el comportamiento visual del HTML oficial") y Regla 24 ("no
+ * debes asumir que un componente aprobado anteriormente sigue siendo
+ * correcto") -- se re-verificó el comportamiento real renderizado, no solo
+ * la estructura del código, y se confirmó que `activeJob = JOB_DEMO` violaba
+ * el objetivo explícito del brief ("`activeJob` NO debe inicializarse con
+ * `JOB_DEMO`. Debe comenzar como: `null`"). Se corrige a `activeJob =
+ * DEMO_MODE ? JOB_DEMO : null` (`DEMO_MODE` en `false` por defecto, ver su
+ * JSDoc arriba) -- `CoordinatorEmptyState` es ahora la vista real que ve un
+ * Coordinador sin trabajo activo, tal como exige el HTML oficial (`jobs.length
+ * === 0`). `JOB_DEMO` permanece en el proyecto (no se borra) exactamente
+ * como pide el brief: "únicamente como dato temporal... utilizado
+ * exclusivamente cuando se invoque explícitamente."
  *
  * **KPIs / "Indicadores"**: `CoordinatorKpiRow` (Sprint 5.1, agregado
  * dashboard sin equivalente en el HTML oficial) permanece SIN NINGÚN
  * CAMBIO -- mismo componente, mismo fetch (`dashboard.service.ts`/
- * `getCoordinatorKpis`), mismo contrato (`{ kpis: CoordinatorKpis }`). Este
- * Sprint lo envuelve con `JobIndicadoresCard` (NUEVO), que reconstruye
- * únicamente el MARCO visual del bloque real "Indicadores" de
- * `Coordinator()` (título/ícono/`mx-goal`) -- decisión explícita del
- * usuario (`AskUserQuestion`) tras la discrepancia real detectada en la
- * auditoría de este Sprint: el HTML oficial no tiene ningún "Dashboard",
- * así que sus 6 métricas reales de `jobView()` (1ª respuesta/3 respuestas/
- * Asignación/Notificados/Abiertos/Respuestas) no tienen ninguna fuente real
- * en este Sprint (dependen del motor de subasta, Sprint 5.3) -- se reutiliza
- * en su lugar el dato real ya existente (`CoordinatorKpiRow`), sin inventar
- * ninguna métrica ni tocar ningún cálculo. Ver JSDoc completo de
- * `job-indicadores-card.tsx`.
+ * `getCoordinatorKpis`), mismo contrato. `JobIndicadoresCard` (Sprint 5.1.4)
+ * lo envuelve con el marco visual real de "Indicadores" (título/ícono/
+ * `mx-goal`).
+ *
+ * **Corrección Sprint 5.1.5 (Indicadores)**: `kpisError` (mensaje real,
+ * ej. "la sucursal todavía no existe...") se renderizaba hasta este Sprint
+ * DENTRO de `JobIndicadoresCard` -- el HTML oficial nunca muestra un mensaje
+ * de error dentro del bloque "Indicadores" (su estructura es fija:
+ * encabezado → StatTiles → `mx-goal`). Se retira `kpisError` de las props de
+ * `JobIndicadoresCard` (ver su JSDoc) y se muestra, si existe, como párrafo
+ * independiente en la columna izquierda, ANTES de `JobIndicadoresCard` --
+ * misma información real, ya no dentro del bloque visual "Indicadores".
  *
  * **Qué NO hace este Sprint** (excluido explícitamente por el propio
  * brief): motor de subasta real, publicación real, asignación real, tiempo
- * real -- `JobSummaryCard`/`LiveDispatchCard`/`ResponsesPanel` siguen
- * usando props de demostración fijas, exactamente como en el Sprint 5.1.3.
- * `PublishModal` sigue sin conectarse a lógica real (pendiente del Sprint
- * 5.2).
+ * real, conexión de Supabase, modificación de `PublishModal`. `JobSummaryCard`/
+ * `LiveDispatchCard`/`ResponsesPanel` siguen usando props de demostración
+ * fijas, solo activas cuando `DEMO_MODE` es `true`.
  *
  * **Ajuste Sprint 5.1.1** ("Ajuste final -- Modo Administrador
  * Superusuario"): `tiendaId` ya no se lee de `profile.tiendaId` (vía
@@ -217,12 +229,12 @@ export function DespachoPage() {
     };
   }, [tiendaId, contextoLoading, contextoError]);
 
-  // Sprint 5.1.4 -- estado único de control (Regla 21) que decide, de forma
-  // mutuamente excluyente (Regla 19), entre `CoordinatorEmptyState` (sin
-  // trabajo activo) y el Workspace completo (con trabajo activo). Ver el
-  // JSDoc completo de este archivo ("Ajuste Sprint 5.1.4") sobre por qué se
-  // fija temporalmente a `JOB_DEMO` (no `null`) en esta ronda.
-  const activeJob: JobSummaryCardJob | null = JOB_DEMO;
+  // Sprint 5.1.4/5.1.5 -- estado único de control (Regla 21) que decide, de
+  // forma mutuamente excluyente (Regla 19), entre `CoordinatorEmptyState`
+  // (sin trabajo activo) y el Workspace completo (con trabajo activo). Ver
+  // el JSDoc completo de este archivo ("Corrección Sprint 5.1.5") sobre por
+  // qué ya NO se fija a `JOB_DEMO` por defecto.
+  const activeJob: JobSummaryCardJob | null = DEMO_MODE ? JOB_DEMO : null;
 
   if (!activeJob) {
     return <CoordinatorEmptyState onOpenPublish={onOpenPublish} />;
@@ -246,7 +258,16 @@ export function DespachoPage() {
             bidMins={LIVECOUNTDOWN_DEMO_BID_MINS}
             onCancel={onOpenConfirmCancel}
           />
-          <JobIndicadoresCard kpis={kpis} kpisError={kpisError} bidMins={activeJob.bidMins} />
+          {/* Sprint 5.1.5 -- `kpisError` ya NO se renderiza dentro de
+              `JobIndicadoresCard` (el bloque "Indicadores" del HTML oficial
+              no tiene ninguna rama de error). Mismo mensaje real, ahora
+              fuera de ese bloque visual. */}
+          {kpisError && (
+            <p className="mx-sub" style={{ marginBottom: 14 }}>
+              {kpisError}
+            </p>
+          )}
+          <JobIndicadoresCard kpis={kpis} bidMins={activeJob.bidMins} />
         </section>
       }
       right={

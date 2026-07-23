@@ -651,6 +651,20 @@ Sprint exclusivamente de reconstrucción de interfaz -- sin motor de subasta, si
 
 **Pendiente**: validación real del usuario (`npm run lint`/`typecheck`/`build`/`dev`) -- mismas limitaciones de entorno que el resto del proyecto; se usó `tsc` global (distribución de diagnósticos idéntica al patrón de artefactos ya clasificado, sin categorías nuevas, cero `TS6133`, cero errores de sintaxis).
 
+## Fase 5 — Sprint 5.1.5 — Corrección definitiva del Coordinator Workspace (Fix Visual + Estados) (2026-07-23) — 🟡 En revisión
+
+Sprint exclusivamente correctivo (Regla 23/24 de este brief) -- el Sprint 5.1.4 dejó la arquitectura lista (`activeJob` como estado único de control) pero el comportamiento VISUAL seguía sin coincidir con el HTML oficial: `activeJob` se fijaba a `JOB_DEMO`, dejando el Workspace visible siempre en la práctica (mismo síntoma que antes de 5.1.4, con la estructura condicional ya construida pero inutilizada). Detalle técnico completo en `docs/architecture/frontend/SPRINT_5_1_5_COORDINATOR_LAYOUT_FIX_REPORT.md`.
+
+**Re-auditoría obligatoria (Regla 24) — 3 correcciones reales confirmadas contra el HTML oficial**:
+
+1. **`activeJob` debe iniciar en `null`** (Objetivo 1/2 del brief): se introduce `DEMO_MODE` (constante `false` por defecto, `src/pages/coordinator/DespachoPage.tsx`) — `activeJob = DEMO_MODE ? JOB_DEMO : null`. `JOB_DEMO` permanece en el proyecto (no se borra), pero ya no se auto-renderiza — solo se activaría cambiando manualmente `DEMO_MODE` a `true` ("invocación explícita", per el brief). `CoordinatorEmptyState` es ahora la vista real que ve un Coordinador sin trabajo activo.
+2. **Bloque `mx-jobcard-h` de `JobSummaryCard` — Pill "Urgente"/"Normal" faltante**: re-auditado contra `Coordinator()` (líneas 2216-2233 del HTML oficial), se detectó que el Pill incondicional `job.urgente ? "Urgente" : "Normal"` nunca se había portado. Se agrega el campo `urgente: boolean` y el Pill correspondiente, en su posición real (2º, tras el ID) — los 2 Pills "añadidos por decisión de producto" (`estado`/`tiempo restante`, ya pedidos explícitamente por el usuario en los Sprints 5.1.3/5.1.4) se reordenan al final.
+3. **Bloque "Indicadores" — mensaje de error ajeno**: `kpisError` (ej. "la sucursal todavía no existe...") se renderizaba DENTRO de `JobIndicadoresCard` — el HTML oficial nunca muestra una rama de error ahí (estructura fija: encabezado → StatTiles → `mx-goal`). Se retira `kpisError` de `JobIndicadoresCard` (que ahora solo alterna `CoordinatorKpiRow`/`Loading`, nunca texto de error) y se muestra, si existe, como párrafo independiente en `DespachoPage.tsx`, fuera del bloque visual "Indicadores" — mismo mensaje real, reubicado.
+
+**Sin cambios**: `coordinator-kpi-row.tsx` (mismo archivo, mismo contrato, per instrucción explícita del brief), `LiveDispatchCard`, `ResponsesPanel`, `CoordinatorEmptyState`, `TwoColumnLayout`, `CoordinatorLayout.tsx`, `RootLayout.tsx`, `AppRouter.tsx`, `PublishModal`, Auth/Roles/RLS/Policies/Providers/OperationalContext/Servicios/Hooks/Repositories/Supabase/Router.
+
+**Pendiente**: validación real del usuario (`npm run lint`/`typecheck`/`build`/`dev`) -- mismas limitaciones de entorno que el resto del proyecto; se usó `tsc` global (delta de +2 `TS2322`, mismo patrón Badge ya clasificado por las 2 nuevas instancias del Pill "Urgente"/"Normal", cero categorías nuevas, cero `TS6133`, cero errores de sintaxis).
+
 ## Qué falta
 
 - **Bloqueante para cerrar el Sprint 5.1**: ejecutar en el entorno del usuario `npm run lint && npm run typecheck && npm run build && npm run dev` en verde, y validación visual/funcional real (login como coordinador, KPIs con datos reales de su tienda, navegación `/despacho`↔`/trabajos`, detalle de un trabajo) -- este entorno de trabajo no tiene `node_modules`/acceso de red para ejecutarlos ni credenciales reales para probar contra Producción.

@@ -43,34 +43,36 @@ import type { CoordinatorKpis } from '@/services';
  * aprobado en el Sprint 5.1.3 (`JOB_DEMO.bidMins`, pasado como prop desde
  * `DespachoPage.tsx`) para el texto de la meta — no es un dato nuevo.
  *
- * `kpis`/`kpisError` se reciben tal cual desde `DespachoPage.tsx` (mismo
- * `useEffect`/`getCoordinatorKpis` del Sprint 5.1, sin cambios) — este
- * componente solo decide el envoltorio visual, preservando exactamente los
- * 3 estados ya existentes (error/cargado/cargando).
+ * `kpis` se recibe tal cual desde `DespachoPage.tsx` (mismo `useEffect`/
+ * `getCoordinatorKpis` del Sprint 5.1, sin cambios) — este componente solo
+ * decide el envoltorio visual.
  *
  * CSS: `.mx-goal`/`.mx-goal svg` no estaban portados a `globals.css` (la
  * rama que los usa nunca se había construido) — agregados verbatim en este
  * mismo Sprint (líneas 96-97 del `<style>` original).
+ *
+ * **Corrección Sprint 5.1.5** ("Corrección definitiva del Coordinator
+ * Workspace"): el HTML oficial NUNCA muestra un mensaje de error dentro del
+ * bloque "Indicadores" — su estructura real es fija (encabezado → StatTiles
+ * → `mx-goal`, sin ninguna rama de error). Este componente ya NO acepta
+ * `kpisError` ni lo renderiza — ese mensaje (ej. "la sucursal todavía no
+ * existe...") es un estado real de la app (`getCoordinatorKpis`/Contexto
+ * Operativo), pero no pertenece visualmente a este bloque; `DespachoPage.tsx`
+ * ahora lo muestra, si existe, FUERA de este componente (ver su JSDoc). Sin
+ * `kpis` real disponible, este componente solo muestra `<Loading/>` en su
+ * lugar — nunca texto de error, igual que el HTML oficial nunca muestra
+ * nada distinto de los StatTiles/`mx-goal` en ese bloque.
  */
 export interface JobIndicadoresCardProps {
   kpis: CoordinatorKpis | null;
-  kpisError: string | null;
   bidMins: number;
 }
 
-export function JobIndicadoresCard({ kpis, kpisError, bidMins }: JobIndicadoresCardProps) {
+export function JobIndicadoresCard({ kpis, bidMins }: JobIndicadoresCardProps) {
   return (
     <Card>
       <CardHeader icon={<TrendingUp size={14} />} cardTitle="Indicadores" />
-      {kpisError ? (
-        <p className="mx-sub" style={{ marginBottom: 14 }}>
-          {kpisError}
-        </p>
-      ) : kpis ? (
-        <CoordinatorKpiRow kpis={kpis} />
-      ) : (
-        <Loading label="Cargando indicadores…" />
-      )}
+      {kpis ? <CoordinatorKpiRow kpis={kpis} /> : <Loading label="Cargando indicadores…" />}
       <div className="mx-goal">
         <ShieldCheck size={13} />
         Meta: una opción de instalación disponible en {bidMins} minutos o menos.

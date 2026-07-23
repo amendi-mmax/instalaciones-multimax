@@ -2,6 +2,36 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 5 — Sprint 5.1.5 — Corrección definitiva del Coordinator Workspace (Fix Visual + Estados)] — 2026-07-23 — 🟡 En revisión
+
+Sprint exclusivamente correctivo — el Sprint 5.1.4 dejó la arquitectura lista (`activeJob` como estado único de control) pero el comportamiento VISUAL renderizado seguía sin coincidir con el HTML oficial. Regla 23 ("un Sprint visual no puede darse por terminado únicamente porque la arquitectura esté preparada") y Regla 24 ("no debes asumir que un componente aprobado anteriormente sigue siendo correcto") de este brief. Detalle técnico completo en `docs/architecture/frontend/SPRINT_5_1_5_COORDINATOR_LAYOUT_FIX_REPORT.md`.
+
+**Re-auditoría obligatoria — 3 correcciones reales confirmadas contra el HTML oficial**:
+
+- `activeJob` se fijaba a `JOB_DEMO` por defecto (Sprint 5.1.4) — el Workspace seguía visible siempre en la práctica, contradiciendo el Objetivo 1/2 explícito de este brief ("`activeJob` NO debe inicializarse con `JOB_DEMO`. Debe comenzar como `null`"; "`JOB_DEMO` debe utilizarse exclusivamente cuando se invoque explícitamente").
+- `mx-jobcard-h` de `JobSummaryCard`: faltaba el Pill real incondicional `job.urgente ? "Urgente" : "Normal"` (líneas 2216-2233 del HTML oficial) — nunca se había portado.
+- `JobIndicadoresCard` renderizaba `kpisError` (mensaje real, ej. "la sucursal todavía no existe...") dentro del bloque "Indicadores" — el HTML oficial nunca muestra ninguna rama de error ahí.
+
+### Añadido
+
+- `docs/architecture/frontend/SPRINT_5_1_5_COORDINATOR_LAYOUT_FIX_REPORT.md` (NUEVO).
+- `DEMO_MODE` (constante, `src/pages/coordinator/DespachoPage.tsx`) — flag manual temporal (`false` por defecto) que decide si `activeJob` toma `JOB_DEMO` o `null`; no conectado a ninguna fuente real.
+- Campo `urgente: boolean` en `JobSummaryCardJob` + Pill "Urgente"/"Normal" en `JobSummaryCard` (`mx-jobcard-h`), en su posición real (2º, tras el ID).
+
+### Modificado
+
+- `src/pages/coordinator/DespachoPage.tsx` — `activeJob = DEMO_MODE ? JOB_DEMO : null` (antes: fijo a `JOB_DEMO`); `JOB_DEMO.urgente = false` agregado; el mensaje `kpisError` se renderiza ahora como párrafo independiente en la columna izquierda, antes de `JobIndicadoresCard`, en vez de pasarse como prop a ese componente.
+- `src/components/shared/job-summary-card.tsx` — Pill "Urgente"/"Normal" agregado; reordenados los Pills "añadidos por decisión de producto" (`estado`/`tiempo restante`) al final, después de los 3 campos literales del HTML (id/urgente-normal/bid).
+- `src/components/shared/job-indicadores-card.tsx` — se retira `kpisError` de sus props; ahora alterna únicamente `CoordinatorKpiRow`/`Loading`, nunca texto de error.
+- `PROJECT_STATUS.md` — nueva sección de estado del Sprint 5.1.5.
+- `docs/SPRINTS_INDEX.md` — nueva fila 5.1.5.
+
+### Sin cambios
+
+`coordinator-kpi-row.tsx` (mismo archivo, mismo contrato, per instrucción explícita del brief: "NO modificar `CoordinatorKpiRow`. Debe reutilizarse."), `live-dispatch-card.tsx`, `responses-panel.tsx`, `coordinator-empty-state.tsx` (ahora es la vista real por defecto, sin cambios de código), `RootLayout.tsx`, `CoordinatorLayout.tsx`, `AppRouter.tsx`, `PublishModal`, Auth/Roles/RLS/Policies/Providers/`OperationalContext`/Servicios/Hooks/Repositories/Supabase/Router.
+
+**Validación técnica**: `tsc --noEmit` (instalación global) — delta de +2 `TS2322` respecto al cierre del Sprint 5.1.4, atribuible íntegramente a las 2 nuevas instancias del Pill "Urgente"/"Normal" (mismo patrón Badge ya clasificado en rondas anteriores), cero categorías nuevas, cero `TS6133`, cero errores de sintaxis. `npm run lint`/`typecheck`/`build`/`dev` reales quedan pendientes de ejecución por el usuario (sin `node_modules`/red en este entorno de trabajo).
+
 ## [Fase 5 — Sprint 5.1.4 — Finalización del Workspace Operativo del Coordinador (MVP)] — 2026-07-23 — 🟡 En revisión
 
 Sprint exclusivamente de reconstrucción visual: sin lógica de negocio nueva, sin motor de subasta, sin Supabase. Cierra la serie 5.1.x — deja el `CoordinatorWorkspace` estabilizado para que el Sprint 5.2 ("Publicación de Trabajos") se concentre únicamente en lógica de negocio. Detalle técnico completo en `docs/architecture/frontend/SPRINT_5_1_4_COORDINATOR_WORKSPACE_COMPLETION_REPORT.md`.
