@@ -2,6 +2,52 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 5 — Corrección — CoordinatorKpiRow visible siempre] — 2026-07-23 — 🟡 En revisión
+
+Corrección puntual, instrucción directa del usuario (sin brief de Sprint nuevo), inmediatamente posterior al cierre de "Coordinator KPI Loading Resolution": **"No ocultes CoordinatorKpiRow... debe renderizarse siempre"**. Detalle técnico completo en el Anexo (sección 10) de `docs/architecture/frontend/SPRINT_5_2_1_KPI_LOADING_FIX_REPORT.md`.
+
+**Motivo**: el modelo `kpisLoading` (`<Loading/>` mientras carga, `null` si termina sin datos) recién introducido seguía "ocultando" el bloque de Indicadores en algunos desenlaces — el usuario decidió que `CoordinatorKpiRow` no debe ocultarse nunca, y que el fix debe vivir únicamente en el origen de los datos.
+
+### Añadido
+
+- `ZERO_KPIS` (constante local, `DespachoPage.tsx`) — objeto `CoordinatorKpis` con los 5 campos en cero; no es un mock, es el mismo objeto que `calcularKpis()` ya devuelve para `rows: []`. Es ahora el valor por defecto de `kpis` en todo instante sin datos reales.
+
+### Modificado
+
+- `src/pages/coordinator/DespachoPage.tsx` — `kpis` pasa de `CoordinatorKpis | null` a `CoordinatorKpis` (no-nulable), inicializado en `ZERO_KPIS`; todos los `setKpis(null)` se reemplazan por `setKpis(ZERO_KPIS)`; se retira el estado `kpisLoading` y su `.finally()` (sin más propósito); se retira el prop `kpisLoading` de la invocación de `JobIndicadoresCard`.
+- `src/components/shared/job-indicadores-card.tsx` — `JobIndicadoresCardProps.kpis` pasa a `CoordinatorKpis` (no-nulable); se retira `kpisLoading` del contrato; el render deja de tener cualquier rama condicional — siempre `<CoordinatorKpiRow kpis={kpis}/>`; se retira el import de `Loading` (sin más uso en el archivo).
+
+### Sin cambios
+
+`src/components/shared/coordinator-kpi-row.tsx` (instrucción explícita del usuario — mismo contrato `{kpis: CoordinatorKpis}`, cero cambios de código), `CoordinatorWorkspace`/`JobSummaryCard`/`PublishModal`/`LiveDispatchCard`/`ResponsesPanel`/`CoordinatorLayout`/`RootLayout`, `dashboard.service.ts`/`supabase.service.ts`/repositorios, `OperationalContextProvider.tsx`. Ningún componente/servicio/hook/provider nuevo, ningún mock.
+
+**Validación técnica**: `tsc --noEmit` (instalación global) — distribución de diagnósticos idéntica al cierre de la ronda anterior (cero delta), cero categorías nuevas, cero `TS6133`, cero errores de sintaxis. `npm run lint`/`typecheck`/`build`/`dev` reales quedan pendientes de ejecución por el usuario (sin `node_modules`/red en este entorno de trabajo).
+
+## [Fase 5 — Sprint 5.2.1 Fix — Coordinator KPI Loading Resolution] — 2026-07-23 — 🟡 En revisión
+
+Sprint de responsabilidad única (sin funcionalidades nuevas): resolver por completo el bloqueo indefinido de `CoordinatorKpiRow` en "Cargando indicadores…". Detalle técnico completo en `docs/architecture/frontend/SPRINT_5_2_1_KPI_LOADING_FIX_REPORT.md`.
+
+**Causa raíz encontrada (instrumentación temporal con logs, removida antes de finalizar)**: no existía ningún estado `loading` explícito para este bloque — `JobIndicadoresCard` inferí­a "cargando" de `kpis === null`, incorrecto para cualquier desenlace terminado sin datos (un error real de Postgrest/RLS, `result.ok === false`, que siempre se resolvía correctamente y nunca quedaba pendiente — no solo la promesa rechazada ya cubierta en la ronda anterior). `getCoordinatorKpis()`/`toServiceResult()` se re-auditaron y se reconfirmó que no son el origen.
+
+### Añadido
+
+- `docs/architecture/frontend/SPRINT_5_2_1_KPI_LOADING_FIX_REPORT.md` (NUEVO).
+- `kpisLoading` (nuevo `useState<boolean>`, `DespachoPage.tsx`) — recorrido `true→request→success OR error→false` garantizado en los 3 `return` tempranos del efecto y en el `.finally()` de la promesa.
+- Prop `kpisLoading: boolean` en `JobIndicadoresCardProps`.
+
+### Modificado
+
+- `src/pages/coordinator/DespachoPage.tsx` — `kpisLoading` agregado; `.finally()` agregado a la cadena de la promesa; `kpis`/`kpisError` se limpian/pueblan explícitamente también en el camino `result.ok === false`.
+- `src/components/shared/job-indicadores-card.tsx` — `<Loading/>` ahora gobernado por `kpisLoading`, no por `kpis === null`; si `kpisLoading` es `false` y no hay `kpis` (error), no se muestra nada en ese lugar (sin reabrir la decisión del Sprint 5.1.5 de no mostrar errores dentro de "Indicadores").
+- `PROJECT_STATUS.md` — nueva sección de estado.
+- `docs/SPRINTS_INDEX.md` — nueva fila.
+
+### Sin cambios
+
+`CoordinatorWorkspace`/`JobSummaryCard`/`PublishModal`/`LiveDispatchCard`/`ResponsesPanel`/`CoordinatorLayout`/`RootLayout`/`CoordinatorKpiRow`, `dashboard.service.ts`/`supabase.service.ts`/repositorios (re-auditados, no son el origen), `OperationalContextProvider.tsx` (auditado explícitamente — Objetivo 10 — el cambio de la ronda anterior, `activeJob`/`setActiveJob`, es ortogonal y no interrumpe el flujo de KPIs), Auth/Roles/Router/Policies/RLS. Ningún componente/servicio/hook/provider nuevo, ningún estado duplicado.
+
+**Validación técnica**: `tsc --noEmit` (instalación global) — distribución de diagnósticos idéntica al cierre de la ronda anterior (cero delta), cero categorías nuevas, cero `TS6133`, cero errores de sintaxis. `npm run lint`/`typecheck`/`build`/`dev` reales quedan pendientes de ejecución por el usuario (sin `node_modules`/red en este entorno de trabajo).
+
 ## [Fase 5 — Sprint 5.2.1 Fix — Publish Workflow Stabilization] — 2026-07-23 — 🟡 En revisión
 
 Sprint exclusivamente de estabilización del flujo Publish (Sprint 5.2.1) — sin funcionalidades nuevas. Detalle técnico completo en `docs/architecture/frontend/SPRINT_5_2_1_PUBLISH_WORKFLOW_FIX_REPORT.md`.
