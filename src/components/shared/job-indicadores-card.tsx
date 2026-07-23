@@ -1,7 +1,6 @@
 import { ShieldCheck, TrendingUp } from 'lucide-react';
 
 import { Card, CardHeader } from '@/components/ui/card';
-import { Loading } from '@/components/ui/spinner';
 import { CoordinatorKpiRow } from '@/components/shared/coordinator-kpi-row';
 import type { CoordinatorKpis } from '@/services';
 
@@ -58,13 +57,29 @@ import type { CoordinatorKpis } from '@/services';
  * `kpisError` ni lo renderiza — ese mensaje (ej. "la sucursal todavía no
  * existe...") es un estado real de la app (`getCoordinatorKpis`/Contexto
  * Operativo), pero no pertenece visualmente a este bloque; `DespachoPage.tsx`
- * ahora lo muestra, si existe, FUERA de este componente (ver su JSDoc). Sin
- * `kpis` real disponible, este componente solo muestra `<Loading/>` en su
- * lugar — nunca texto de error, igual que el HTML oficial nunca muestra
- * nada distinto de los StatTiles/`mx-goal` en ese bloque.
+ * ahora lo muestra, si existe, FUERA de este componente (ver su JSDoc).
+ *
+ * **Corrección Sprint 5.2.1 Fix** ("Coordinator KPI Loading Resolution",
+ * ronda anterior): introdujo `kpisLoading: boolean` para distinguir "todavía
+ * cargando" (`<Loading/>`) de "terminado sin datos" (`null`, oculto), en vez
+ * de inferirlo -- incorrectamente -- de `kpis === null`.
+ *
+ * **Ajuste posterior** (instrucción directa del usuario, sin brief de
+ * Sprint nuevo): "`CoordinatorKpiRow` debe renderizarse siempre... no
+ * ocultar `CoordinatorKpiRow`". Esto retira por completo el modelo
+ * `Loading`/oculto de la ronda anterior: `DespachoPage.tsx` ahora garantiza
+ * que `kpis` sea SIEMPRE un objeto `CoordinatorKpis` válido (nunca `null`,
+ * con un valor legítimo de todos ceros -- `ZERO_KPIS`, ver su JSDoc en
+ * `DespachoPage.tsx` -- mientras no haya datos reales todavía). Por lo
+ * tanto este componente ya no necesita ninguna rama condicional para
+ * decidir si muestra `CoordinatorKpiRow`: lo muestra siempre, con lo que
+ * reciba. `kpisLoading` se retira de este contrato (ya no tiene ningún
+ * propósito) y el import de `Loading` se retira por no tener ya ningún uso
+ * en este archivo. `coordinator-kpi-row.tsx` sigue sin ningún cambio de
+ * código -- mismo contrato `{kpis: CoordinatorKpis}` de siempre.
  */
 export interface JobIndicadoresCardProps {
-  kpis: CoordinatorKpis | null;
+  kpis: CoordinatorKpis;
   bidMins: number;
 }
 
@@ -72,7 +87,7 @@ export function JobIndicadoresCard({ kpis, bidMins }: JobIndicadoresCardProps) {
   return (
     <Card>
       <CardHeader icon={<TrendingUp size={14} />} cardTitle="Indicadores" />
-      {kpis ? <CoordinatorKpiRow kpis={kpis} /> : <Loading label="Cargando indicadores…" />}
+      <CoordinatorKpiRow kpis={kpis} />
       <div className="mx-goal">
         <ShieldCheck size={13} />
         Meta: una opción de instalación disponible en {bidMins} minutos o menos.
