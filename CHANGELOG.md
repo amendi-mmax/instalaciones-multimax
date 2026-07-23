@@ -2,6 +2,35 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 5 — Sprint 5.1.3 — Implementación del Workspace Operativo del Coordinador (MVP)] — 2026-07-22 — 🟡 En revisión
+
+Sprint exclusivamente de reconstrucción visual: sin lógica de negocio nueva, sin motor de subasta, sin publicación real, sin asignación real, sin tiempo real. Objetivo: reconstruir el Workspace Operativo del Coordinador (rama `jobs.length>0` de `Coordinator()`) para que coincida visual y estructuralmente con `Multimax_Despacho_v1.3.html`. Detalle técnico completo en `docs/architecture/frontend/SPRINT_5_1_3_COORDINATOR_WORKSPACE_REPORT.md`.
+
+**Auditoría previa (obligatoria por brief) — hallazgo principal y 1 discrepancia real resuelta con el usuario antes de escribir código**:
+
+- Gran parte de lo pedido ya existía sin montar: `TwoColumnLayout` (`variant="despacho"`) ya modela el grid principal (`.mx-grid`); `AssignedPanel`/`NoResponsePanel` (Sprint 3.16) ya existen, documentados como listos para el Sprint 5.3; `EmptyState`/`trabajoEstadoInfo` ya cubren el estado vacío y el badge de estado real. Ningún componente nuevo se creó donde ya existía uno reutilizable (Regla 7 del brief).
+- El CSS de la rama `jobs.length>0` (`.mx-jobcard-h`, `.mx-jobtitle`, `.mx-jobmeta`, `.mx-jobreq`, `.mx-roundsingle`/`.mx-round`, `.mx-actionsrow`, `.mx-feedcard`, `.mx-sort`) nunca se había portado a `globals.css` — se agregó verbatim desde el `<style>` del HTML oficial, sin modificar ninguna regla existente.
+- `Coordinator()` real tiene 2 ramas mutuamente excluyentes (vacío vs. Workspace completo); `DespachoPage` mostraba ambas a la vez sin exclusión desde los Sprints 3.6/3.7/3.9. **Decisión del usuario (verbatim): "Reemplaza completamente el estado vacío del Coordinador por el Workspace Operativo del HTML oficial... asume un trabajo de demostración (MVP) únicamente con fines de reconstrucción visual del layout... El estado vacío queda eliminado del flujo principal... se recuperará posteriormente... en el Sprint 5.2."**
+- Contradicción textual real detectada en el propio brief: la sección 1 pide "Tiempo restante" en `JobSummaryCard`; la sección 3 pide "conservar: contador" en `LiveDispatchCard` — el HTML oficial solo tiene un lugar real para esto. Resuelta documentando 2 representaciones distintas y no redundantes: valor estático en `JobSummaryCard`, contador real (`LiveCountdown`, sin cambios) en `LiveDispatchCard`.
+
+### Añadido
+
+- `src/components/shared/job-summary-card.tsx` (NUEVO) — `JobSummaryCard`, reconstruye `.mx-card.mx-jobcard`.
+- `src/components/shared/live-dispatch-card.tsx` (NUEVO) — `LiveDispatchCard`, reconstruye la tarjeta "Despacho en vivo" completa, reagrupa `Radar`/`LiveCountdown`/botón "Cancelar" ya existentes.
+- `src/components/shared/responses-panel.tsx` (NUEVO) — `ResponsesPanel`, reconstruye "Respuestas en tiempo real" (tabs de orden + estado vacío).
+- `docs/architecture/frontend/SPRINT_5_1_3_COORDINATOR_WORKSPACE_REPORT.md` (NUEVO).
+
+### Modificado
+
+- `src/pages/coordinator/DespachoPage.tsx` — reescrito: retira `CoordinatorEmptyState`/`Radar`/`LiveCountdown`/botón "Cancelar" sueltos; monta `TwoColumnLayout` (YA EXISTENTE) con `JobSummaryCard`+`LiveDispatchCard`+`CoordinatorKpiRow` (columna izquierda) y `ResponsesPanel` (columna derecha). El fetch de KPIs no se modificó, solo su posición.
+- `src/styles/globals.css` — se agregan las clases CSS listadas arriba, portadas verbatim; ninguna regla existente se modificó.
+- `PROJECT_STATUS.md` — nueva sección de estado del Sprint 5.1.3.
+- `docs/SPRINTS_INDEX.md` — nueva fila 5.1.3.
+
+**Sin cambios**: `RootLayout.tsx`, `CoordinatorLayout.tsx`, `AppRouter.tsx`, `TrabajosPage.tsx`, `TrabajoDetailPage.tsx`, `Auth`/`Session`/`OperationalContext` providers, repositories, services, hooks existentes, `coordinator-empty-state.tsx`/`assigned-panel.tsx`/`no-response-panel.tsx` (quedan sin montar, listos para el Sprint 5.3). Sin regresiones en Admin/Instalador (confirmado en el reporte técnico, sección 8).
+
+**Validación técnica**: `tsc --noEmit` (instalación global) sobre los 4 archivos nuevos/modificados — únicamente diagnósticos del mismo patrón de artefactos de entorno ya clasificado (`TS2307`/`TS2875`/`TS7026`/`TS7006`/`TS2322`), cero `TS6133`, cero errores de sintaxis. `npm run lint`/`typecheck`/`build`/`dev` reales quedan pendientes de ejecución por el usuario (sin `node_modules`/red en este entorno de trabajo).
+
 ## [Fase 5 — Sprint 5.1.2 — Refactor del Layout Operativo del Coordinador (MVP)] — 2026-07-22 — 🟡 En revisión
 
 Sprint exclusivamente arquitectónico: sin funcionalidades nuevas, sin queries/repositories/Supabase/Auth/roles/RLS/`OperationalContextProvider` modificados. Objetivo: dejar preparado un único `CoordinatorLayout` como contenedor de toda la operación futura del Coordinador (Sprints 5.2/5.3/5.4). Detalle técnico completo en `docs/architecture/frontend/SPRINT_5_1_2_COORDINATOR_LAYOUT_REPORT.md`.

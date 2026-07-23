@@ -623,6 +623,18 @@ El usuario confirmó además extender a `ConfirmCancelDialog` (no mencionado por
 
 **Pendiente**: validación real del usuario (`npm run lint`/`typecheck`/`build`/`dev`) -- mismas limitaciones de entorno que el resto del proyecto; se usó `tsc` global sin errores nuevos atribuibles a este Sprint.
 
+## Fase 5 — Sprint 5.1.3 — Implementación del Workspace Operativo del Coordinador (MVP) (2026-07-22) — 🟡 En revisión
+
+Sprint exclusivamente de reconstrucción de interfaz -- sin lógica de negocio nueva, sin motor de subasta, sin publicación real, sin asignación real, sin tiempo real. Detalle técnico completo, incluida la auditoría previa obligatoria (3 preguntas vía `AskUserQuestion`), en `docs/architecture/frontend/SPRINT_5_1_3_COORDINATOR_WORKSPACE_REPORT.md`.
+
+**Auditoría previa -- hallazgo principal**: buena parte de lo pedido ya existía sin montar (`TwoColumnLayout` variant="despacho" ya modela el grid principal; `AssignedPanel`/`NoResponsePanel` del Sprint 3.16 ya existen, listos para el Sprint 5.3; `EmptyState`/`trabajoEstadoInfo` ya cubren el estado vacío y el badge de estado). El CSS de la rama `jobs.length>0` de `Coordinator()` (`.mx-jobcard-h`, `.mx-jobtitle`, `.mx-jobmeta`, `.mx-jobreq`, `.mx-round*`, `.mx-actionsrow`, `.mx-feedcard`, `.mx-sort`) nunca se había portado -- se agregó verbatim a `globals.css` (nada modificado, solo agregado).
+
+**Decisión del usuario (verbatim), tras auditoría**: *"Reemplaza completamente el estado vacío del Coordinador por el Workspace Operativo del HTML oficial... Para este Sprint asume un trabajo de demostración (MVP) únicamente con fines de reconstrucción visual del layout. El estado vacío queda eliminado del flujo principal del Coordinador y se recuperará posteriormente cuando se implemente la lógica real de publicación de trabajos en el Sprint 5.2."* -- `CoordinatorEmptyState`/`Radar`/`LiveCountdown`/botón "Cancelar" sueltos (que coexistían sin exclusión mutua desde los Sprints 3.6/3.7/3.9, una inconsistencia ya documentada como temporal) se reemplazan por el Workspace real, con un job de demostración fijo (fase `live`, 0 respuestas).
+
+**Construido en este Sprint**: `JobSummaryCard`/`LiveDispatchCard`/`ResponsesPanel` (NUEVOS, `src/components/shared/`), reutilizando sin cambios `TwoColumnLayout`/`Radar`/`LiveCountdown`/`CoordinatorKpiRow`/`Card`/`CardHeader`/`Badge`/`Button`/`EmptyState`. `DespachoPage.tsx` reescrito para montar el nuevo Workspace. Contradicción textual real detectada en el propio brief (JobSummaryCard y LiveDispatchCard reclamaban ambos el "tiempo restante") resuelta documentando 2 representaciones distintas: un valor estático en `JobSummaryCard`, el contador real (`LiveCountdown`) en `LiveDispatchCard` -- sin duplicar ningún motor de tiempo.
+
+**Pendiente**: validación real del usuario (`npm run lint`/`typecheck`/`build`/`dev`) -- mismas limitaciones de entorno que el resto del proyecto; se usó `tsc` global sin errores nuevos atribuibles a este Sprint.
+
 ## Qué falta
 
 - **Bloqueante para cerrar el Sprint 5.1**: ejecutar en el entorno del usuario `npm run lint && npm run typecheck && npm run build && npm run dev` en verde, y validación visual/funcional real (login como coordinador, KPIs con datos reales de su tienda, navegación `/despacho`↔`/trabajos`, detalle de un trabajo) -- este entorno de trabajo no tiene `node_modules`/acceso de red para ejecutarlos ni credenciales reales para probar contra Producción.
