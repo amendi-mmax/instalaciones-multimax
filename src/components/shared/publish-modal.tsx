@@ -1,5 +1,5 @@
 import { AlertTriangle, Send, Timer, Zap } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Chip } from '@/components/ui/chip';
 import { DialogPortal } from '@/components/ui/dialog';
@@ -80,6 +80,36 @@ import { BID_OPTIONS, PROVINCIAS, SLOTS_COORD, SUCURSALES, ZONAS } from '@/const
  * navegadores para ciertos tipos de input) -- en su lugar, el propio
  * `onClick` revalida y bloquea la llamada a `onPublish` si quedan campos
  * obligatorios vacíos.
+ *
+ * ---------------------------------------------------------------------
+ * AJUSTE — Sprint 5.2.3.2 ("Consistencia completa del selector de
+ * sucursal para Coordinador")
+ * ---------------------------------------------------------------------
+ * Auditoría de este Sprint encontró una segunda fuente de verdad real para
+ * la sucursal: el campo "Sucursal que publica" (`f.sucursal`) vive en el
+ * `useState<PublishForm>` local de este componente, inicializado UNA SOLA
+ * VEZ (`sucursal || SUCURSALES[0]`) a partir de la prop `sucursal` en el
+ * momento del primer montaje -- como este componente nunca se desmonta
+ * (`CoordinatorLayout.tsx` lo monta siempre, alternando visibilidad vía la
+ * prop `open` del `Drawer`), cambios posteriores a la prop `sucursal`
+ * jamás volvían a sincronizarse con `f.sucursal`, y su `<Select>` iteraba
+ * las 9 opciones de `SUCURSALES` sin ninguna restricción -- exactamente el
+ * mismo patrón "todas seleccionables" que tenía `SucursalSelect` antes del
+ * Sprint 5.2.3.1.
+ *
+ * Corrección (única fuente de verdad, sin Context nuevo, sin duplicar la
+ * lógica ya escrita en el Sprint 5.2.3.1): nueva prop `enabledValue`,
+ * misma forma y mismo significado que la ya usada en `sucursal-select.tsx`
+ * -- `CoordinatorLayout.tsx` le pasa el MISMO valor ya calculado
+ * (`sucursalLockValue`, reutilizado tal cual, sin recalcularlo) que ya usa
+ * para `SucursalSelect`. `undefined` → sin cambios de comportamiento
+ * (Admin en Modo Coordinador, selector 100% libre, igual que siempre). Un
+ * string → (a) las opciones del `<Select>` de "Sucursal que publica" se
+ * deshabilitan salvo esa, mismo criterio que `sucursal-select.tsx`; (b) un
+ * nuevo `useEffect` mantiene `f.sucursal` sincronizado a ese valor mientras
+ * el modal está bloqueado -- elimina la segunda fuente de verdad para el
+ * caso de un Coordinador real, sin tocar el resto del formulario ni
+ * `onPublish`.
  */
 export interface PublishForm {
   sucursal: string;
@@ -103,6 +133,8 @@ export interface PublishModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPublish: (form: PublishForm) => void;
+  /** Ver JSDoc "AJUSTE — Sprint 5.2.3.2" arriba. Mismo significado que la prop homónima de `SucursalSelect`. */
+  enabledValue?: string;
 }
 
 /**
@@ -132,7 +164,13 @@ function FieldError({ message }: { message?: string }) {
   );
 }
 
-export function PublishModal({ sucursal, open, onOpenChange, onPublish }: PublishModalProps) {
+export function PublishModal({
+  sucursal,
+  open,
+  onOpenChange,
+  onPublish,
+  enabledValue,
+}: PublishModalProps) {
   const [f, setF] = useState<PublishForm>({
     sucursal: sucursal || SUCURSALES[0],
     tipo: 'Instalación de aire acondicionado 12,000 BTU',
@@ -159,6 +197,20 @@ export function PublishModal({ sucursal, open, onOpenChange, onPublish }: Publis
   };
 
   const zonas = ZONAS[f.provincia] ?? [];
+
+  // Sprint 5.2.3.2 — único efecto nuevo de este Sprint, ver JSDoc "AJUSTE
+  // — Sprint 5.2.3.2" arriba. Solo actúa cuando el modal está bloqueado a
+  // una única sucursal (`enabledValue !== undefined`, Coordinador real) --
+  // mantiene `f.sucursal` sincronizado a esa única fuente de verdad en vez
+  // de conservar el snapshot inicial. Para Admin en Modo Coordinador
+  // (`enabledValue === undefined`), este efecto nunca corre -- cero cambio
+  // de comportamiento respecto a antes de este Sprint.
+  useEffect(() => {
+    if (enabledValue !== undefined && f.sucursal !== enabledValue) {
+      set('sucursal', enabledValue);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabledValue]);
 
   // Sprint 5.2.1 Fix ("Publish Workflow Stabilization") — Objetivo 3, ver
   // JSDoc "Validaciones" arriba. `submitAttempted` solo se activa tras un
@@ -189,7 +241,11 @@ export function PublishModal({ sucursal, open, onOpenChange, onPublish }: Publis
                   Sucursal que publica
                   <Select value={f.sucursal} onChange={(e) => set('sucursal', e.target.value)}>
                     {SUCURSALES.map((s) => (
-                      <option key={s} value={s}>
+                      <option
+                        key={s}
+                        value={s}
+                        disabled={enabledValue !== undefined && s !== enabledValue}
+                      >
                         {s}
                       </option>
                     ))}

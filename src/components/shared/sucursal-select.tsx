@@ -27,19 +27,51 @@ import { SUCURSALES } from '@/constants';
  * dentro de `SucursalSelect` — ver `src/layouts/RootLayout.tsx` y
  * `docs/sprints/sprint-3.4.md` → "Problema encontrado" sobre la
  * inconsistencia resultante con el badge de sucursal del Header.
+ *
+ * ---------------------------------------------------------------------
+ * AJUSTE — Sprint 5.2.3.1 ("Corrección definitiva del selector 'Sucursal
+ * activa' para Coordinador y Administrador")
+ * ---------------------------------------------------------------------
+ * Único cambio de este Sprint a este archivo: nueva prop opcional
+ * `enabledValue`. Comportamiento funcional exigido por el usuario tras la
+ * auditoría de este Sprint: un Coordinador real pertenece a una única
+ * tienda (`coordinadores.tienda_id`, fija) — el `<select>` debe seguir
+ * siendo visible (así lo define el HTML oficial, no se retira), pero solo
+ * la opción de su propia tienda debe quedar habilitada; el resto deben
+ * mostrarse `disabled`, para que el usuario no pueda, ni siquiera
+ * visualmente, dejar el dropdown en un valor que no corresponde a los
+ * datos reales que está viendo. Para un `admin` en Modo Coordinador
+ * (superusuario, Sprint 5.1.1), el selector debe seguir completamente
+ * habilitado -- `enabledValue` se omite (`undefined`) para ese caso, sin
+ * cambio de comportamiento respecto a como funcionaba antes de este Sprint.
+ *
+ * `enabledValue === undefined` → comportamiento anterior, sin cambios
+ * (todas las opciones habilitadas). `enabledValue` es un string → solo la
+ * opción cuyo valor coincide exactamente queda habilitada; el resto,
+ * `disabled`. Si `enabledValue` no coincide con ninguna opción de
+ * `SUCURSALES` (ver limitación conocida de esa constante, JSDoc de
+ * `constants/index.ts`: es una lista literal, todavía no viene de
+ * Supabase), **todas** las opciones quedan deshabilitadas -- degradación
+ * segura: nunca se marca como "habilitada" una opción que no es
+ * verificablemente la tienda real del Coordinador. Quién decide qué pasar
+ * en `enabledValue` (y por qué) vive en `CoordinatorLayout.tsx`, no aquí —
+ * este componente sigue siendo puramente presentacional, sin lógica de
+ * roles/Contexto Operativo.
  */
 export interface SucursalSelectProps {
   value: string;
   onChange: (value: string) => void;
+  /** Ver JSDoc "AJUSTE — Sprint 5.2.3.1" arriba. */
+  enabledValue?: string;
 }
 
-export function SucursalSelect({ value, onChange }: SucursalSelectProps) {
+export function SucursalSelect({ value, onChange, enabledValue }: SucursalSelectProps) {
   return (
     <div className="mx-suc-sel">
       <label>Sucursal activa:</label>
       <select value={value} onChange={(e) => onChange(e.target.value)}>
         {SUCURSALES.map((s) => (
-          <option key={s} value={s}>
+          <option key={s} value={s} disabled={enabledValue !== undefined && s !== enabledValue}>
             {s}
           </option>
         ))}

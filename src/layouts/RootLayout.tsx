@@ -639,6 +639,41 @@ export function RootLayout() {
   const location = useLocation();
   const [sucursalCoord, setSucursalCoord] = useState('Multiplaza');
   const [meId, setMeId] = useState('pty');
+
+  // Sprint 5.2.3.1 ("Corrección definitiva del selector 'Sucursal activa'
+  // para Coordinador y Administrador") — único `useEffect` nuevo de este
+  // Sprint. Auditoría: `sucursalCoord` nace acá como un literal fijo
+  // ('Multiplaza') y, antes de este ajuste, NUNCA se sincronizaba con la
+  // tienda real de un Coordinador autenticado -- causaba exactamente el
+  // "estado inconsistente" reportado (el dropdown podía mostrar una
+  // sucursal distinta a la que realmente usan `DespachoPage`/
+  // `TrabajosPage`/`OperationalContextProvider`, que siempre leyeron el
+  // `tiendaId` real y correcto desde `profile.tiendaId`, nunca desde
+  // `sucursalCoord`). Este efecto carga automáticamente, al resolverse el
+  // perfil, la tienda real del Coordinador como valor del selector --
+  // exclusivamente para `profile.rol === 'coordinador'` (un Coordinador
+  // real): nunca se ejecuta para `admin`/`instalador`, así que el Modo de
+  // Visualización Superusuario (`admin` → "Coordinador") sigue con
+  // `sucursalCoord` completamente libre, sin este ajuste interfiriendo --
+  // requisito explícito de este Sprint ("el selector debe permanecer
+  // completamente habilitado" para ese caso).
+  //
+  // Depende de `profile.tiendaNombre` (`resolveProfile()`,
+  // `profile.service.ts`), que a su vez depende de una lectura real a la
+  // tabla `tiendas` (`resolveTiendaNombre()`) -- ver la limitación conocida
+  // documentada en el reporte de este Sprint
+  // (`SPRINT_5_2_3_1_SUCURSAL_OPERATIONAL_CONTEXT_REPORT.md`): si esa
+  // lectura no puede resolverse (p. ej. por el permiso de RLS/GRANT de
+  // `tiendas`, fuera de alcance de este Sprint -- "no modificar RLS/SQL"),
+  // `tiendaNombre` queda `null` y este efecto simplemente no sincroniza
+  // nada (`sucursalCoord` conserva su valor anterior) -- nunca inventa un
+  // nombre de tienda.
+  useEffect(() => {
+    if (profile?.rol !== 'coordinador') return;
+    if (profile.tiendaNombre && profile.tiendaNombre !== sucursalCoord) {
+      setSucursalCoord(profile.tiendaNombre);
+    }
+  }, [profile?.rol, profile?.tiendaNombre, sucursalCoord]);
   // Sprint 5.1.1 — solo tiene efecto cuando `profile.rol === 'admin'` (ver
   // JSDoc "SPRINT 5.1.1" más arriba); inerte para `coordinador`/`instalador`,
   // mismo criterio ya establecido para `meId` (solo relevante para

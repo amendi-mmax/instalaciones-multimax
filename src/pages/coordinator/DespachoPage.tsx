@@ -38,6 +38,30 @@ const LIVECOUNTDOWN_DEMO_PUBLISHED_AT = Date.now() - 60_000;
 const LIVECOUNTDOWN_DEMO_BID_MINS = 5;
 
 /**
+ * ZERO_KPIS — corrección puntual posterior a "Coordinator KPI Loading
+ * Resolution" (instrucción directa del usuario, sin brief formal de Sprint
+ * nuevo): "`CoordinatorKpiRow` debe renderizarse siempre... si
+ * `getCoordinatorKpis()` devuelve `[]` o no existen registros, el componente
+ * debe recibir un objeto de KPIs con todos los valores en cero." No es un
+ * mock ni un dato inventado: es el mismo objeto `CoordinatorKpis` real que
+ * `calcularKpis()` (`dashboard.service.ts`) ya devuelve para `rows = []`
+ * (`{pendientes:0, activos:0, finalizados:0, programadosHoy:0, total:0}`) --
+ * aquí se declara localmente como el valor por defecto de `kpis` (nunca
+ * `null`) para cubrir, con ese mismo valor legítimo, cualquier instante en
+ * que todavía no exista una respuesta real de Supabase (`tiendaId`
+ * resolviéndose, error de Postgrest/RLS, tienda inexistente, o el instante
+ * inicial antes del primer fetch). `CoordinatorKpiRow` no cambia su
+ * contrato (`{kpis: CoordinatorKpis}`) ni se modifica en este ajuste.
+ */
+const ZERO_KPIS: CoordinatorKpis = {
+  pendientes: 0,
+  activos: 0,
+  finalizados: 0,
+  programadosHoy: 0,
+  total: 0,
+};
+
+/**
  * DespachoPage — "Despacho en vivo", ruta `/despacho` (Sprint 5.1, primera
  * ruta real de `ARCHITECTURE.md §8` para el Coordinador). Es el landing
  * real del Coordinador autenticado (Entregable 1: "cuando rol=coordinador,
@@ -114,7 +138,19 @@ export function DespachoPage() {
   const { onOpenPublish, onOpenConfirmCancel, activeJob } =
     useOutletContext<CoordinatorLayoutOutletContext>();
 
-  const [kpis, setKpis] = useState<CoordinatorKpis | null>(null);
+  // Ajuste posterior a "Coordinator KPI Loading Resolution" (instrucción
+  // directa del usuario): `kpis` deja de ser `CoordinatorKpis | null` --
+  // ahora es SIEMPRE un objeto válido, nunca `null`, con `ZERO_KPIS` como
+  // valor por defecto. Esto elimina la necesidad de cualquier señal de
+  // "cargando" para decidir si se muestra `CoordinatorKpiRow`: ya no se
+  // oculta nunca, se renderiza siempre con el `kpis` disponible en cada
+  // instante (cero mientras no haya datos reales, poblado en cuanto los
+  // haya). Por eso el estado `kpisLoading` introducido en la ronda anterior
+  // (y el `<Loading/>` que gobernaba en `JobIndicadoresCard`) se retiran por
+  // completo en este ajuste -- ya no tienen ningún consumidor real, y
+  // dejarlos declarados sin leer sería un `TS6133` real (no un artefacto de
+  // entorno).
+  const [kpis, setKpis] = useState<CoordinatorKpis>(ZERO_KPIS);
   const [kpisError, setKpisError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -122,16 +158,13 @@ export function DespachoPage() {
 
     // Sprint 5.1.1 -- mientras el Contexto Operativo todavía resuelve
     // `tiendaId` (solo ocurre para un `admin` viendo "Coordinador", ver
-    // `OperationalContextProvider.tsx`), no se toca `kpisError` todavía --
-    // el fallback de `JobIndicadoresCard` (`<Loading/>`) ya cubre este
-    // instante, sin mostrar por error "sin tienda asignada" mientras la
-    // resolución real sigue en curso. Para un Coordinador real,
-    // `contextoLoading` siempre es `false` -- este `if` nunca frena nada
-    // para ese caso. Se limpian `kpis`/`kpisError` para no dejar en pantalla
-    // el número de la tienda anterior mientras un `admin` cambia de
-    // sucursal en `SucursalSelect`.
+    // `OperationalContextProvider.tsx`), no se toca `kpisError` todavía.
+    // `kpis` se deja en `ZERO_KPIS` (nunca `null`) -- `CoordinatorKpiRow` se
+    // sigue mostrando, con ceros, mientras la resolución real está en
+    // curso, en vez de ocultarse. Para un Coordinador real, `contextoLoading`
+    // siempre es `false` -- este `if` nunca frena nada para ese caso.
     if (contextoLoading) {
-      setKpis(null);
+      setKpis(ZERO_KPIS);
       setKpisError(null);
       return;
     }
@@ -140,15 +173,19 @@ export function DespachoPage() {
     // sucursal elegida en `SucursalSelect` todavía no existe en la tabla
     // real `tiendas` para la empresa Multimax) -- se muestra ese mensaje
     // en vez del genérico de "sin tienda asignada", más preciso para el
-    // caso de un `admin` en modo superusuario.
+    // caso de un `admin` en modo superusuario. Por instrucción explícita del
+    // usuario, este caso NO impide que `CoordinatorKpiRow` se muestre: se
+    // muestra igual, con `ZERO_KPIS`, en vez de ocultarse -- el mensaje de
+    // `kpisError` se sigue mostrando aparte, fuera de ese bloque (sin
+    // cambios respecto de Sprint 5.1.5).
     if (contextoError) {
-      setKpis(null);
+      setKpis(ZERO_KPIS);
       setKpisError(contextoError);
       return;
     }
 
     if (!tiendaId) {
-      setKpis(null);
+      setKpis(ZERO_KPIS);
       setKpisError('Tu perfil de coordinador no tiene una tienda asignada.');
       return;
     }
@@ -160,28 +197,28 @@ export function DespachoPage() {
         if (result.ok) {
           setKpis(result.data);
         } else {
+          // Un error real de Postgrest/RLS (`result.ok === false`) tampoco
+          // oculta `CoordinatorKpiRow`: se muestra con `ZERO_KPIS` (nunca
+          // queda un valor obsoleto de una tienda anterior) y `kpisError` se
+          // puebla para el mensaje que se muestra aparte.
+          setKpis(ZERO_KPIS);
           setKpisError(result.error.message);
         }
       })
-      // Sprint 5.2.1 Fix ("Publish Workflow Stabilization") — Objetivo 4:
-      // causa real, verificada por lectura de código (auditoría documentada
-      // en `SPRINT_5_2_1_PUBLISH_WORKFLOW_FIX_REPORT.md`, sección
-      // "Auditoría realizada"): esta promesa no tenía ningún `.catch()`. Si
-      // `getCoordinatorKpis(tiendaId)` rechaza (p. ej. una falla de red al
-      // llamar a Supabase, en vez de un error normal de Postgrest, que ya
-      // se maneja arriba vía `result.ok === false`), ni `kpis` ni
-      // `kpisError` se actualizaban nunca -- `JobIndicadoresCard` quedaba
-      // mostrando "Cargando indicadores…" para siempre, sin ningún mensaje.
-      // `getCoordinatorKpis()`/`trabajosRepository.getByTiendaId()` en sí
-      // NO son el origen (ambos ya delegan correctamente en
-      // `toServiceResult`, que si la promesa se RESUELVE -- con datos o con
-      // un error de Postgrest -- siempre entrega un `ServiceResult`
-      // explícito) -- el origen real es que este componente, el único
-      // consumidor de esa promesa, no protegía contra un rechazo. Se
-      // corrige acá, en el componente responsable, sin tocar ningún
-      // archivo de la capa Supabase/servicios/repositorios.
+      // Sprint 5.2.1 Fix ("Publish Workflow Stabilization", ronda anterior)
+      // — Objetivo 4: si `getCoordinatorKpis(tiendaId)` rechaza (p. ej. una
+      // falla de red, distinta de un error normal de Postgrest, que ya se
+      // maneja arriba vía `result.ok === false`), este `.catch()` sigue
+      // siendo necesario para que `kpisError` se puebre en vez de quedar en
+      // `null` para siempre. `getCoordinatorKpis()`/
+      // `trabajosRepository.getByTiendaId()`/`toServiceResult()` en sí NO
+      // son el origen de ningún bloqueo (auditados de nuevo en esta ronda,
+      // sin cambios: si la promesa que reciben SE RESUELVE -- con datos o
+      // con un error de Postgrest -- siempre entregan un `ServiceResult`
+      // explícito, nunca queda pendiente).
       .catch((err: unknown) => {
         if (!active) return;
+        setKpis(ZERO_KPIS);
         setKpisError(
           err instanceof Error
             ? err.message

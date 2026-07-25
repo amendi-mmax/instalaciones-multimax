@@ -2,6 +2,201 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 5 — Sprint 5.2.3.3 — Auditoría completa del Contexto Operativo del Coordinador] — 2026-07-24 — 🟡 Auditoría cerrada, corrección pendiente
+
+Sprint exclusivamente de auditoría/diagnóstico -- instrucción explícita del usuario: "NO implementar soluciones hasta identificar con evidencia la causa raíz". **Cero cambios de código en `src/` en esta ronda.** Detalle completo en `docs/architecture/frontend/SPRINT_5_2_3_3_COORDINATOR_OPERATIONAL_CONTEXT_AUDIT.md`.
+
+**Motivo**: tras el Sprint 5.2.3.2, el selector principal "intenta bloquear las sucursales" y el selector del modal "Publicar trabajo" deja TODAS las sucursales deshabilitadas -- el formulario nunca puede enviarse (`sucursal` es un campo obligatorio).
+
+**Causa raíz identificada**: `tiendaNombre` (`profile.service.ts` → `resolveTiendaNombre()` → `tiendasRepository.getById()`) resuelve a `null` porque `tiendas`/`empresas` tienen RLS habilitado sin ninguna policy de `SELECT` para `authenticated` (documentado desde el Sprint 4.0.1/4.1.1, confirmado no corregido en `SPRINT_4_2_1_AUTH_REPORT.md` §12.2-12.4 -- solo `admins` recibió esa corrección manualmente). El `null` se propaga sin transformación: `OperationalContextProvider` (passthrough) → `CoordinatorLayout.sucursalLockValue = ''` → `SucursalSelect`/`PublishModal` deshabilitan las 9 opciones (ninguna sucursal real es `''`) → `PublishForm.sucursal` forzado a `''` → validación rechaza el envío siempre. El mecanismo de bloqueo de los Sprints 5.2.3.1/5.2.3.2 en sí es correcto -- el problema es exclusivamente el dato de entrada.
+
+### Añadido
+
+- `docs/architecture/frontend/SPRINT_5_2_3_3_COORDINATOR_OPERATIONAL_CONTEXT_AUDIT.md` (NUEVO) -- respuesta con evidencia de código a los 10 puntos del brief, flujo completo `auth.uid() → ... → PublishModal` documentado línea por línea.
+
+### Modificado
+
+- Ninguno. Ningún archivo de `src/` fue tocado (restricción explícita del brief: "no modificar componentes todavía").
+
+### Sin resolver, propuesto para el Sprint siguiente (no implementado)
+
+- Agregar policies de `SELECT` para `authenticated` en `tiendas`/`empresas` (recomendación ya hecha, sin ejecutar, desde el Sprint 5.2.3.1 -- ahora con causa raíz trazada línea por línea).
+- Verificar contra Producción si `coordinadores` también carece de policy de auto-lectura (ambigüedad documental entre `DATABASE_INVENTORY.md`/`DATABASE_DIFF.md` y el comportamiento observado de `tiendaId` funcionando correctamente en Sprints anteriores).
+
+## [Fase 5 — Sprint 5.2.3.2 — Consistencia completa del selector de sucursal para Coordinador] — 2026-07-24 — 🟡 En revisión
+
+Auditoría solicitada tras el Sprint 5.2.3.1: confirmó una segunda fuente de verdad real dentro del modal "Publicar trabajo". Detalle completo en `docs/architecture/frontend/SPRINT_5_2_3_2_PUBLICAR_SUCURSAL_CONTEXT_REPORT.md`.
+
+**Causa raíz**: `PublishModal` usaba la prop `sucursal` solo como valor inicial de su propio `useState` (`f.sucursal`), nunca resincronizado -- como el modal nunca se desmonta, ese snapshot podía quedar desalineado del selector principal, mientras su `<Select>` ofrecía las 9 sucursales sin restricción.
+
+### Añadido
+
+- `docs/architecture/frontend/SPRINT_5_2_3_2_PUBLICAR_SUCURSAL_CONTEXT_REPORT.md` (NUEVO).
+
+### Modificado
+
+- `src/components/shared/publish-modal.tsx` — nueva prop `enabledValue`; opciones de "Sucursal que publica" deshabilitadas salvo la bloqueada; nuevo `useEffect` de sincronización (inerte para Admin).
+- `src/layouts/CoordinatorLayout.tsx` — pasa el `sucursalLockValue` ya calculado (Sprint 5.2.3.1, sin recalcular) a `PublishModal` como `enabledValue`.
+
+### Sin cambios
+
+Supabase, base de datos, RLS, Policies, SQL, repositorios, servicios, backend, Auth. `OperationalContextProvider`/`OperationalContext` (tipo intacto, mismos 2 campos ya existentes reutilizados). `SucursalSelect` sin tocar.
+
+## [Fase 5 — Sprint 5.2.3.1 — Corrección definitiva del selector "Sucursal activa" para Coordinador y Administrador] — 2026-07-24 — 🟡 En revisión
+
+Reauditoría tras reporte del usuario de que el Sprint 5.2.3 no resolvió el problema. Detalle completo en `docs/architecture/frontend/SPRINT_5_2_3_1_SUCURSAL_OPERATIONAL_CONTEXT_REPORT.md`.
+
+**Causa raíz real**: `sucursalCoord` nacía como literal fijo (`'Multiplaza'`) y nunca se sincronizaba con la tienda real de un Coordinador autenticado -- el dropdown podía mostrar cualquier sucursal mientras las queries reales seguían usando, correctamente, `profile.tiendaId` (fijo) -- de ahí el "estado inconsistente" reportado. Las queries reales (`getCoordinatorKpis`/`getTrabajosByTienda`) ya eran correctas y reactivas desde el Sprint 5.2.3.
+
+### Añadido
+
+- `docs/architecture/frontend/SPRINT_5_2_3_1_SUCURSAL_OPERATIONAL_CONTEXT_REPORT.md` (NUEVO).
+
+### Modificado
+
+- `src/layouts/RootLayout.tsx` — nuevo `useEffect` que sincroniza `sucursalCoord` con `profile.tiendaNombre` exclusivamente para `profile.rol === 'coordinador'`.
+- `src/layouts/CoordinatorLayout.tsx` — agrega `esSuperusuario`/`tiendaNombre` a la desestructuración ya existente de `useOperationalContext()` (campos preexistentes, cero cambio al Provider); calcula `sucursalLockValue` y lo pasa a `SucursalSelect`.
+- `src/components/shared/sucursal-select.tsx` — nueva prop opcional `enabledValue`: deshabilita todas las opciones salvo la bloqueada (o todas, si ninguna se pudo verificar).
+
+### Hallazgo reportado, no resuelto (fuera de alcance)
+
+`empresas`/`tiendas` tienen RLS habilitado con cero policies para `authenticated` (documentado desde el Sprint 4.0.1/4.1.1, nunca corregido a diferencia de `admins`/`coordinadores` en el Sprint 4.2.1) -- explica por qué el Modo Coordinador (Admin) puede seguir sin ser observable en la práctica, aunque el código de reconstrucción de contexto ya es correcto. Requiere un `GRANT`/policy dedicado, no ejecutado en este Sprint por restricción explícita.
+
+### Sin cambios
+
+Modelo de datos, RLS, tablas, repositorios, backend, policies, Auth. `trabajos.repository.ts` sin tocar (auditado de nuevo, confirmado que ya usa `getByTiendaId` correctamente, sin necesidad de nuevos métodos).
+
+## [Fase 5 — Sprint 5.2.3 — Sucursal activa en toda la vista Coordinador] — 2026-07-24 — 🟡 En revisión
+
+Sprint de auditoría primero, implementación después. Detalle completo en `docs/architecture/frontend/SPRINT_5_2_3_SUCURSAL_CONTEXT_REPORT.md`.
+
+**Causa identificada**: "Mis trabajos"/KPIs de "Despacho en vivo" ya reaccionaban correctamente al cambio de sucursal (sus queries, `getTrabajosByTienda`/`getCoordinatorKpis`, ya corren en un `useEffect([tiendaId, ...])`). `activeJob` (el trabajo mostrado en "Despacho en vivo") es un `useState` independiente en `OperationalContextProvider`, escrito una única vez por el flujo Publish, sin relación con `tiendaId` -- seguía mostrando el mismo trabajo sin importar la sucursal activa. Hallazgo adicional: el badge de sucursal del Header nunca reaccionó al selector (nunca recibió la prop `sucursalActiva`, bug heredado del Sprint 3.4, no corregido -- documentado, no tocado por estar `Header` fuera de alcance). Para un Coordinador real (una sola tienda fija), el selector no tiene ningún efecto real -- solo es observable en el Modo Superusuario de `admin`.
+
+### Añadido
+
+- `docs/architecture/frontend/SPRINT_5_2_3_SUCURSAL_CONTEXT_REPORT.md` (NUEVO).
+
+### Modificado
+
+- `src/providers/OperationalContextProvider.tsx` — nuevo `useEffect(() => setActiveJob(null), [tiendaId])`; `tiendaId` extraído a una única constante (antes duplicada inline en las 2 ramas del `useMemo` de `value`), mismo valor exacto. No-op para Coordinador real.
+
+### Sin cambios
+
+UI/estilos/componentes (`SucursalSelect`/`Header`/`JobSummaryCard`/`LiveDispatchCard`/`ResponsesPanel`/`CoordinatorKpiRow`), RLS/Policies, tablas, repositorios (`trabajos.repository.ts`), Supabase, Auth, Instaladores, Admin.
+
+**Pendiente**: `npm run lint && npm run typecheck && npm run build` y validación visual real del usuario.
+
+## [Fase 5 — Sprint 5.2.2.2 — Auditoría y corrección de privilegios SQL (GRANT) para publicación de trabajos] — 2026-07-23 — 🟡 En revisión (SQL listo, pendiente de ejecución/validación del usuario)
+
+Sprint exclusivamente de auditoría de privilegios SQL (GRANT) -- cero cambios de frontend, cero cambios de RLS/Policies, cero cambios de funciones SQL -- para corregir `42501 permission denied for table trabajos`, encontrado al probar el Sprint 5.2.2.1 Fix (el `42P17` de recursión RLS ya no aparece; el `INSERT` de Publish ahora llega a la evaluación de privilegios SQL, pero es rechazado ahí). SQL ejecutable en `docs/architecture/backend/SPRINT_5_2_2_2_SQL_GRANTS_FIX.sql`.
+
+**Causa identificada**: `42501` es un rechazo de la capa de privilegios SQL estándar de Postgres (`GRANT`), que se evalúa siempre antes que RLS -- si `authenticated` no tiene el privilegio base sobre `trabajos`, RLS nunca llega a evaluarse. Auditoría exhaustiva confirmó: (1) `trabajos.id` usa `uuid DEFAULT gen_random_uuid()` -- no hay `SERIAL`/`IDENTITY` ni secuencia asociada, descarta "falta USAGE sobre secuencia"; (2) ninguna migración de este repositorio contiene jamás un `GRANT`/`REVOKE`/`OWNER TO` -- consistente con el patrón ya confirmado en el Sprint 4.2.1, donde `admins`/`coordinadores`/`empresas`/`tiendas` necesitaron el mismo tipo de `GRANT` manual, nunca formalizado como migración; (3) `USAGE ON SCHEMA public` para `authenticated` ya está confirmado funcional (otras lecturas ya validadas dependen de él) -- no es la causa, no se toca; (4) `.insert(row).select().single()` de `trabajosRepository.create()` es una única sentencia `INSERT ... RETURNING` -- el `RETURNING` exige también el privilegio `SELECT`, no solo `INSERT`.
+
+### Añadido
+
+- `docs/architecture/backend/SPRINT_5_2_2_2_SQL_GRANTS_FIX.sql` (NUEVO) — `GRANT INSERT, SELECT ON TABLE public.trabajos TO authenticated;`, con comentarios de diagnóstico, bloque de validación (`information_schema.role_table_grants`) y bloque de rollback.
+
+### Implementado (SQL, listo para ejecutar en producción por el usuario)
+
+- `GRANT INSERT, SELECT ON TABLE public.trabajos TO authenticated;` -- mínimo necesario para la operación que falla hoy (INSERT + el SELECT implícito del RETURNING). `UPDATE`/`DELETE` deliberadamente no otorgados (sin evidencia de que fallen); `anon`/`service_role`/`postgres` deliberadamente no tocados (no aplican a este flujo).
+
+### Sin cambios
+
+Ningún archivo de `src/`. Ninguna policy RLS (las 4 de `trabajos` y las 5 de `trabajo_instaladores`, incluida la corregida en el Sprint anterior, intactas). Ninguna función SQL (`instalador_fue_notificado()`, `asignar_instalador`, `submit_bid`, `set_bid_cierra_at` sin cambios). El modelo "Coordinador únicamente publica trabajos de su tienda" depende, sin cambios, de la policy "coordinadores publican en su tienda".
+
+**Pendiente (bloqueante para cerrar este Sprint)**: que el usuario ejecute el `.sql` en producción y confirme que la publicación de un trabajo real con el Coordinador ya sembrado completa sin `42501` (ni reaparece el `42P17` ya corregido).
+
+## [Fase 5 — Sprint 5.2.2.1 Fix — Auditoría y corrección de RLS Policies de `trabajos`] — 2026-07-23 — 🟡 En revisión (SQL listo, pendiente de ejecución/validación del usuario)
+
+Sprint exclusivamente de auditoría SQL/RLS -- cero cambios de frontend -- para corregir `42P17 infinite recursion detected in policy for relation "trabajos"`, encontrado al probar el Sprint 5.2.2.1 con el Coordinador real ya sembrado (auth funciona, `PublishModal` funciona, el INSERT llega correctamente formado hasta Supabase; el rechazo es 100% de RLS). Detalle técnico completo en `docs/architecture/backend/SPRINT_5_2_2_1_RLS_POLICY_AUDIT_REPORT.md`; SQL ejecutable en `docs/architecture/backend/SPRINT_5_2_2_1_RLS_POLICY_FIX.sql`.
+
+**Causa identificada y CONFIRMADA por el usuario contra `pg_policies` real** (diagnosticada primero con alta confianza a partir de `docs/database/DATABASE_INVENTORY.md`, sin acceso de red en este entorno para leer el catálogo en vivo -- el usuario ejecutó la consulta de confirmación por su cuenta y validó el diagnóstico): ciclo real de 2 vías entre la policy SELECT de `trabajos` "instaladores ven trabajos donde fueron notificados" (subconsulta a `trabajo_instaladores`) y las 3 policies de `trabajo_instaladores` de "gestión de notificaciones por coordinadores" (subconsulta a `trabajos` unido con `coordinadores`) -- ninguna usa una función `SECURITY DEFINER` (confirmado: 0 en Producción), así que Postgres debe re-expandir `trabajos` al planificar la subconsulta de `trabajo_instaladores`, detecta el ciclo y aborta. Se dispara en el `INSERT ... RETURNING` de `trabajosRepository.create()` porque el `RETURNING` obliga a evaluar también las policies SELECT de `trabajos`.
+
+### Añadido
+
+- `docs/architecture/backend/SPRINT_5_2_2_1_RLS_POLICY_AUDIT_REPORT.md` — actualizado con la confirmación del usuario (sección 0/3), SQL corregido marcado como listo para ejecutar (sección 6, con rollback y paso de verificación previa), riesgos actualizados.
+- `docs/architecture/backend/SPRINT_5_2_2_1_RLS_POLICY_FIX.sql` (NUEVO) — SQL ejecutable de la corrección (función + policy + rollback comentado + queries de validación comentadas), para ejecutar directamente en el SQL Editor de Supabase sin extraerlo del Markdown.
+
+### Implementado (SQL, listo para ejecutar en producción por el usuario)
+
+- Función `public.instalador_fue_notificado(p_trabajo_id uuid)` (`SECURITY DEFINER`, `search_path` fijado, `EXECUTE` restringido a `authenticated`) — mismo chequeo que ya hacía la policy, sin re-disparar RLS de `trabajo_instaladores`.
+- Policy "instaladores ven trabajos donde fueron notificados" (`trabajos`, SELECT) reescrita (`DROP` + `CREATE` con el mismo nombre) para usar esa función en vez de la subconsulta directa.
+
+### Sin cambios
+
+Ningún archivo de `src/` (`CoordinatorLayout.tsx`, `PublishModal`, `trabajosRepository`, hooks, Contexts, `ActiveJob`, UI, componentes). Ninguna policy de Coordinador/Admin sobre `trabajos` ("coordinadores publican en su tienda" y las otras 2 quedan intactas) ni las 3 de `trabajo_instaladores`. RLS no se deshabilitó, ninguna policy se eliminó sin recrearla de inmediato, sin bypass de `service_role`.
+
+**Pendiente (bloqueante para cerrar este Sprint)**: que el usuario ejecute el `.sql` en producción y confirme que la publicación de un trabajo real con el Coordinador ya sembrado completa sin `42P17`.
+
+## [Fase 5 — Sprint 5.2.2.1 — Persistencia del trabajo publicado (Supabase)] — 2026-07-23 — 🟡 En revisión
+
+Primer Sprint de esta Fase que escribe datos reales en Supabase: reemplaza el origen del `ActiveJob` del flujo Publish -- de un objeto en memoria (Sprint 5.2.1) a un `INSERT` real en `trabajos`. Detalle técnico completo, incluidas 2 consultas previas al usuario antes de escribir código, en `docs/architecture/frontend/SPRINT_5_2_2_1_SUPABASE_PUBLISH_REPORT.md`.
+
+**Consultas previas (2, antes de tocar código)**: (1) confirmación de tabla/INSERT.../RLS -- se encontró una policy real ("coordinadores publican en su tienda") que un `admin` en modo superusuario probablemente no satisface; el usuario decidió NO tomar ninguna decisión arquitectónica sobre ese caso todavía y preparar el flujo para la primera prueba real con el Coordinador ya sembrado (mismo UUID en `auth.users`/`coordinadores`), sin restricciones nuevas para el modo Administrador. (2) mecanismo de error de Supabase -- el usuario autorizó reutilizar el Toast ya existente (`ui/toast.tsx`) con el mismo patrón de cola local de `LoginPage.tsx`, sin crear nada nuevo ni tocar `FieldError`/`PublishModal`.
+
+### Añadido
+
+- `docs/architecture/frontend/SPRINT_5_2_2_1_SUPABASE_PUBLISH_REPORT.md` (NUEVO).
+- Cola local de Toast en `CoordinatorLayout.tsx` (`toasts`/`pushToast`/`dismissToast`, interfaz `CoordinatorLayoutToast`) -- mismo patrón ya aprobado de `LoginPage.tsx`, reutilizando `Toast`/`ToastViewport` (sin componentes nuevos).
+
+### Modificado
+
+- `src/layouts/CoordinatorLayout.tsx` — `onPublish` pasa de síncrono (Job en memoria) a `async`: arma un payload real (`TableInsert<'trabajos'>`) desde `PublishForm` + `profile.id` + `useOperationalContext().tiendaId/empresaId`, llama a `trabajosRepository.create()` (sin cambios) dentro de un `try/catch`, y construye `ActiveJob` desde la fila real devuelta (+ `form.sucursal`, que no es una columna de `trabajos`) antes de `setActiveJob()`. Si falla, muestra un Toast con el mensaje real de error, sin crear `activeJob` ni cambiar `CoordinatorWorkspace`. `useOperationalContext()` ahora también desestructura `tiendaId`/`empresaId` (mismo hook ya usado).
+- `PROJECT_STATUS.md` — nueva sección de estado.
+- `docs/SPRINTS_INDEX.md` — nueva fila.
+
+### Sin cambios
+
+`PublishModal` (props/visual/validaciones), `CoordinatorWorkspace`/`JobSummaryCard`/`LiveDispatchCard`/`ResponsesPanel`/`CoordinatorKpiRow`/`JobIndicadoresCard`, `Header`/`Footer`/`Sidebar`, `trabajos.repository.ts`, policies RLS, `OperationalContextProvider.tsx`, Auth/Roles/Router. Ningún componente/hook/servicio/Provider nuevo.
+
+**Validación técnica**: `tsc --noEmit` (instalación global) — único delta son diagnósticos nuevos en `CoordinatorLayout.tsx`, todos de categorías ya clasificadas como artefactos de entorno (incluido un `TS2322` idéntico, línea por línea, al que ya produce `LoginPage.tsx` con el mismo patrón de Toast), cero `TS6133`, cero errores de sintaxis. `npm run lint`/`typecheck`/`build`/`dev` reales, y la primera prueba funcional contra Supabase con el Coordinador ya sembrado, quedan pendientes del entorno del usuario.
+
+## [Fase 5 — Corrección — CoordinatorKpiRow visible siempre] — 2026-07-23 — 🟡 En revisión
+
+Corrección puntual, instrucción directa del usuario (sin brief de Sprint nuevo), inmediatamente posterior al cierre de "Coordinator KPI Loading Resolution": **"No ocultes CoordinatorKpiRow... debe renderizarse siempre"**. Detalle técnico completo en el Anexo (sección 10) de `docs/architecture/frontend/SPRINT_5_2_1_KPI_LOADING_FIX_REPORT.md`.
+
+**Motivo**: el modelo `kpisLoading` (`<Loading/>` mientras carga, `null` si termina sin datos) recién introducido seguía "ocultando" el bloque de Indicadores en algunos desenlaces — el usuario decidió que `CoordinatorKpiRow` no debe ocultarse nunca, y que el fix debe vivir únicamente en el origen de los datos.
+
+### Añadido
+
+- `ZERO_KPIS` (constante local, `DespachoPage.tsx`) — objeto `CoordinatorKpis` con los 5 campos en cero; no es un mock, es el mismo objeto que `calcularKpis()` ya devuelve para `rows: []`. Es ahora el valor por defecto de `kpis` en todo instante sin datos reales.
+
+### Modificado
+
+- `src/pages/coordinator/DespachoPage.tsx` — `kpis` pasa de `CoordinatorKpis | null` a `CoordinatorKpis` (no-nulable), inicializado en `ZERO_KPIS`; todos los `setKpis(null)` se reemplazan por `setKpis(ZERO_KPIS)`; se retira el estado `kpisLoading` y su `.finally()` (sin más propósito); se retira el prop `kpisLoading` de la invocación de `JobIndicadoresCard`.
+- `src/components/shared/job-indicadores-card.tsx` — `JobIndicadoresCardProps.kpis` pasa a `CoordinatorKpis` (no-nulable); se retira `kpisLoading` del contrato; el render deja de tener cualquier rama condicional — siempre `<CoordinatorKpiRow kpis={kpis}/>`; se retira el import de `Loading` (sin más uso en el archivo).
+
+### Sin cambios
+
+`src/components/shared/coordinator-kpi-row.tsx` (instrucción explícita del usuario — mismo contrato `{kpis: CoordinatorKpis}`, cero cambios de código), `CoordinatorWorkspace`/`JobSummaryCard`/`PublishModal`/`LiveDispatchCard`/`ResponsesPanel`/`CoordinatorLayout`/`RootLayout`, `dashboard.service.ts`/`supabase.service.ts`/repositorios, `OperationalContextProvider.tsx`. Ningún componente/servicio/hook/provider nuevo, ningún mock.
+
+**Validación técnica**: `tsc --noEmit` (instalación global) — distribución de diagnósticos idéntica al cierre de la ronda anterior (cero delta), cero categorías nuevas, cero `TS6133`, cero errores de sintaxis. `npm run lint`/`typecheck`/`build`/`dev` reales quedan pendientes de ejecución por el usuario (sin `node_modules`/red en este entorno de trabajo).
+
+## [Fase 5 — Sprint 5.2.1 Fix — Coordinator KPI Loading Resolution] — 2026-07-23 — 🟡 En revisión
+
+Sprint de responsabilidad única (sin funcionalidades nuevas): resolver por completo el bloqueo indefinido de `CoordinatorKpiRow` en "Cargando indicadores…". Detalle técnico completo en `docs/architecture/frontend/SPRINT_5_2_1_KPI_LOADING_FIX_REPORT.md`.
+
+**Causa raíz encontrada (instrumentación temporal con logs, removida antes de finalizar)**: no existía ningún estado `loading` explícito para este bloque — `JobIndicadoresCard` inferí­a "cargando" de `kpis === null`, incorrecto para cualquier desenlace terminado sin datos (un error real de Postgrest/RLS, `result.ok === false`, que siempre se resolvía correctamente y nunca quedaba pendiente — no solo la promesa rechazada ya cubierta en la ronda anterior). `getCoordinatorKpis()`/`toServiceResult()` se re-auditaron y se reconfirmó que no son el origen.
+
+### Añadido
+
+- `docs/architecture/frontend/SPRINT_5_2_1_KPI_LOADING_FIX_REPORT.md` (NUEVO).
+- `kpisLoading` (nuevo `useState<boolean>`, `DespachoPage.tsx`) — recorrido `true→request→success OR error→false` garantizado en los 3 `return` tempranos del efecto y en el `.finally()` de la promesa.
+- Prop `kpisLoading: boolean` en `JobIndicadoresCardProps`.
+
+### Modificado
+
+- `src/pages/coordinator/DespachoPage.tsx` — `kpisLoading` agregado; `.finally()` agregado a la cadena de la promesa; `kpis`/`kpisError` se limpian/pueblan explícitamente también en el camino `result.ok === false`.
+- `src/components/shared/job-indicadores-card.tsx` — `<Loading/>` ahora gobernado por `kpisLoading`, no por `kpis === null`; si `kpisLoading` es `false` y no hay `kpis` (error), no se muestra nada en ese lugar (sin reabrir la decisión del Sprint 5.1.5 de no mostrar errores dentro de "Indicadores").
+- `PROJECT_STATUS.md` — nueva sección de estado.
+- `docs/SPRINTS_INDEX.md` — nueva fila.
+
+### Sin cambios
+
+`CoordinatorWorkspace`/`JobSummaryCard`/`PublishModal`/`LiveDispatchCard`/`ResponsesPanel`/`CoordinatorLayout`/`RootLayout`/`CoordinatorKpiRow`, `dashboard.service.ts`/`supabase.service.ts`/repositorios (re-auditados, no son el origen), `OperationalContextProvider.tsx` (auditado explícitamente — Objetivo 10 — el cambio de la ronda anterior, `activeJob`/`setActiveJob`, es ortogonal y no interrumpe el flujo de KPIs), Auth/Roles/Router/Policies/RLS. Ningún componente/servicio/hook/provider nuevo, ningún estado duplicado.
+
+**Validación técnica**: `tsc --noEmit` (instalación global) — distribución de diagnósticos idéntica al cierre de la ronda anterior (cero delta), cero categorías nuevas, cero `TS6133`, cero errores de sintaxis. `npm run lint`/`typecheck`/`build`/`dev` reales quedan pendientes de ejecución por el usuario (sin `node_modules`/red en este entorno de trabajo).
+
 ## [Fase 5 — Sprint 5.2.1 Fix — Publish Workflow Stabilization] — 2026-07-23 — 🟡 En revisión
 
 Sprint exclusivamente de estabilización del flujo Publish (Sprint 5.2.1) — sin funcionalidades nuevas. Detalle técnico completo en `docs/architecture/frontend/SPRINT_5_2_1_PUBLISH_WORKFLOW_FIX_REPORT.md`.
