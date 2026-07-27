@@ -57,6 +57,41 @@ import { SUCURSALES } from '@/constants';
  * en `enabledValue` (y por qué) vive en `CoordinatorLayout.tsx`, no aquí —
  * este componente sigue siendo puramente presentacional, sin lógica de
  * roles/Contexto Operativo.
+ *
+ * ---------------------------------------------------------------------
+ * AJUSTE — Sprint 5.2.3.5 ("Sincronización del selector de sucursal")
+ * ---------------------------------------------------------------------
+ * Causa raíz encontrada esta ronda (auditoría con datos reales ya
+ * corregidos por el Sprint 5.2.3.4): `SUCURSALES` (`constants/index.ts`)
+ * sigue siendo la lista LITERAL de 9 nombres del HTML original (Sprint
+ * 3.4: "Tumba Muerto", "Multiplaza", "Albrook", ...), transcrita del
+ * prototipo y nunca reemplazada por datos reales de `tiendas` -- su
+ * propio JSDoc ya lo advertía ("La lista real de sucursales vendrá de
+ * Supabase ... en una fase de integración futura -- no se resuelve
+ * aquí"). Ahora que `tiendaNombre` resuelve al nombre REAL de la tienda
+ * (ej. "Multimax Paitilla", una fila real de `public.tiendas`, Sprint
+ * 5.2.3.4), ese nombre no aparece entre esas 9 opciones estáticas -- un
+ * `<select value="Multimax Paitilla">` sin ninguna `<option
+ * value="Multimax Paitilla">` no puede mostrar esa selección
+ * correctamente, y como tampoco hay ninguna opción cuyo valor coincida
+ * con `enabledValue` ("Multimax Paitilla"), las 9 quedaban deshabilitadas
+ * -- exactamente el síntoma reportado ("el badge ya muestra Multimax
+ * Paitilla, pero el selector no").
+ *
+ * Corrección (solo en este componente, sin tocar `SUCURSALES` -- sigue
+ * siendo la misma constante compartida sin cambios para
+ * `PublishModal`/`MasterCalendar`, y sin ninguna llamada a
+ * repositorios/servicios/Supabase desde aquí): si `value` es una tienda
+ * real que todavía no está en `SUCURSALES`, se agrega como una opción
+ * adicional al final de la lista renderizada -- garantiza que el `value`
+ * del `<select>` SIEMPRE coincida con exactamente una `<option>` real,
+ * sin inventar ni hardcodear ningún nombre (el nombre viene, en todos los
+ * casos, del mismo `value`/`enabledValue` ya recibidos por props, con el
+ * mismo origen -- `OperationalContext.tiendaNombre` -- que ya gobierna el
+ * badge del `Header`). Si `value` es `''` (todavía no resuelto) o ya está
+ * en `SUCURSALES` (caso Admin-superusuario, que sigue usando las 9
+ * sucursales legacy vía `sucursalCoord`), el comportamiento es idéntico
+ * al de antes de este Sprint -- cero cambios para ese caso.
  */
 export interface SucursalSelectProps {
   value: string;
@@ -66,11 +101,18 @@ export interface SucursalSelectProps {
 }
 
 export function SucursalSelect({ value, onChange, enabledValue }: SucursalSelectProps) {
+  // Sprint 5.2.3.5 — ver JSDoc "AJUSTE — Sprint 5.2.3.5" arriba. Unión,
+  // no reemplazo: las 9 opciones legacy de `SUCURSALES` siempre están
+  // presentes (necesarias para el caso Admin-superusuario); se agrega
+  // `value` únicamente si es una tienda real todavía no representada ahí.
+  const options: readonly string[] =
+    value && !(SUCURSALES as readonly string[]).includes(value) ? [...SUCURSALES, value] : SUCURSALES;
+
   return (
     <div className="mx-suc-sel">
       <label>Sucursal activa:</label>
       <select value={value} onChange={(e) => onChange(e.target.value)}>
-        {SUCURSALES.map((s) => (
+        {options.map((s) => (
           <option key={s} value={s} disabled={enabledValue !== undefined && s !== enabledValue}>
             {s}
           </option>

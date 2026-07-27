@@ -354,17 +354,44 @@ export function CoordinatorLayout({
   const { activeJob, setActiveJob, tiendaId, empresaId, esSuperusuario, tiendaNombre } =
     useOperationalContext();
 
-  // Sprint 5.2.3.1 — único cálculo nuevo de esta ronda. `undefined` para
-  // un `admin` en Modo Coordinador (selector completamente libre, sin
-  // cambio de comportamiento). Para un Coordinador real, se bloquea a
-  // `tiendaNombre` (la tienda real resuelta por `resolveProfile()` desde
-  // `coordinadores.tienda_id`) -- si todavía no resolvió (`null`, ver la
-  // limitación de RLS de `tiendas` documentada en el reporte de este
-  // Sprint), se pasa `''` (string vacío): como ninguna opción real de
-  // `SUCURSALES` puede tener ese valor, todas quedan deshabilitadas -- una
-  // degradación segura, nunca una opción incorrecta marcada como "la
-  // tienda real".
+  // Sprint 5.2.3.1 — `undefined` para un `admin` en Modo Coordinador
+  // (selector completamente libre, sin cambio de comportamiento). Para un
+  // Coordinador real, se bloquea a `tiendaNombre` (la tienda real resuelta
+  // por `resolveProfile()` desde `coordinadores.tienda_id`) -- si todavía
+  // no resolvió (`null`, ver la limitación de RLS de `tiendas` documentada
+  // desde el Sprint 5.2.3.3/5.2.3.4), se pasa `''` (string vacío): como
+  // ninguna opción real de `SUCURSALES` puede tener ese valor, todas quedan
+  // deshabilitadas -- una degradación segura, nunca una opción incorrecta
+  // marcada como "la tienda real".
   const sucursalLockValue = esSuperusuario ? undefined : (tiendaNombre ?? '');
+
+  // Sprint 5.2.3.x ("Corrección definitiva del contexto operativo del
+  // Coordinador — una sola fuente de verdad") — nuevo cálculo, mismo
+  // criterio y las mismas dos variables ya en scope que `sucursalLockValue`
+  // (ningún estado nuevo). Auditoría de este Sprint (ver su reporte
+  // técnico): tanto el `<select>` como el badge superior (`Header`)
+  // mostraban, para un Coordinador real, `sucursalCoord` -- un `useState`
+  // de `RootLayout.tsx` que nace en el literal fijo `'Multiplaza'` y que,
+  // hasta este Sprint, se sincronizaba con `profile.tiendaNombre` mediante
+  // un efecto unidireccional que NUNCA corría si `tiendaNombre` era `null`
+  // (RLS de `tiendas` sin policy, Sprint 5.2.3.3/5.2.3.4) -- dejando
+  // `sucursalCoord` congelado en `'Multiplaza'`, un snapshot obsoleto que
+  // no reflejaba honestamente "la tienda real todavía no se resolvió".
+  //
+  // `sucursalDisplayValue` reemplaza esa fuente para AMBOS lugares que la
+  // mostraban: para un Coordinador real (`esSuperusuario === false`) es
+  // directamente `tiendaNombre` (`OperationalContext`, sin intermediarios,
+  // sin valor por defecto, sin snapshot -- `''` si todavía no resolvió, la
+  // misma degradación segura ya usada en `sucursalLockValue`, nunca inventa
+  // un nombre). Para un `admin` en Modo Coordinador (`esSuperusuario ===
+  // true`) sigue siendo `sucursalCoord` -- ahí SÍ es la fuente correcta,
+  // porque es la selección manual del propio admin, el INSUMO que
+  // `OperationalContextProvider` usa para resolver la tienda (no tendría
+  // sentido "sincronizarlo" con `tiendaNombre`: sería circular). El
+  // `useEffect` de `RootLayout.tsx` que antes intentaba esa sincronización
+  // para un Coordinador real se retiró en este mismo Sprint -- ver su
+  // JSDoc "Sprint 5.2.3.x" en `RootLayout.tsx`.
+  const sucursalDisplayValue = esSuperusuario ? sucursalCoord : (tiendaNombre ?? '');
 
   // Sprint 5.2.2.1 — cola local de Toasts, ver JSDoc de
   // `CoordinatorLayoutToast` arriba.
@@ -401,7 +428,23 @@ export function CoordinatorLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <Header role={profile.rol} profile={profile} onLogout={() => void logout()} />
+      {/* Sprint 5.2.3.x — `sucursalActiva` (antes NO se pasaba en absoluto:
+          hallazgo confirmado de esta ronda, "Problema encontrado" heredado
+          y nunca corregido desde el Sprint 3.4 -- ver JSDoc histórico de
+          `RootLayout.tsx`, sección "TEMPORARY INTEGRATION — Sprint 3.4").
+          Sin este prop, `HeaderStatus` usaba su propio valor por defecto
+          (`'Multiplaza'`, hardcodeado en `header-status.tsx`) para CUALQUIER
+          Coordinador, sin relación alguna con su tienda real -- el badge
+          superior derecho nunca reflejaba la sucursal activa real. Ahora
+          recibe exactamente `sucursalDisplayValue`, la misma única fuente
+          de verdad que ya gobierna `SucursalSelect`/`PublishModal` más
+          abajo -- sin estado nuevo, sin default propio de este archivo. */}
+      <Header
+        role={profile.rol}
+        profile={profile}
+        onLogout={() => void logout()}
+        sucursalActiva={sucursalDisplayValue}
+      />
       <main className="flex-1">
         {adminSwitchSlot}
         {/* Sprint 3.4 (`SucursalSelect`) / Sprint 3.3 (`CoordinatorSubtabs`,
@@ -409,8 +452,19 @@ export function CoordinatorLayout({
             `DespachoPage.tsx`/`TrabajosPage.tsx`, ahora un único punto,
             compartido por las 3 rutas del Coordinador vía `<Outlet/>` (ver
             "Efecto colateral de fidelidad" más arriba). */}
+        {/* Sprint 5.2.3.x — `value` pasa de `sucursalCoord` (snapshot de
+            `RootLayout.tsx`, podía quedar congelado en `'Multiplaza'` para
+            un Coordinador real) a `sucursalDisplayValue` (misma variable
+            que ahora también gobierna el badge del `Header` y el `sucursal`
+            inicial de `PublishModal`, ver más abajo) -- una sola fuente de
+            verdad para las 3 superficies. `onChange` no cambia: sigue
+            escribiendo en `sucursalCoord`/`RootLayout.tsx`, relevante
+            únicamente para el `admin` en Modo Coordinador (única rama donde
+            el usuario puede de verdad elegir); para un Coordinador real
+            todas las opciones salvo la propia quedan `disabled`
+            (`enabledValue`), así que este `onChange` nunca se dispara. */}
         <SucursalSelect
-          value={sucursalCoord}
+          value={sucursalDisplayValue}
           onChange={onSucursalCoordChange}
           enabledValue={sucursalLockValue}
         />
@@ -423,7 +477,7 @@ export function CoordinatorLayout({
           aquí (antes vivía en `RootLayout.tsx`) — mismo componente, mismas
           props, ningún cambio de comportamiento. */}
       <PublishModal
-        sucursal={sucursalCoord}
+        sucursal={sucursalDisplayValue}
         enabledValue={sucursalLockValue}
         open={showPublishModal}
         onOpenChange={setShowPublishModal}

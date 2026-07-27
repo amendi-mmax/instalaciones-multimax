@@ -228,7 +228,22 @@ export function DespachoPage() {
     return () => {
       active = false;
     };
-  }, [tiendaId, contextoLoading, contextoError]);
+    // `activeJob?.id` -- Sprint 5.2.3.3.1 ("Persistencia real del flujo
+    // Publish"). Hallazgo de auditoría (no relacionado con el INSERT en sí,
+    // ya confirmado correcto -- ver el reporte técnico de este Sprint): este
+    // efecto nunca dependía de `activeJob`, por lo que un `INSERT` real y
+    // exitoso en `trabajos` (Sprint 5.2.2.1, sin cambios) no disparaba una
+    // nueva consulta a `getCoordinatorKpis()` -- "Despacho en vivo" mostraba
+    // el trabajo recién publicado (estado de React, `activeJob`) mientras
+    // "Indicadores" seguía mostrando los valores de ANTES de publicar, hasta
+    // que `tiendaId` cambiara o la página se remontara. Se agrega `activeJob
+    // ?.id` (no el objeto completo, para no depender de su identidad de
+    // referencia) para que los KPIs se recarguen cada vez que cambia el
+    // trabajo activo (al publicar -- `null` → id real -- y al cancelar --
+    // id real → `null`), sin duplicar la llamada a `getCoordinatorKpis()`
+    // (misma función, mismo servicio, ya existente) ni tocar
+    // `CoordinatorLayout.tsx`/`trabajosRepository`/`OperationalContextProvider`.
+  }, [tiendaId, contextoLoading, contextoError, activeJob?.id]);
 
   // Sprint 5.2.1 -- `activeJob` ya no se calcula acá: se lee del Outlet
   // Context (fuente real, `CoordinatorLayout.tsx`). Regla 19 (mutuamente
