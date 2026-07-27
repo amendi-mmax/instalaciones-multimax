@@ -343,7 +343,28 @@ export function CoordinatorLayout({
   // `OperationalContextProvider` (idénticos a los que ya consume
   // `DespachoPage.tsx` para los KPIs), necesarios para el INSERT real de
   // `trabajos`.
-  const { activeJob, setActiveJob, tiendaId, empresaId } = useOperationalContext();
+  // Sprint 5.2.3.1 — se agregan `esSuperusuario`/`tiendaNombre` a esta
+  // misma desestructuración (ambos campos ya existían en
+  // `OperationalContextValue`, sin ningún cambio a ese tipo/Provider):
+  // determinan si el selector "Sucursal activa" debe quedar bloqueado a la
+  // tienda real del Coordinador (`esSuperusuario === false`) o
+  // completamente libre (`admin` en Modo Coordinador, `esSuperusuario ===
+  // true`) — ver `sucursalLockValue` más abajo y el JSDoc "AJUSTE — Sprint
+  // 5.2.3.1" de `sucursal-select.tsx`.
+  const { activeJob, setActiveJob, tiendaId, empresaId, esSuperusuario, tiendaNombre } =
+    useOperationalContext();
+
+  // Sprint 5.2.3.1 — único cálculo nuevo de esta ronda. `undefined` para
+  // un `admin` en Modo Coordinador (selector completamente libre, sin
+  // cambio de comportamiento). Para un Coordinador real, se bloquea a
+  // `tiendaNombre` (la tienda real resuelta por `resolveProfile()` desde
+  // `coordinadores.tienda_id`) -- si todavía no resolvió (`null`, ver la
+  // limitación de RLS de `tiendas` documentada en el reporte de este
+  // Sprint), se pasa `''` (string vacío): como ninguna opción real de
+  // `SUCURSALES` puede tener ese valor, todas quedan deshabilitadas -- una
+  // degradación segura, nunca una opción incorrecta marcada como "la
+  // tienda real".
+  const sucursalLockValue = esSuperusuario ? undefined : (tiendaNombre ?? '');
 
   // Sprint 5.2.2.1 — cola local de Toasts, ver JSDoc de
   // `CoordinatorLayoutToast` arriba.
@@ -388,7 +409,11 @@ export function CoordinatorLayout({
             `DespachoPage.tsx`/`TrabajosPage.tsx`, ahora un único punto,
             compartido por las 3 rutas del Coordinador vía `<Outlet/>` (ver
             "Efecto colateral de fidelidad" más arriba). */}
-        <SucursalSelect value={sucursalCoord} onChange={onSucursalCoordChange} />
+        <SucursalSelect
+          value={sucursalCoord}
+          onChange={onSucursalCoordChange}
+          enabledValue={sucursalLockValue}
+        />
         <CoordinatorSubtabs />
         <Outlet context={outletContext} />
       </main>
@@ -399,6 +424,7 @@ export function CoordinatorLayout({
           props, ningún cambio de comportamiento. */}
       <PublishModal
         sucursal={sucursalCoord}
+        enabledValue={sucursalLockValue}
         open={showPublishModal}
         onOpenChange={setShowPublishModal}
         onPublish={async (form: PublishForm) => {
