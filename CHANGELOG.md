@@ -2,6 +2,29 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 6 — Sprint 6.1 (infraestructura) — Módulo Administrador, "Gestión de Instaladores"] — 2026-07-27 — 🟡 Auditoría + SQL + Edge Function entregados, pendiente validación del usuario
+
+Primer Sprint de la Fase 6. Conflicto real detectado antes de escribir código: invitar por correo vía Supabase Auth exige `service_role` (nunca en el navegador); la app es hoy una SPA pura sin backend propio. Se consultó al usuario (`AskUserQuestion`), que eligió construir una Edge Function administrativa reutilizable. Detalle completo en `docs/architecture/backend/SPRINT_6_1_INSTALADORES_SCHEMA_AUDIT_REPORT.md`.
+
+**Auditoría de esquema (`public.instaladores`, 16 columnas)**: ninguna columna nueva necesaria ("Pendiente" se deriva de `activo`/`suspendido`/`documentos_ok`); hallazgo crítico -- `instaladores.id` tiene FK real a `auth.users.id`, por lo que el orden de flujo del brief es técnicamente imposible (hay que invitar primero, crear el registro después); RLS documentada con solo 2 policies de SELECT, ninguna de escritura -- como toda escritura pasa por la Edge Function (`service_role`), el único hueco real es una policy de SELECT para `admin` (candidata generada, condicionada a verificación en vivo).
+
+### Añadido
+
+- `docs/architecture/backend/SPRINT_6_1_INSTALADORES_SCHEMA_AUDIT_REPORT.md` (NUEVO) -- auditoría completa de esquema/RLS, flujo corregido, decisiones de diseño.
+- `docs/architecture/backend/SPRINT_6_1_INSTALADORES_RLS_VERIFICATION_QUERIES.sql` (NUEVO) -- consultas de solo lectura para confirmar el estado real de RLS antes de cualquier corrección.
+- `docs/architecture/backend/SPRINT_6_1_INSTALADORES_RLS_FIX.sql` (NUEVO) -- policy candidata de SELECT para `admin`, condicionada al resultado de la verificación, NO ejecutada.
+- `supabase/functions/admin-operations/index.ts` + `README.md` + `supabase/functions/_shared/cors.ts` (NUEVO) -- Edge Function administrativa reutilizable (invitar/suspender/reactivar instaladores, extensible a futuras operaciones), con verificación de que el caller es un Admin real antes de cualquier operación con `service_role`. No desplegada ni probada (sin acceso de red desde este entorno).
+
+### Modificado
+
+- Ninguno. Cero archivos de `src/` tocados (verificado) -- por instrucción explícita del usuario, el módulo de frontend queda para la siguiente ronda.
+
+### Sin resolver
+
+- El usuario debe ejecutar las consultas de verificación de RLS y confirmar si la policy candidata hace falta.
+- El usuario debe desplegar la Edge Function (`supabase functions deploy admin-operations`) y probarla contra Producción.
+- Hallazgo colateral reportado, no corregido: `supabase/README.md` (§9-10) documenta un modelo de datos legacy que contradice el modelo real (`docs/database/DATABASE_INVENTORY.md`) -- no se tocó esa carpeta en esta ronda.
+
 ## [Fase 5 — Sprint 5.2.3.5 — Sincronización del selector de sucursal (`SucursalSelect`)] — 2026-07-27 — 🟢 Corregido
 
 El usuario confirmó que la RLS de `tiendas` (Sprint 5.2.3.4) ya está aplicada en Producción (`GET /rest/v1/tiendas?id=eq....` devuelve la fila real, badge superior correcto). Único síntoma restante: el selector de sucursal. Detalle completo en `docs/architecture/frontend/SPRINT_5_2_3_5_SUCURSAL_SELECT_SYNC_REPORT.md`.
