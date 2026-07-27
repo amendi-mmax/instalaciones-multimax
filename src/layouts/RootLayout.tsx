@@ -639,6 +639,44 @@ export function RootLayout() {
   const location = useLocation();
   const [sucursalCoord, setSucursalCoord] = useState('Multiplaza');
   const [meId, setMeId] = useState('pty');
+
+  // Sprint 5.2.3.1 agregó acá un `useEffect` que sincronizaba
+  // `sucursalCoord` con `profile.tiendaNombre` para un Coordinador real
+  // (`if (profile?.rol !== 'coordinador') return; if (profile.tiendaNombre
+  // && profile.tiendaNombre !== sucursalCoord) setSucursalCoord(...)`).
+  //
+  // RETIRADO en el Sprint 5.2.3.x ("Corrección definitiva del contexto
+  // operativo del Coordinador — una sola fuente de verdad"). Auditoría de
+  // ese Sprint (`tiendaId`/`tiendaNombre`/`sucursalCoord`/`enabledValue`/
+  // etc., ver su reporte técnico) encontró que ese efecto era exactamente
+  // el patrón de "estado duplicado con snapshot antiguo" que el propio
+  // brief pedía eliminar: `sucursalCoord` nace acá como el literal fijo
+  // `'Multiplaza'` y este efecto solo lo actualizaba de forma unidireccional
+  // y condicionada (`if (profile.tiendaNombre && ...)`, nunca corría si
+  // `tiendaNombre` era `null` -- ver la limitación de RLS de `tiendas`
+  // documentada desde el Sprint 5.2.3.3/5.2.3.4), dejando `sucursalCoord`
+  // congelado en `'Multiplaza'` para un Coordinador real cuando esa lectura
+  // fallaba, en vez de reflejar honestamente "todavía no resuelto".
+  //
+  // `sucursalCoord`/`setSucursalCoord` SIGUEN existiendo aquí (sin cambios
+  // en su declaración, línea de abajo) -- siguen siendo la fuente de
+  // verdad correcta y necesaria para el ÚNICO caso en que de verdad son un
+  // estado editable por el usuario: un Administrador en Modo Coordinador
+  // (`esSuperusuario === true`), cuyo `<select>` debe permanecer libre y
+  // cuya selección manual es, precisamente, el INSUMO que
+  // `OperationalContextProvider` usa para resolver `tiendaId`/`tiendaNombre`
+  // (`resolveSuperusuarioTienda(sucursalCoord)`) -- no tiene sentido
+  // "sincronizar" ese valor con `tiendaNombre`, sería circular.
+  //
+  // Para un Coordinador real, `CoordinatorLayout.tsx` ya NO lee
+  // `sucursalCoord` para decidir qué mostrar en el selector ni en el badge
+  // superior -- calcula un valor derivado directamente de
+  // `useOperationalContext().tiendaNombre` (única fuente de verdad, sin
+  // estado propio, sin valor por defecto, sin snapshot) -- ver
+  // `sucursalDisplayValue` en `CoordinatorLayout.tsx`, JSDoc "Sprint
+  // 5.2.3.x". Este archivo (`RootLayout.tsx`) ya no necesita saber nada
+  // sobre la tienda real del Coordinador -- responsabilidad que nunca le
+  // correspondió (la resuelve `profile.service.ts`/`OperationalContext`).
   // Sprint 5.1.1 — solo tiene efecto cuando `profile.rol === 'admin'` (ver
   // JSDoc "SPRINT 5.1.1" más arriba); inerte para `coordinador`/`instalador`,
   // mismo criterio ya establecido para `meId` (solo relevante para

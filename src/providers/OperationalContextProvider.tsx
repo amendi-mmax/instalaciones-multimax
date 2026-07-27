@@ -126,6 +126,44 @@ import {
  * `useState(null)` para `activeJob` y pasa a leerlo/escribirlo de aquí
  * vía `useOperationalContext()` -- ver su JSDoc "Cambio mínimo — Sprint
  * 5.2.1 Fix" para el detalle de ese lado del cambio.
+ *
+ * ---------------------------------------------------------------------
+ * AJUSTE — Sprint 5.2.3 ("Sucursal activa en toda la vista Coordinador")
+ * ---------------------------------------------------------------------
+ * Auditoría previa (brief exigía confirmar que era seguro antes de tocar
+ * código): `activeJob` se resolvía únicamente por el flujo Publish
+ * (`CoordinatorLayout.tsx`, `onPublish`) y nunca se refrescaba/limpiaba en
+ * función de a qué tienda pertenece -- a diferencia de `getCoordinatorKpis`/
+ * `getTrabajosByTienda` (`DespachoPage.tsx`/`TrabajosPage.tsx`), que SÍ
+ * vuelven a ejecutarse en un `useEffect([tiendaId, ...])` cada vez que este
+ * mismo `tiendaId` cambia. Por eso "Mis trabajos" y los KPIs de "Despacho
+ * en vivo" ya reflejaban correctamente la sucursal activa (nuevo
+ * `SucursalSelect` → `sucursalCoord` → `resolveSuperusuarioTienda()` →
+ * `tiendaId` nuevo → sus queries se disparan de nuevo), mientras que
+ * "Despacho en vivo" seguía mostrando el mismo `activeJob` -- un simple
+ * objeto en memoria, sin ninguna relación con `tiendaId` -- sin importar a
+ * qué sucursal se cambiara. Detalle completo (incluida la explicación de
+ * por qué esto solo es observable en el Modo de Visualización superusuario
+ * de `admin`, nunca para un Coordinador real) en
+ * `docs/architecture/frontend/SPRINT_5_2_3_SUCURSAL_CONTEXT_REPORT.md`.
+ *
+ * **Corrección** (único cambio de código de este Sprint, confinado a este
+ * mismo Provider, sin Context/estado nuevo): un nuevo `useEffect` que
+ * limpia `activeJob` (`setActiveJob(null)`) cada vez que el `tiendaId`
+ * efectivamente resuelto (`resuelto.tiendaId` o `profile?.tiendaId`, el
+ * mismo valor ya expuesto como `tiendaId` en el `value` de más abajo)
+ * cambia. Esto hace que "Despacho en vivo" (que ya decide
+ * `CoordinatorEmptyState` vs. Workspace completo únicamente en función de
+ * `activeJob`, sin cambios) vuelva a mostrar el estado vacío correcto para
+ * la nueva sucursal en vez de arrastrar el trabajo de la sucursal anterior
+ * -- y, en cascada (sin ningún cambio a esos componentes), también deja de
+ * mostrar `LiveDispatchCard`/`ResponsesPanel`/`JobIndicadoresCard` con
+ * datos de un trabajo que ya no corresponde a la sucursal activa, porque
+ * esos 3 bloques solo se renderizan dentro de la rama `activeJob !== null`
+ * de `DespachoPage.tsx` (sin tocar ese archivo). Para un Coordinador real,
+ * `tiendaId` nunca cambia durante la sesión -- este `useEffect` no altera
+ * ningún comportamiento existente para ese caso (el `setActiveJob(null)`
+ * inicial, al montar, es un no-op: `activeJob` ya empieza en `null`).
  */
 export interface OperationalContextProviderProps {
   modo: ModoVisualizacion;
@@ -159,6 +197,22 @@ export function OperationalContextProvider({
   // (empresa/tienda) -- ninguna de las 2 ramas de `value` (abajo) necesita
   // condicionar su lectura/escritura.
   const [activeJob, setActiveJob] = useState<JobSummaryCardJob | null>(null);
+
+  // Sprint 5.2.3 — mismo valor que se expone como `tiendaId` en el `value`
+  // de más abajo (ninguna de las 2 ramas cambia), calculado una vez acá
+  // para poder observarlo con el nuevo `useEffect` de limpieza sin
+  // duplicar la expresión.
+  const tiendaId = requiereResolucionSuperusuario ? resuelto.tiendaId : (profile?.tiendaId ?? null);
+
+  // Sprint 5.2.3 ("Sucursal activa en toda la vista Coordinador") — único
+  // efecto nuevo de este Sprint, ver JSDoc "AJUSTE — Sprint 5.2.3" más
+  // arriba. Limpia `activeJob` cada vez que cambia la tienda efectivamente
+  // resuelta, para que "Despacho en vivo" no siga mostrando el trabajo de
+  // la sucursal anterior. No-op para un Coordinador real (`tiendaId` nunca
+  // cambia) y no-op en el montaje inicial (`activeJob` ya empieza `null`).
+  useEffect(() => {
+    setActiveJob(null);
+  }, [tiendaId]);
 
   useEffect(() => {
     if (!requiereResolucionSuperusuario) {
@@ -212,7 +266,7 @@ export function OperationalContextProvider({
         esSuperusuario,
         empresaId: resuelto.empresaId,
         empresaNombre: resuelto.empresaNombre,
-        tiendaId: resuelto.tiendaId,
+        tiendaId,
         tiendaNombre: resuelto.tiendaNombre,
         loading,
         error: resuelto.error,
@@ -226,7 +280,7 @@ export function OperationalContextProvider({
       esSuperusuario,
       empresaId: profile?.empresaId ?? null,
       empresaNombre: profile?.empresaNombre ?? null,
-      tiendaId: profile?.tiendaId ?? null,
+      tiendaId,
       tiendaNombre: profile?.tiendaNombre ?? null,
       loading: false,
       error: null,
@@ -241,6 +295,7 @@ export function OperationalContextProvider({
     loading,
     profile,
     activeJob,
+    tiendaId,
   ]);
 
   return <OperationalContext.Provider value={value}>{children}</OperationalContext.Provider>;
