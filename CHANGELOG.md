@@ -2,6 +2,58 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 6 — Sprint 6.2 — Migración GRANT `service_role` (`admins`/`instaladores`)] — 2026-07-28 — 🟡 SQL listo, pendiente de aprobación y ejecución del usuario
+
+Cierre de la fase de diagnóstico del Sprint 6.1 (auditoría completa de permisos vía MCP de Supabase: `pg_roles`, `pg_tables`/`pg_class`, `information_schema.role_table_grants`, `aclexplode(relacl)`) confirmó, con evidencia en vivo contra Producción, que `service_role` no tiene `GRANT SELECT/INSERT/UPDATE/DELETE` sobre ninguna tabla de `public` -- incluidas `admins` e `instaladores`, las dos que usa la Edge Function `admin-operations`. `BYPASSRLS` (que `service_role` sí tiene) salta la evaluación de RLS *policies*, pero no sustituye al `GRANT` de tabla, que Postgres evalúa antes. Sin esta corrección, cualquier llamada real de `admin-operations` (invitar/suspender/reactivar instalador) sigue fallando con `permission denied`, aunque el bug de `verifyCaller()` (Sprint 6.1) ya esté corregido.
+
+Es el primer Sprint que retoma desarrollo normal tras cerrar formalmente esa fase de diagnóstico (instrucción explícita del usuario). Sprint pendiente identificado: módulo de frontend "Gestión de Instaladores" (`AdminInstaladores`, repository/hooks/UI conectados a datos reales), diferido desde el cierre de Sprint 6.1 (infraestructura). Esta migración es el primer paso, prerrequisito técnico del resto del Sprint.
+
+### Añadido
+
+- `supabase/migrations/0003_service_role_grants_admins_instaladores.sql` (NUEVO) -- `GRANT SELECT, INSERT, UPDATE, DELETE` sobre `public.admins`/`public.instaladores` a `service_role`. Aditiva, no destructiva, reversible (`REVOKE` documentado). Alcance mínimo: solo las 2 tablas que `admin-operations` toca hoy -- el mismo hueco de GRANT existe en las 7 tablas restantes de `public`, documentado pero fuera de alcance de este Sprint.
+
+### Sin resolver
+
+- Migración creada pero **NO aplicada** -- por instrucción explícita del usuario, se espera su aprobación antes de ejecutar `apply_migration` contra Producción.
+- El resto del Sprint (servicio de la Edge Function en el frontend, wiring de `AdminInstaladores` a datos reales, validaciones `typecheck`/`build`, posible redeploy) queda pausado hasta que esta migración se apruebe y ejecute.
+
+## [Fase 6 — Sprint 6.1 (diagnóstico 403) — Corrección de `verifyCaller()` en `admin-operations`] — 2026-07-27 — 🟢 Corregido (por lectura de código), pendiente confirmación tras redesplegar
+
+El usuario desplegó `admin-operations` y confirmó con evidencia real (logs) que header/secrets/fila en `admins` ya estaban correctos, pero la función seguía respondiendo `403`. Detalle completo en `docs/architecture/backend/SPRINT_6_1_ADMIN_OPERATIONS_403_DIAGNOSIS_REPORT.md`.
+
+**Causa raíz**: `verifyCaller()` pasaba el JWT vía `global.headers.Authorization` al crear `callerClient`, pero llamaba a `callerClient.auth.getUser()` sin el token como argumento -- `global.headers` no alimenta al módulo `auth` (GoTrue), que mantiene su propia sesión interna, siempre vacía en un cliente recién creado por invocación.
+
+### Modificado
+
+- `supabase/functions/admin-operations/index.ts` -- `verifyCaller()`: se extrae el token (`authHeader.replace('Bearer ', '')`) y se pasa explícitamente a `getUser(token)`; se agregó instrumentación completa (`console.log` en cada paso, JWT nunca logueado completo). Ninguna otra lógica del Sprint tocada -- arquitectura de doble cliente intacta, cero archivos de `src/`.
+
+### Sin resolver
+
+- No verificable desde este entorno (sin acceso de red a Supabase) -- el usuario debe redesplegar y confirmar contra los logs reales que la secuencia llega hasta "retorno final: AdminRow real" y la respuesta es `200`.
+
+## [Fase 6 — Sprint 6.1 (infraestructura) — Módulo Administrador, "Gestión de Instaladores"] — 2026-07-27 — 🟡 Auditoría + SQL + Edge Function entregados, pendiente validación del usuario
+
+Primer Sprint de la Fase 6. Conflicto real detectado antes de escribir código: invitar por correo vía Supabase Auth exige `service_role` (nunca en el navegador); la app es hoy una SPA pura sin backend propio. Se consultó al usuario (`AskUserQuestion`), que eligió construir una Edge Function administrativa reutilizable. Detalle completo en `docs/architecture/backend/SPRINT_6_1_INSTALADORES_SCHEMA_AUDIT_REPORT.md`.
+
+**Auditoría de esquema (`public.instaladores`, 16 columnas)**: ninguna columna nueva necesaria ("Pendiente" se deriva de `activo`/`suspendido`/`documentos_ok`); hallazgo crítico -- `instaladores.id` tiene FK real a `auth.users.id`, por lo que el orden de flujo del brief es técnicamente imposible (hay que invitar primero, crear el registro después); RLS documentada con solo 2 policies de SELECT, ninguna de escritura -- como toda escritura pasa por la Edge Function (`service_role`), el único hueco real es una policy de SELECT para `admin` (candidata generada, condicionada a verificación en vivo).
+
+### Añadido
+
+- `docs/architecture/backend/SPRINT_6_1_INSTALADORES_SCHEMA_AUDIT_REPORT.md` (NUEVO) -- auditoría completa de esquema/RLS, flujo corregido, decisiones de diseño.
+- `docs/architecture/backend/SPRINT_6_1_INSTALADORES_RLS_VERIFICATION_QUERIES.sql` (NUEVO) -- consultas de solo lectura para confirmar el estado real de RLS antes de cualquier corrección.
+- `docs/architecture/backend/SPRINT_6_1_INSTALADORES_RLS_FIX.sql` (NUEVO) -- policy candidata de SELECT para `admin`, condicionada al resultado de la verificación, NO ejecutada.
+- `supabase/functions/admin-operations/index.ts` + `README.md` + `supabase/functions/_shared/cors.ts` (NUEVO) -- Edge Function administrativa reutilizable (invitar/suspender/reactivar instaladores, extensible a futuras operaciones), con verificación de que el caller es un Admin real antes de cualquier operación con `service_role`. No desplegada ni probada (sin acceso de red desde este entorno).
+
+### Modificado
+
+- Ninguno. Cero archivos de `src/` tocados (verificado) -- por instrucción explícita del usuario, el módulo de frontend queda para la siguiente ronda.
+
+### Sin resolver
+
+- El usuario debe ejecutar las consultas de verificación de RLS y confirmar si la policy candidata hace falta.
+- El usuario debe desplegar la Edge Function (`supabase functions deploy admin-operations`) y probarla contra Producción.
+- Hallazgo colateral reportado, no corregido: `supabase/README.md` (§9-10) documenta un modelo de datos legacy que contradice el modelo real (`docs/database/DATABASE_INVENTORY.md`) -- no se tocó esa carpeta en esta ronda.
+
 ## [Fase 5 — Sprint 5.2.3.5 — Sincronización del selector de sucursal (`SucursalSelect`)] — 2026-07-27 — 🟢 Corregido
 
 El usuario confirmó que la RLS de `tiendas` (Sprint 5.2.3.4) ya está aplicada en Producción (`GET /rest/v1/tiendas?id=eq....` devuelve la fila real, badge superior correcto). Único síntoma restante: el selector de sucursal. Detalle completo en `docs/architecture/frontend/SPRINT_5_2_3_5_SUCURSAL_SELECT_SYNC_REPORT.md`.
