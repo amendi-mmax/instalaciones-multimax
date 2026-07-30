@@ -5,6 +5,7 @@ import {
   signOut,
   refreshSession as refreshSessionService,
   resetPasswordForEmail,
+  updatePassword as updatePasswordService,
   type SignInWithPasswordParams,
 } from '@/services/auth.service';
 import { resolveProfile } from '@/services/profile.service';
@@ -150,6 +151,14 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
     return { ok: true };
   }, []);
 
+  const updatePassword = useCallback(async (password: string): Promise<AuthActionResult> => {
+    const result = await updatePasswordService(password);
+    if (!result.ok) {
+      return { ok: false, error: result.error };
+    }
+    return { ok: true };
+  }, []);
+
   const value = useMemo(
     () => ({
       session,
@@ -161,8 +170,19 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
       logout,
       resetPassword,
       refreshSession,
+      updatePassword,
     }),
-    [session, profile, loading, profileLoading, login, logout, resetPassword, refreshSession],
+    [
+      session,
+      profile,
+      loading,
+      profileLoading,
+      login,
+      logout,
+      resetPassword,
+      refreshSession,
+      updatePassword,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

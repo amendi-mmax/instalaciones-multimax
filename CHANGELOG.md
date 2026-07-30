@@ -2,7 +2,101 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
-## [Fase 6 — Sprint 6.2 — Migración GRANT `service_role` (`admins`/`instaladores`)] — 2026-07-28 — 🟡 SQL listo, pendiente de aprobación y ejecución del usuario
+## [Fase 6 — Sprint 6.3 — Onboarding del Instalador] — 2026-07-29 — 🟢 Implementado, compilando
+
+Flujo completo de incorporación del instalador tras recibir una invitación, sobre la infraestructura de Auth ya existente (Sprint 4.2.1) -- sin tocar Edge Functions, RLS, esquema de base de datos, ni los módulos de Calendario/Instaladores/Empresas/Coordinadores. Auditoría previa (obligatoria por brief) encontró que buena parte del alcance ya estaba resuelto (login en español, recuperación -- solicitar correo, guards de sesión, logout); el trabajo real quedó acotado a lo que realmente faltaba.
+
+### Añadido
+
+- `src/pages/auth/SetPasswordPage.tsx` (NUEVO) -- pantalla compartida para invitación ("crear contraseña") y recuperación ("definir nueva contraseña"), montada en la ruta standalone `/nueva-contrasena` (fuera de `ProtectedRoute`/`PublicRoute`, ninguno de los dos sirve para el estado real de esta pantalla). Valida sesión (`detectSessionInUrl`, ya configurado desde Sprint 4.1.1), longitud mínima y confirmación de contraseña, traduce errores de Supabase (reutiliza la capa del Sprint 6.2). Distingue invitación de recuperación por `type=recovery` en la URL del enlace: invitación → continúa directo al Dashboard (Regla: "sin pantallas intermedias"); recuperación → cierra sesión y vuelve a `/login` (Regla: "regresar al login"). Enlace inválido/vencido (sin sesión) → mensaje claro + volver al login.
+- `src/services/auth.service.ts` -- nueva función `updatePassword()` (envuelve `auth.updateUser({password})`).
+- `CoordinatorOnlyRoute` (`src/routes/AppRouter.tsx`) -- guard explícito para `/despacho`/`/trabajos`/`/trabajos/:id` (exclusivas de `coordinador`/`admin`); antes la protección era solo un efecto colateral de que `CoordinatorLayout` no se montara para otros roles.
+
+### Modificado
+
+- `src/providers/auth.context.ts` + `AuthProvider.tsx` -- exponen `updatePassword` (mismo patrón que `login`/`logout`/`resetPassword`).
+- `src/types/perfil.ts` + `src/services/profile.service.ts` -- nuevo campo `documentosOk: boolean | null` en `Perfil` (solo poblado para `instalador`, desde `instaladores.documentos_ok` ya existente; `null` para `admin`/`coordinador`).
+- `src/layouts/RootLayout.tsx` -- banner NO bloqueante (aditivo, no toca la rama `suspendido` existente) cuando un `instalador` real está `inactivo` o con documentos pendientes -- a diferencia de `suspendido`, no cierra sesión ni redirige (permitiría dejar a un instalador recién invitado sin poder ver su propio Dashboard tras el primer login).
+- `src/routes/AppRouter.tsx` -- nueva ruta `/nueva-contrasena`; `/despacho`/`/trabajos`/`/trabajos/:id` envueltas en `CoordinatorOnlyRoute`.
+- `src/pages/auth/LoginPage.tsx` -- se eliminó el traductor local `mapLoginError()` (duplicaba, y de hecho interfería con, la capa centralizada del Sprint 6.2: el mensaje ya llega traducido, así que sus propios `includes('invalid login credentials')` nunca hacían match y el mensaje específico se perdía detrás de un fallback genérico). Ahora usa directamente `result.error.message` (ya en español).
+
+### Validado, ya existente (sin cambios de código)
+
+- Login con mensajes en español, incluida "cuenta suspendida" (`reason=suspended`, `LoginPage`/`RootLayout`).
+- Recuperación de contraseña -- "solicitar correo" (`LoginPage`, formulario ya existente).
+- Logout completo (`HeaderUserMenu` → `onLogout` → `AuthProvider.logout()` → `signOut()` → `onAuthStateChange` limpia sesión → `ProtectedRoute` redirige a `/login`).
+- Estados de carga/no-autenticado/sesión expirada (`ProtectedRoute`/`PublicRoute`).
+
+### Documentado para un Sprint posterior (NO implementado, por alcance explícito de este Sprint)
+
+- `redirectTo` definitivo de los enlaces de invitación/recuperación (Issue 3, Sprint 6.2) -- `SetPasswordPage`/`/nueva-contrasena` ya están listos para recibirlo.
+- Personalización/branding/HTML de los correos, SMTP propio, AWS SES, Resend, Mailgun.
+- Página final de bienvenida, cambio obligatorio de contraseña, MFA, "recordarme" real (hoy solo recuerda el email), login social.
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio (mismo warning preexistente de tamaño de chunk).
+- `npm run lint` -- 0 errores, 3 warnings preexistentes (archivos no tocados por este Sprint).
+
+## [Fase 6 — Sprint 6.2 — Estabilización y validación funcional] — 2026-07-29 — 🟢 Issues de prioridad ALTA corregidos
+
+Pruebas funcionales reales del usuario contra Producción (invitar/crear/leer instalador) detectaron 5 issues. Se corrigieron los 2 de prioridad ALTA que correspondían a este Sprint; los de prioridad BAJA y los relacionados con el flujo completo de autenticación/onboarding del instalador (redirectTo, SMTP, spam, plantilla de correo) quedan documentados como backlog para un Sprint futuro dedicado, sin investigar ni implementar en esta ronda por instrucción explícita del usuario.
+
+**Issue 1 — Listado de instaladores vacío (RLS)**: el registro existía en `public.instaladores` (confirmado por SQL directo) y `authenticated` sí tenía `GRANT SELECT` sobre la tabla, pero `instaladoresRepository.getByEmpresaId()` devolvía `[]` vía REST. Causa raíz: `pg_policies` solo tenía 2 policies de SELECT sobre `instaladores` ("coordinadores ven instaladores de su empresa", "instaladores ven su propio perfil"), ninguna cubre a un `admin` — RLS filtraba el 100% de las filas para esa sesión. Corrección: nueva policy `"admins ven instaladores de su empresa"` (mismo patrón que la de `coordinadores`), ya diseñada y documentada en Sprint 6.1 (`SPRINT_6_1_INSTALADORES_RLS_FIX.sql`), ahora formalizada como migración versionada y aplicada.
+
+**Issue 2 — Mensajes de error en inglés**: se agregó una capa de traducción (`translateSupabaseErrorMessage`, `supabase.service.ts`) que reescribe al español, antes de mostrarlo, cualquier mensaje que llegue de PostgREST/Supabase Auth/Supabase JS (por código Postgres cuando existe, por coincidencia de texto conocida en el resto de los casos, con fallback genérico en español si no hay coincidencia). Integrada en `normalizeSupabaseError()` (cubre todos los repositorios/servicios existentes automáticamente) y en `businessError()` de `admin-operations.service.ts` (cubre los mensajes que la Edge Function reenvía tal cual desde Supabase Auth, p. ej. "A user with this email address has already been registered" al invitar un correo ya registrado). No se tocó ni redesplegó la Edge Function ni ningún idioma interno de Supabase — es una traducción del lado del cliente.
+
+### Añadido
+
+- `supabase/migrations/0004_admins_select_instaladores.sql` (NUEVO) -- policy RLS de SELECT para `admin` sobre `public.instaladores`, aditiva (no toca las 2 policies existentes). Aplicada vía `apply_migration` y validada contra `pg_policies`.
+
+### Modificado
+
+- `src/services/supabase.service.ts` -- nueva función `translateSupabaseErrorMessage()`, integrada en `normalizeSupabaseError()`. `HandymaxServiceError.details` ahora conserva el mensaje original (sin traducir) cuando `PostgrestError.details` viene vacío, para no perder el detalle técnico en logs/debugging.
+- `src/services/admin-operations.service.ts` -- `businessError()` traduce el mensaje antes de construir el `HandymaxServiceError`.
+
+### Backlog documentado (fuera de alcance de este Sprint, no implementado)
+
+- **Issue 3 (ALTA, diagnóstico completo, sin aplicar)**: el enlace de invitación apunta a localhost porque `inviteUserByEmail()` (Edge Function) no pasa `redirectTo`, y usa por defecto el "Site URL" del Dashboard (probablemente sin configurar para producción). Solución propuesta y no aplicada (por instrucción explícita del usuario): configurar Site URL/Redirect URLs en el Dashboard + pasar `redirectTo: Deno.env.get('INVITE_REDIRECT_URL')` en el código. Requiere modificar y redesplegar la Edge Function -- pendiente de un Sprint dedicado al flujo de autenticación del instalador.
+- **Issue 4 (BAJA)**: correo probablemente cae en Spam -- análisis no realizado en esta ronda (instrucción explícita del usuario de no investigar SMTP/entregabilidad/SPF/DKIM/DMARC ahora). Backlog para el mismo Sprint futuro.
+- **Issue 5 (BAJA)**: plantilla del correo de invitación sin branding Multimax -- no modificado. Backlog para el mismo Sprint futuro.
+- No existe todavía ninguna pantalla de "aceptar invitación"/"definir contraseña" en `AppRouter.tsx` -- confirmado durante la investigación del Issue 3, no construida en esta ronda (funcionalidad nueva, no un fix).
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio (mismo warning preexistente de tamaño de chunk).
+- `npm run lint` -- 0 errores, 3 warnings preexistentes (en archivos no tocados por este Sprint: `AuthContext.tsx`, `useRealtime.ts`, `supabase/client.ts`).
+
+## [Fase 6 — Sprint 6.2 — Implementación completa, Gestión de Instaladores] — 2026-07-29 — 🟢 Implementado, compilando y fusionado con Sprint 6.1
+
+Implementación completa del módulo de frontend "Gestión de Instaladores" siguiendo el plan técnico ya aprobado (lectura vía `instaladoresRepository`, escritura vía `adminOperationsService` → Edge Function `admin-operations`, sin mezclar responsabilidades — ver `CLAUDE.md`). `AdminInstaladores` deja de ser un mock (`INSTALLERS`/`susp`/`sent` en memoria) y queda conectado a datos y operaciones reales.
+
+**Estado de rama, hallazgo y resolución de esta ronda**: el trabajo de Sprint 6.1 (infraestructura + Edge Function + documentación) estaba commiteado en dos ramas hermanas (`feature/sprint-6-1-instaladores-infra`, `docs/sprint-6-1-mcp-documentation`) nunca fusionadas a `feature/sprint-6-2-instaladores-admin` — por eso la migración `0003` se había commiteado sobre una base sin Sprint 6.1 y `supabase/functions/` no existía en esta rama. Con aprobación explícita del usuario, se fusionó `docs/sprint-6-1-mcp-documentation` (que ya incluye, más completo, todo el contenido de la otra rama) a `feature/sprint-6-2-instaladores-admin` (commit de merge `60ef6d5`). Único conflicto real de contenido: `CLAUDE.md`, existente de forma independiente en ambas ramas — se conservó la versión de esta sesión (dictada explícitamente por el usuario turno a turno) e incorporó, sin conflicto, la sección adicional `## Operaciones Git permitidas` de la otra rama.
+
+### Añadido
+
+- `src/types/admin-operations.ts` (NUEVO) -- `InviteInstaladorPayload`, `SuspendInstaladorPayload`, `ReactivateInstaladorPayload`, `AdminOperationResponse<T>`. Espejo exacto del contrato de `supabase/functions/admin-operations/index.ts`.
+- `src/services/admin-operations.service.ts` (NUEVO) -- único punto de invocación de `supabase.functions.invoke('admin-operations', ...)`: `inviteInstalador`/`suspendInstalador`/`reactivateInstalador`, devolviendo `ServiceResult<T>` (reutiliza `HandymaxServiceError`/`normalizeSupabaseError`, sin sistema de errores nuevo). Primer consumidor de `functions.invoke()` del proyecto -- maneja explícitamente que el SDK no parsea el body JSON de una respuesta no-2xx (`FunctionsHttpError.context.json()`).
+
+### Modificado
+
+- `src/components/shared/admin-instaladores.tsx` -- reemplazo completo del mock por integración real: `loadInstaladores()` (vía `instaladoresRepository.getByEmpresaId`, gateada por `useOperationalContext().empresaId`/`loading`), invitación real, suspender/reactivar reales por fila (`updatingId`), estados independientes (`isLoading`/`isSending`/`updatingId`/`error`), refresco in-place tras cada operación exitosa (sin `window.location.reload()`/`navigate(0)`). Diseño/markup/CSS sin cambios. `INSTALLERS`/`InstallerMock` (`constants/index.ts`) sin tocar -- siguen siendo consumidos por `Radar` (Sprint 3.7).
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio, sin errores (antes y después de fusionar Sprint 6.1).
+- `npm run build` -- limpio, sin errores (antes y después de fusionar Sprint 6.1; warning preexistente de tamaño de chunk, no relacionado con este Sprint).
+- `npx eslint` sobre los 3 archivos de este Sprint -- limpio, sin errores.
+
+### Sin resolver
+
+- Validación funcional real contra Producción (invitar con un correo real, confirmar creación de usuario de Auth + fila de `instaladores`, suspender/reactivar y confirmar persistencia tras recargar) **no ejecutada** -- invitar dispara un correo real y crea una cuenta real de Auth, un efecto no trivialmente reversible; requiere que el usuario la ejecute o autorice explícitamente un correo de prueba.
+- El campo "Empresa / taller" del formulario de invitación se mantiene en la UI (diseño sin cambios) pero no se envía a la Edge Function -- `InviteInstaladorPayload` no contempla ese campo en el contrato real. Limitación heredada del diseño original, no introducida por este Sprint.
+- Rama local 2 commits adelante de `origin/feature/sprint-6-2-instaladores-admin` tras el merge -- no se hizo `git push` (fuera de lo solicitado en esta ronda).
+
+## [Fase 6 — Sprint 6.2 — Migración GRANT `service_role` (`admins`/`instaladores`)] — 2026-07-28 — 🟢 Aplicada y validada
 
 Cierre de la fase de diagnóstico del Sprint 6.1 (auditoría completa de permisos vía MCP de Supabase: `pg_roles`, `pg_tables`/`pg_class`, `information_schema.role_table_grants`, `aclexplode(relacl)`) confirmó, con evidencia en vivo contra Producción, que `service_role` no tiene `GRANT SELECT/INSERT/UPDATE/DELETE` sobre ninguna tabla de `public` -- incluidas `admins` e `instaladores`, las dos que usa la Edge Function `admin-operations`. `BYPASSRLS` (que `service_role` sí tiene) salta la evaluación de RLS *policies*, pero no sustituye al `GRANT` de tabla, que Postgres evalúa antes. Sin esta corrección, cualquier llamada real de `admin-operations` (invitar/suspender/reactivar instalador) sigue fallando con `permission denied`, aunque el bug de `verifyCaller()` (Sprint 6.1) ya esté corregido.
 
@@ -14,8 +108,7 @@ Es el primer Sprint que retoma desarrollo normal tras cerrar formalmente esa fas
 
 ### Sin resolver
 
-- Migración creada pero **NO aplicada** -- por instrucción explícita del usuario, se espera su aprobación antes de ejecutar `apply_migration` contra Producción.
-- El resto del Sprint (servicio de la Edge Function en el frontend, wiring de `AdminInstaladores` a datos reales, validaciones `typecheck`/`build`, posible redeploy) queda pausado hasta que esta migración se apruebe y ejecute.
+- ~~Migración creada pero NO aplicada~~ -- **Aplicada** vía `apply_migration` (MCP) y **validada** contra `information_schema.role_table_grants`: `service_role` confirmó `SELECT, INSERT, UPDATE, DELETE` sobre `public.admins`/`public.instaladores` (ronda siguiente, ver entrada de "Implementación completa" arriba).
 
 ## [Fase 6 — Sprint 6.1 (diagnóstico 403) — Corrección de `verifyCaller()` en `admin-operations`] — 2026-07-27 — 🟢 Corregido (por lectura de código), pendiente confirmación tras redesplegar
 

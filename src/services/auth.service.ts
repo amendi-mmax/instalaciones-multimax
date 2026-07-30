@@ -109,3 +109,21 @@ export async function resetPasswordForEmail(
   }
   return { ok: true };
 }
+
+/**
+ * Define/actualiza la contraseña de la sesión actualmente activa (Sprint
+ * 6.3, Onboarding del Instalador) -- envuelve `supabase.auth.updateUser()`.
+ * Requiere que ya exista una sesión real: el caso de uso es siempre
+ * "el usuario llegó acá con una sesión establecida por un enlace de
+ * invitación/recuperación" (`detectSessionInUrl`, ver `SetPasswordPage.tsx`),
+ * nunca un cambio de contraseña arbitrario sin sesión.
+ */
+export async function updatePassword(
+  password: string,
+): Promise<{ ok: true } | { ok: false; error: HandymaxServiceError }> {
+  const { error } = await getClient().auth.updateUser({ password });
+  if (error) {
+    return { ok: false, error: normalizeSupabaseError(error) };
+  }
+  return { ok: true };
+}

@@ -34,6 +34,61 @@ No cambiar la estructura del proyecto salvo que exista una razón técnica demos
 
 ---
 
+## Operaciones Git permitidas
+
+Claude Code puede ejecutar automáticamente durante un Sprint:
+
+- git status
+- git diff
+- git log
+- git show
+- git stash
+- git stash pop
+- git stash apply
+- git merge
+- git rebase
+
+si dichas operaciones sean necesarias para completar el Sprint o sincronizar ramas de Sprints anteriores.
+
+Solo deberá solicitar confirmación cuando la operación implique:
+
+- git push
+- git push --force
+- git reset --hard
+- git clean -fd
+- git rebase --interactive
+- git revert
+- git tag
+- git cherry-pick sobre ramas remotas
+- eliminación de ramas
+
+---
+
+## Verificaciones automáticas
+
+Claude Code puede ejecutar automáticamente, sin solicitar aprobación:
+
+- grep
+- find
+- wc
+- head
+- tail
+- cat
+- diff
+- git status
+- git diff
+- git show
+- git log
+- git reflog
+- git stash list
+- git branch
+- git remote
+- git rev-parse
+
+Siempre que dichas operaciones sean exclusivamente de lectura y no modifiquen el repositorio.
+
+---
+
 # Fuente de verdad
 
 La fuente de verdad del proyecto es:

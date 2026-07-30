@@ -58,22 +58,6 @@ interface LocationState {
 
 let toastIdSeq = 0;
 
-function mapLoginError(message: string, code: string | null): string {
-  const normalized = message.toLowerCase();
-  const normalizedCode = (code ?? '').toLowerCase();
-  if (
-    normalizedCode === 'invalid_credentials' ||
-    normalized.includes('invalid login credentials') ||
-    normalized.includes('invalid_credentials')
-  ) {
-    return 'Credenciales inválidas. Verificá tu correo y contraseña.';
-  }
-  if (normalizedCode === 'email_not_confirmed' || normalized.includes('email not confirmed')) {
-    return 'Tu correo todavía no fue confirmado. Revisá tu bandeja de entrada.';
-  }
-  return 'Ocurrió un error al iniciar sesión. Intentá de nuevo.';
-}
-
 export function LoginPage() {
   const { login, resetPassword } = useAuth();
   const location = useLocation();
@@ -140,7 +124,12 @@ export function LoginPage() {
     setSubmitting(false);
 
     if (!result.ok) {
-      pushToast('error', 'No se pudo iniciar sesión', mapLoginError(result.error.message, result.error.code));
+      // `result.error.message` ya viene traducido al español -- ver
+      // `translateSupabaseErrorMessage()` (`supabase.service.ts`, Sprint 6.2),
+      // integrado en `normalizeSupabaseError()` que usa `signInWithPassword()`
+      // internamente. No se re-traduce acá (Sprint 6.3, Calidad: centralizar
+      // las traducciones, no duplicarlas).
+      pushToast('error', 'No se pudo iniciar sesión', result.error.message);
       return;
     }
     // Sin navegación manual: `PublicRoute` redirige solo en cuanto `session`

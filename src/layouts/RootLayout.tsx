@@ -1,3 +1,4 @@
+import { AlertTriangle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -788,6 +789,27 @@ export function RootLayout() {
                 real eligió la vista "Instalador". */}
             {showInstalador && (
               <>
+                {/* Sprint 6.3 (Onboarding del Instalador) — banner NO bloqueante,
+                    exclusivo de un `instalador` real (nunca de un `admin` en Modo
+                    Instalador, que siempre tiene `estado:'activo'`/`documentosOk:
+                    null` — ver Perfil, `profile.service.ts`). Un instalador recién
+                    invitado nace con `activo:false`/`documentos_ok:false`
+                    (`admin-operations`, Sprint 6.1) — a diferencia de `suspendido`
+                    (arriba, cierra sesión y redirige), acá NO se bloquea el acceso
+                    ni se cierra sesión: el objetivo explícito del Sprint es que el
+                    primer login vaya directo al Dashboard sin pantallas
+                    intermedias. Solo informa el estado real, sin ocultarlo. */}
+                {role === 'instalador' &&
+                (profile.estado === 'inactivo' || profile.documentosOk === false) ? (
+                  <div className="mx-invite-note mx-4 mt-3">
+                    <AlertTriangle size={13} />
+                    <span>
+                      Tu cuenta todavía está pendiente de aprobación
+                      {profile.documentosOk === false ? ' — completá tus documentos' : ''}. Un administrador la
+                      activará una vez verificados tus datos.
+                    </span>
+                  </div>
+                ) : null}
                 <InstallerDashboard meId={meId} onMeIdChange={setMeId} />
                 {/* TEMPORARY INTEGRATION — Sprint 3.8 (CountRing): ver comentario de la función. */}
                 <CountRing remaining={COUNTRING_DEMO_REMAINING} total={COUNTRING_DEMO_TOTAL} />

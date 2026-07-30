@@ -56,4 +56,10 @@ export interface Perfil {
    */
   tiendaId: string | null;
   tiendaNombre: string | null;
+  /**
+   * Sprint 6.3 (Onboarding del Instalador) -- espejo de `instaladores.documentos_ok`.
+   * Solo `instalador` tiene este concepto en el schema real; `null` para
+   * `admin`/`coordinador` (no es un dato faltante, no aplica).
+   */
+  documentosOk: boolean | null;
 }

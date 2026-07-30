@@ -110,6 +110,7 @@ export async function resolveProfile(
         empresaNombre,
         tiendaId: null,
         tiendaNombre: null,
+        documentosOk: null,
       },
     };
   }
@@ -135,6 +136,7 @@ export async function resolveProfile(
         empresaNombre,
         tiendaId: row.tienda_id,
         tiendaNombre,
+        documentosOk: null,
       },
     };
   }
@@ -157,6 +159,7 @@ export async function resolveProfile(
         empresaNombre,
         tiendaId: null,
         tiendaNombre: null,
+        documentosOk: row.documentos_ok,
       },
     };
   }

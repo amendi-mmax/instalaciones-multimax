@@ -1,13 +1,16 @@
+import type { ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { RootLayout } from '@/layouts/RootLayout';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { LoginPage } from '@/pages/auth/LoginPage';
+import { SetPasswordPage } from '@/pages/auth/SetPasswordPage';
 import { DespachoPage } from '@/pages/coordinator/DespachoPage';
 import { TrabajosPage } from '@/pages/coordinator/TrabajosPage';
 import { TrabajoDetailPage } from '@/pages/coordinator/TrabajoDetailPage';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { PublicRoute } from '@/components/auth/PublicRoute';
+import { Loading } from '@/components/ui/spinner';
 import { useAuth } from '@/hooks/useAuth';
 
 /**
@@ -69,6 +72,34 @@ function CoordinatorIndexRedirect() {
   return null;
 }
 
+/**
+ * CoordinatorOnlyRoute — Sprint 6.3 (Onboarding del Instalador, Issue "7.
+ * Protección de rutas"). `/despacho`/`/trabajos`/`/trabajos/:id` son las
+ * únicas rutas reales exclusivas de un rol (Coordinador, o Admin en Modo
+ * Coordinador) -- Administración e Instalador no tienen rutas propias
+ * todavía (se renderizan inline en `/` según `profile.rol`, ver
+ * `RootLayout.tsx`), así que ya están protegidas de hecho (un Instalador o
+ * un Admin en modo "Administración" nunca montan `CoordinatorLayout`/
+ * `<Outlet/>`, sin importar la URL). Este guard hace esa protección
+ * EXPLÍCITA para las 3 rutas reales, en vez de depender del efecto
+ * colateral de que `<Outlet/>` simplemente no se monte -- mismo criterio ya
+ * usado por `useAuth()` en `CoordinatorIndexRedirect`, sin ningún Provider
+ * ni patrón nuevo.
+ */
+function CoordinatorOnlyRoute({ children }: { children: ReactNode }) {
+  const { profile, profileLoading } = useAuth();
+
+  if (profileLoading) {
+    return <Loading label="Verificando acceso…" />;
+  }
+
+  if (profile && profile.rol !== 'coordinador' && profile.rol !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 export function AppRouter() {
   return (
     <Routes>
@@ -82,6 +113,21 @@ export function AppRouter() {
           </PublicRoute>
         }
       />
+      {/*
+        Sprint 6.3 -- standalone, deliberadamente fuera de `PublicRoute`
+        (redirigiría a `/` apenas `detectSessionInUrl` establece la sesión
+        del enlace, antes de poder mostrar el formulario) y de
+        `ProtectedRoute` (bloquearía el caso "enlace inválido", que necesita
+        mostrarse SIN sesión) -- ver JSDoc completo en `SetPasswordPage.tsx`.
+      */}
+      <Route
+        path="/nueva-contrasena"
+        element={
+          <AuthLayout>
+            <SetPasswordPage />
+          </AuthLayout>
+        }
+      />
       <Route
         path="/"
         element={
@@ -91,9 +137,30 @@ export function AppRouter() {
         }
       >
         <Route index element={<CoordinatorIndexRedirect />} />
-        <Route path="despacho" element={<DespachoPage />} />
-        <Route path="trabajos" element={<TrabajosPage />} />
-        <Route path="trabajos/:id" element={<TrabajoDetailPage />} />
+        <Route
+          path="despacho"
+          element={
+            <CoordinatorOnlyRoute>
+              <DespachoPage />
+            </CoordinatorOnlyRoute>
+          }
+        />
+        <Route
+          path="trabajos"
+          element={
+            <CoordinatorOnlyRoute>
+              <TrabajosPage />
+            </CoordinatorOnlyRoute>
+          }
+        />
+        <Route
+          path="trabajos/:id"
+          element={
+            <CoordinatorOnlyRoute>
+              <TrabajoDetailPage />
+            </CoordinatorOnlyRoute>
+          }
+        />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

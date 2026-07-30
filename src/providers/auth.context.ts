@@ -42,6 +42,8 @@ export interface AuthContextValue {
   logout: () => Promise<AuthActionResult>;
   resetPassword: (email: string) => Promise<AuthActionResult>;
   refreshSession: () => Promise<AuthActionResult>;
+  /** Sprint 6.3 -- define/actualiza la contraseña de la sesión activa (post-invitación/recuperación). */
+  updatePassword: (password: string) => Promise<AuthActionResult>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
