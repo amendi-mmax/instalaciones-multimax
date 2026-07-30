@@ -1,4 +1,4 @@
-import { AlertTriangle, Send, Timer, Zap } from 'lucide-react';
+import { AlertTriangle, Loader2, Send, Timer, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Chip } from '@/components/ui/chip';
@@ -132,7 +132,15 @@ export interface PublishModalProps {
   sucursal: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onPublish: (form: PublishForm) => void;
+  /**
+   * Sprint 7.1 -- ahora awaited (antes `void`, disparado sin esperar). El
+   * `onPublish` real (`CoordinatorLayout.tsx`) ya era `async` (hace un
+   * `INSERT` real en `trabajos`) desde el Sprint 5.2.2.1, pero este
+   * componente nunca esperaba esa promesa -- el botón quedaba interactivo
+   * durante todo el `INSERT`, permitiendo doble publicación con clicks
+   * repetidos. Ver `isSubmitting` más abajo.
+   */
+  onPublish: (form: PublishForm) => void | Promise<void>;
   /** Ver JSDoc "AJUSTE — Sprint 5.2.3.2" arriba. Mismo significado que la prop homónima de `SucursalSelect`. */
   enabledValue?: string;
 }
@@ -221,13 +229,47 @@ export function PublishModal({
   const errores = validarPublishForm(f);
   const mostrarErrores = submitAttempted;
 
-  const intentarPublicar = () => {
+  // Sprint 7.1 ("Publicación de trabajos") — bloquea el botón durante el
+  // `INSERT` real y evita doble publicación/submit múltiple (Regla
+  // explícita del Sprint). `onPublish` real ya maneja sus propios errores
+  // internamente (Toast, `try/catch` en `CoordinatorLayout.tsx`) y nunca
+  // relanza -- el `finally` acá es una defensa adicional, no la vía
+  // principal de manejo de errores, para que `isSubmitting` nunca quede
+  // trabado en `true` si algo inesperado ocurriera.
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const intentarPublicar = async () => {
+    if (isSubmitting) return;
     if (Object.keys(validarPublishForm(f)).length > 0) {
       setSubmitAttempted(true);
       return;
     }
-    onPublish(f);
+    setIsSubmitting(true);
+    try {
+      await onPublish(f);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  // Sprint 7.1 (validación funcional, Issue 1 bloqueante) — mismo patrón ya
+  // establecido en `sucursal-select.tsx` (Sprint 5.2.3.5), nunca aplicado
+  // acá: `SUCURSALES` es la lista LITERAL de 9 nombres del HTML original,
+  // sin la tienda real "Multimax Paitilla" (u otra tienda real futura que
+  // tampoco esté ahí) -- un `<select value={f.sucursal}>` sin ninguna
+  // `<option>` que coincida aparece vacío en el navegador, aunque `f.sucursal`
+  // ya tenga internamente el valor correcto (mismo `tiendaNombre` que ya
+  // muestra bien el badge "Sucursal activa" -- confirmado, no es un problema
+  // de dónde se obtiene el dato, sino de qué opciones renderiza este
+  // `<select>` en particular). Unión, no reemplazo: las 9 opciones legacy
+  // siguen siempre presentes (necesarias para Admin-superusuario, que sigue
+  // usando `sucursalCoord`/las 9 sucursales); se agrega `f.sucursal`
+  // únicamente si es un valor real todavía no representado ahí. No se toca
+  // `SUCURSALES` en sí (sigue igual para `SucursalSelect`/`MasterCalendar`).
+  const sucursalOptions: readonly string[] =
+    f.sucursal && !(SUCURSALES as readonly string[]).includes(f.sucursal)
+      ? [...SUCURSALES, f.sucursal]
+      : SUCURSALES;
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -240,7 +282,7 @@ export function PublishModal({
                 <label>
                   Sucursal que publica
                   <Select value={f.sucursal} onChange={(e) => set('sucursal', e.target.value)}>
-                    {SUCURSALES.map((s) => (
+                    {sucursalOptions.map((s) => (
                       <option
                         key={s}
                         value={s}
@@ -392,10 +434,20 @@ export function PublishModal({
               <button
                 className="mx-btn mx-btn-ice"
                 style={{ width: '100%', marginTop: 18 }}
-                onClick={intentarPublicar}
+                onClick={() => void intentarPublicar()}
+                disabled={isSubmitting}
               >
-                <Send size={16} />
-                Publicar trabajo
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={16} className="animate-mx-spin" />
+                    Publicando…
+                  </>
+                ) : (
+                  <>
+                    <Send size={16} />
+                    Publicar trabajo
+                  </>
+                )}
               </button>
             </DrawerBody>
           </DrawerContent>

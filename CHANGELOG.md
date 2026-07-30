@@ -2,6 +2,103 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 7 — Sprint 7.1 — Aprobación final] — 2026-07-30 — ✅ APROBADO
+
+El usuario ejecutó pruebas manuales completas sobre la implementación final (incluidas ambas correcciones de la validación funcional -- `SUCURSALES` en `PublishModal` y la policy RLS `admins ven trabajos de su empresa`) y aprobó el Sprint. Checklist confirmado por el usuario:
+
+- Coordinador publica trabajos correctamente.
+- Sucursal asignada aparece por defecto en el modal de publicación.
+- Validaciones del formulario funcionan correctamente.
+- Trabajo publicado exitosamente en "Despacho en vivo".
+- "Mis trabajos" registra correctamente los trabajos publicados.
+- Persistencia de datos tras recargar (F5) y tras volver a iniciar sesión.
+- Calendario Maestro del Administrador visualiza correctamente los trabajos publicados.
+- Filtro por sucursal funciona correctamente.
+- Sin regresiones funcionales respecto a módulos previamente implementados.
+- Pruebas posteriores a la actualización de la policy RLS satisfactorias.
+
+Sin cambios de código en esta ronda -- únicamente cierre formal del Sprint. Commit y push a `feature/sprint-7-publicacion-trabajos` autorizados explícitamente por el usuario; **sin merge a `develop`**, pendiente de aprobación aparte (regla permanente de `CLAUDE.md`).
+
+## [Fase 7 — Sprint 7.1 — Segunda validación funcional: Calendario Maestro sin datos para Admin] — 2026-07-30 — 🟢 Migración RLS aplicada y validada
+
+El usuario confirmó que el flujo de publicación funciona de punta a punta para el Coordinador (sucursal correcta, INSERT real, "Despacho en vivo"/"Mis trabajos" actualizados sin recargar, persiste tras F5 y tras volver a iniciar sesión). Reportó un nuevo hallazgo: "Calendario Maestro" (Administrador) no muestra el trabajo recién publicado aunque corresponde a la fecha seleccionada.
+
+**Causa raíz (confirmada en vivo vía MCP, no supuesta)**: no es refetch, ni fecha/timezone, ni una fuente de datos distinta -- es RLS. Las 4 policies reales de `public.trabajos` (`pg_policies`) reconocen exclusivamente `auth.uid()` presente en `public.coordinadores` (incluida su propia rama "admin", modelada como `coordinadores.rol = 'admin'` -- un concepto distinto de `public.admins`, la tabla que usa el resto de la app para `profile.rol === 'admin'` desde Sprint 4.2.1). El usuario real de prueba, "Administrador Principal", existe únicamente en `public.admins`, sin fila en `coordinadores` -- ninguna policy lo reconoce, `trabajosRepository.getAll()` devuelve `[]` para el 100% de los trabajos bajo su sesión, no solo el más reciente (confirmado: el trabajo `JOB-8660`, `fecha 2026-07-30`, existe en la tabla con datos correctos). `authenticated` ya tiene `GRANT SELECT` sobre `trabajos` -- el hueco es exclusivamente de policy.
+
+**Checklist del brief, verificado**: (1) patrón Repository→Service→Supabase intacto (`master-calendar.tsx` llama al repositorio directo, sin Service -- inconsistencia menor de estilo respecto a `TrabajosPage`/`dashboard.service.ts`, no la causa); (2) misma tabla que "Mis trabajos", RLS distinto según el rol de la sesión; (3) sin bug de fecha/formato/timezone; (4) el refetch sí se ejecuta tras el `create()` para quien publica -- para una sesión de Administrador distinta, ningún trigger en memoria puede propagarlo sin Realtime (ya documentado como fuera de alcance), pero aun con recarga completa el bloqueo seguiría siendo RLS.
+
+**Corrección**: `supabase/migrations/0005_admins_select_trabajos.sql` -- policy SELECT aditiva para `admins` sobre `trabajos`, scoped por empresa, estructuralmente idéntica a la migración `0004` (`instaladores`) -- verificado explícitamente contra los 4 requisitos del usuario antes de aplicar: (1) solo `SELECT`; (2) no toca ninguna de las 4 policies existentes; (3) sin `INSERT`/`UPDATE`/`DELETE`; (4) mismo patrón exacto que la `0004`. Aprobada y aplicada vía `apply_migration`.
+
+**Validación funcional post-aplicación (RLS real, no solo `pg_policies`)** -- simulación de sesión (`SET LOCAL ROLE authenticated` + `request.jwt.claims`) para 2 usuarios reales:
+
+| Sesión simulada | Trabajos visibles |
+|---|---|
+| Administrador Principal (`public.admins`) | 9 -- incluye `JOB-8660`, el recién publicado |
+| Coordinador Test (tienda "Multimax Paitilla") | 4 -- exactamente los de su propia tienda, sin cambios |
+
+Confirma: el Administrador ya ve el Calendario Maestro completo de su empresa; el Coordinador sigue viendo únicamente lo que sus policies ya permitían (`qual` de esa policy verificado byte-idéntico a antes de aplicar -- no se tocó). Sin regresión en "Mis trabajos" (misma policy de coordinador) ni en "Despacho en vivo" (estado en memoria, no depende de RLS).
+
+### Añadido
+
+- `supabase/migrations/0005_admins_select_trabajos.sql` (NUEVO, aplicado y validado) -- policy `"admins ven trabajos de su empresa"`, SELECT, aditiva.
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio.
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes.
+
+## [Fase 7 — Sprint 7.1 — Publicación de trabajos (Coordinator → Installer)] — 2026-07-30 — 🟢 Implementado, compilando
+
+Primer flujo funcional de publicación de trabajos: Coordinador crea y publica un trabajo real en `trabajos`. Auditoría previa obligatoria (código + MCP) encontró que la mayor parte de la infraestructura YA estaba construida desde la Fase 5 (Sprint 5.2.1/5.2.2.x, en esta misma rama): `PublishModal` con validaciones completas en español, `onPublish` (`CoordinatorLayout.tsx`) haciendo un `INSERT` real vía `trabajosRepository.create()`, y -- verificado en vivo vía MCP, sin asumir -- las policies RLS (`"coordinadores publican en su tienda"`, INSERT) y los GRANT (`authenticated`: `INSERT, SELECT` sobre `trabajos`) que Sprint 5.2.2.1/5.2.2.2 habían dejado listos ya estaban aplicados en Producción (no rastreados como migración formal, pero confirmados con `pg_policies`/`information_schema.role_table_grants`). No fue necesario tocar RLS/migraciones/Edge Functions -- ninguno de los 3 restringidos explícitamente por el brief.
+
+**Lo que realmente faltaba y se implementó**:
+- **Bloqueo durante envío / evitar doble publicación** (Objetivos 1 y 4): `PublishModal` nunca esperaba la promesa de `onPublish` (ya `async` desde el Sprint 5.2.2.1) -- el botón quedaba interactivo durante todo el `INSERT`, permitiendo doble submit con clicks repetidos. Se agregó `isSubmitting` + `await onPublish(f)` + botón deshabilitado con spinner ("Publicando…").
+- **Actualización inmediata sin recargar** (Objetivo 5): "Mis trabajos" (`TrabajosPage.tsx`) solo refetchaba al cambiar de tienda -- se agregó `activeJob?.id` (ya expuesto por `useOperationalContext()`, actualizado por `onPublish` en cada publish exitoso) como trigger adicional de refetch. "Calendario Maestro" (`master-calendar.tsx`) estaba 100% desconectado de datos reales (mock `TRABAJOS`, Sprint 3.14) -- se reemplazó por `trabajosRepository.getAll()` + `tiendasRepository.getAll()` (resolución `tienda_id` → nombre para `SUSCOL`/filtro), `trabajoEstadoInfo()` (vocabulario real `live`/`assigned`/`completed`/`cancelled`, ya existente desde Sprint 5.1) en vez del `ESTADO` mock, con el mismo trigger `activeJob?.id`.
+- **Tiempo real** (Objetivo 6): infraestructura genérica ya existía (`useRealtime()`, Sprint 4.1.1: crea/suscribe/limpia un canal, sin listener de `postgres_changes`). Conectar solo el evento "nuevo trabajo" sin cubrir los eventos futuros de Sprints posteriores (asignación/cancelación) habría dejado una integración a medio terminar -- documentado como punto de integración exacto en `CoordinatorLayout.tsx` (comentario junto a `setActiveJob`), NO implementado, por instrucción explícita del brief ("No crear una implementación incompleta").
+
+**Aclaración funcional -- "Estado inicial: PENDIENTE" (brief histórico) vs. `live` (esquema real de Producción)**: el brief de este Sprint especificaba explícitamente que el estado inicial del trabajo debía ser `PENDIENTE`. Antes de decidir, se verificó el esquema real vía MCP (no se asumió nada): `trabajos.estado` es `text`, `NOT NULL`, `DEFAULT 'live'::text`, **sin** `CHECK constraint` ni tipo `ENUM` -- no hay ninguna restricción técnica que impida usar `'pending'`, pero tampoco existe ese valor en ningún lado del modelo real: `pg_enum` confirma que no hay un tipo `trabajo_estado` en la base de datos (la migración `0002_auth_roles_rls.sql` que sí lo define pertenece a un modelo de esquema legacy distinto, no al vigente); los 8 trabajos reales de Producción están 100% en `estado = 'live'`; y `TrabajoEstadoReal` (`constants/index.ts`, Sprint 5.1) solo reconoce `live`/`assigned`/`completed`/`cancelled`.
+
+Se auditaron además, a pedido del usuario, los 3 consumidores reales de `estado` para descartar cualquier dependencia oculta del literal `'live'` antes de decidir: la vista `trabajos_para_instalador` no filtra por `estado` (usa `trabajo_instaladores` para determinar visibilidad); la función `asignar_instalador()` hace `UPDATE ... SET estado = 'assigned'` sin condicionarse al valor previo; ninguna policy RLS de `trabajos` referencia `estado` en su `qual`. Es decir, cambiar el valor inicial a `'pending'` habría sido técnicamente posible y de bajo riesgo (no habría requerido migración -- bastaba con fijarlo en el payload del `INSERT`).
+
+**Decisión, confirmada con el usuario**: se mantiene `live` -- se optó por respetar el dominio de valores ya existente y validado (`TrabajoEstadoReal`/`TRABAJO_ESTADO_INFO`/`TRABAJOS_FILTROS`/`trabajoEstadoInfo()`, consumido por `TrabajoRow`/`TrabajosPage`/`master-calendar.tsx`) en vez de introducir `'pending'` como un segundo vocabulario paralelo -- un cambio funcional/de nomenclatura fuera del alcance explícito de este Sprint ("Publicación de trabajos", no "rediseño del modelo de estados"). `'live'` ("abierto a ofertas de instaladores") es, semánticamente, el mismo concepto que el "PENDIENTE" del brief. Sin cambio de código: el payload de `onPublish` ya no sobreescribía `estado`, usa el `DEFAULT` de la columna tal cual.
+
+### Corrección tras validación funcional -- Issue 1 (bloqueante)
+
+El usuario reportó que, al iniciar sesión como Coordinador real, el badge "Sucursal activa" mostraba la tienda correcta, pero el campo "Sucursal que publica" de `PublishModal` aparecía vacío, exigiendo selección manual.
+
+**Causa raíz confirmada con datos reales (MCP)**: el coordinador de prueba (`Coordinador Test`) pertenece a la tienda real `"Multimax Paitilla"` (`coordinadores.tienda_id` → `tiendas.nombre`), que no está entre las 9 sucursales legacy hardcodeadas en `SUCURSALES` (`constants/index.ts`, transcritas del HTML original, Sprint 3.4). `PublishModal` recibe el nombre correcto (`sucursal`/`enabledValue`, ambos derivados de `tiendaNombre` -- **misma fuente exacta** que ya usa correctamente el badge del Header, confirmado que no hay ninguna fuente de datos duplicada ni perdida), pero su `<select>` solo renderizaba `<option>` de esas 9 -- un `value` sin `<option>` coincidente aparece vacío en el navegador.
+
+**No es una regresión de este Sprint**: el mismo bug, en el mismo componente, ya estaba documentado como conocido y sin corregir desde el Sprint 5.2.3.5 (Fase 5) -- esa ronda corrigió exactamente este problema en `SucursalSelect` (badge/selector de la vista principal) y dejó anotado explícitamente que `PublishModal` tenía "el mismo bug exacto" pendiente para una ronda futura. El Sprint 7.1 no había tocado esa sección del archivo.
+
+**Corrección**: mismo patrón ya establecido y validado en `sucursal-select.tsx` -- unión (no reemplazo) de `SUCURSALES` con el valor real de `f.sucursal` cuando no está entre las 9 opciones legacy. `SUCURSALES` en sí no se modifica (sigue igual para `SucursalSelect`/`MasterCalendar`).
+
+### Modificado
+
+- `src/components/shared/publish-modal.tsx` -- `isSubmitting`, `onPublish` ahora `void | Promise<void>` y awaited, botón con loading/disabled. Corrección Issue 1: `sucursalOptions` (unión `SUCURSALES` + `f.sucursal` real) reemplaza la iteración directa sobre `SUCURSALES` en el `<Select>` de "Sucursal que publica".
+- `src/layouts/CoordinatorLayout.tsx` -- comentario de documentación del punto de integración Realtime (sin lógica nueva).
+- `src/pages/coordinator/TrabajosPage.tsx` -- `activeJob` agregado como trigger de refetch.
+- `src/components/shared/master-calendar.tsx` -- fuente de datos reemplazada de mock (`TRABAJOS`/`ESTADO`) a real (`trabajosRepository`/`tiendasRepository`/`trabajoEstadoInfo`), con estados de carga/error. Dos campos del mock sin equivalente real, documentados y omitidos: `instalador` (nombre, la fila real solo tiene el uuid `instalador_asignado_id`) y `id` visible (se usa `codigo` real en su lugar).
+
+### Validado, ya existente (sin cambios de código)
+
+- `PublishModal`: campos obligatorios, formatos, mensajes en español (Sprint 5.2.1 Fix).
+- `trabajosRepository.create()` -- patrón Repository → Service (`CoordinatorLayout`) → UI ya respetado, sin acceso directo a Supabase desde componentes.
+- RLS/GRANT de `trabajos` para publicación -- confirmados ya aplicados en Producción (ver arriba).
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio (mismo warning preexistente de tamaño de chunk).
+- `npm run lint` -- código de salida 0 (sin errores; corregido además un warning nuevo propio, directiva `eslint-disable` innecesaria en `master-calendar.tsx`).
+
+### Limitaciones / Sprint posterior recomendado
+
+- Realtime cross-sesión (otros Coordinadores de la misma tienda, Instaladores elegibles) -- punto de integración documentado, no conectado.
+- `master-calendar.tsx` no muestra el instalador asignado (sin nombre denormalizado en el schema real).
+- Aceptación/tracking/finalización del trabajo -- explícitamente fuera de alcance de este Sprint (brief: "NO implementar todavía").
+- **Observación de arquitectura (no bloqueante, reportada por el usuario tras la validación funcional)**: evaluar si el rol Administrador debería poder también publicar trabajos (hoy: Administrador administra, Coordinador publica, Instalador ejecuta) -- posiblemente seleccionando sucursal/coordinador responsable al publicar. Sin implementación en este Sprint, a evaluar en un Sprint futuro.
+
 ## [Fase 6 — Sprint 6.3 — Onboarding del Instalador] — 2026-07-29 — 🟢 Implementado, compilando
 
 Flujo completo de incorporación del instalador tras recibir una invitación, sobre la infraestructura de Auth ya existente (Sprint 4.2.1) -- sin tocar Edge Functions, RLS, esquema de base de datos, ni los módulos de Calendario/Instaladores/Empresas/Coordinadores. Auditoría previa (obligatoria por brief) encontró que buena parte del alcance ya estaba resuelto (login en español, recuperación -- solicitar correo, guards de sesión, logout); el trabajo real quedó acotado a lo que realmente faltaba.

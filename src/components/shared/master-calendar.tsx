@@ -1,10 +1,15 @@
-import { Calendar, Clock, MapPin, User } from 'lucide-react';
-import { useState } from 'react';
+import { Calendar, Clock, MapPin } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 import { PageContainer, PageHead } from '@/components/shared/page-container';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { ESTADO, SUCURSALES, SUSCOL, TRABAJOS } from '@/constants';
+import { Loading } from '@/components/ui/spinner';
+import { SUCURSALES, SUSCOL, trabajoEstadoInfo } from '@/constants';
+import { useOperationalContext } from '@/hooks/useOperationalContext';
+import { tiendasRepository } from '@/repositories/tiendas.repository';
+import { trabajosRepository } from '@/repositories/trabajos.repository';
+import type { TableRow } from '@/services/database.service';
 
 /**
  * MasterCalendar — reconstruye verbatim `function MasterCalendar()`
@@ -67,6 +72,28 @@ import { ESTADO, SUCURSALES, SUSCOL, TRABAJOS } from '@/constants';
  *
  * Sin props, mismo criterio que `AdminInstaladores`/`InstallerJobs` — el
  * HTML fuente tampoco recibe ninguna.
+ *
+ * ---------------------------------------------------------------------
+ * Sprint 7.1 ("Publicación de trabajos") — mock reemplazado por datos reales
+ * ---------------------------------------------------------------------
+ * `TRABAJOS`/`ESTADO` (arriba) se reemplazan por `trabajosRepository.getAll()`
+ * + `tiendasRepository.getAll()` (para resolver `tienda_id` → nombre, la
+ * clave real que usan `SUSCOL`/el filtro de sucursal) y `trabajoEstadoInfo()`
+ * (`constants/index.ts`, vocabulario real `live`/`assigned`/`completed`/
+ * `cancelled` — ver su propio JSDoc para la procedencia). Se refresca
+ * automáticamente cuando cambia `activeJob` (`useOperationalContext()`,
+ * mismo criterio ya usado en `TrabajosPage.tsx` de este Sprint): un publish
+ * exitoso actualiza `activeJob`, que dispara un nuevo `getAll()` sin recargar
+ * la página (Objetivo 5 del Sprint).
+ *
+ * Dos campos del mock no tienen equivalente real y se omiten (documentado,
+ * no un dato faltante silenciado): `t.instalador` (nombre del instalador
+ * asignado) -- la fila real solo tiene `instalador_asignado_id` (uuid), sin
+ * nombre denormalizado; resolverlo requeriría un segundo join
+ * (`instaladoresRepository`) fuera del alcance mínimo de este Sprint. `t.id`
+ * (mock, usado como etiqueta visible) -- la fila real usa `id` (uuid, ahora
+ * la `key` de React) y `codigo` (p. ej. "JOB-1234", ahora la etiqueta
+ * visible, ya generado por `CoordinatorLayout.tsx` al publicar).
  */
 const MESES = [
   'Enero',
@@ -85,12 +112,57 @@ const MESES = [
 
 const DOFW = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'] as const;
 
+type TrabajoRealRow = TableRow<'trabajos'>;
+
 export function MasterCalendar() {
+  const { activeJob } = useOperationalContext();
   const hoy = new Date();
   const [viewYear, setViewYear] = useState(hoy.getFullYear());
   const [viewMonth, setViewMonth] = useState(hoy.getMonth());
   const [selDate, setSelDate] = useState<string | null>(null);
   const [filtroSuc, setFiltroSuc] = useState('Todas');
+
+  const [trabajos, setTrabajos] = useState<TrabajoRealRow[] | null>(null);
+  const [tiendaNombreById, setTiendaNombreById] = useState<Record<string, string>>({});
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    Promise.all([trabajosRepository.getAll(), tiendasRepository.getAll()]).then(
+      ([trabajosResult, tiendasResult]) => {
+        if (!active) return;
+
+        if (!trabajosResult.ok) {
+          setLoadError(trabajosResult.error.message);
+          return;
+        }
+        setLoadError(null);
+        setTrabajos(trabajosResult.data);
+
+        if (tiendasResult.ok) {
+          const map: Record<string, string> = {};
+          for (const tienda of tiendasResult.data) {
+            map[tienda.id] = tienda.nombre;
+          }
+          setTiendaNombreById(map);
+        }
+        // Si `tiendasResult` falla, no se bloquea el calendario -- solo se
+        // pierde la resolución de nombre/color de sucursal (fallback ya
+        // manejado más abajo, `nombreSucursal`), no los trabajos en sí.
+      },
+    );
+
+    return () => {
+      active = false;
+    };
+    // Sprint 7.1, Objetivo 5 ("Actualización inmediata... Calendario
+    // Maestro... sin recargar la página") -- `activeJob?.id` como trigger de
+    // refresco, mismo criterio ya usado en `TrabajosPage.tsx` de este mismo
+    // Sprint (ver su JSDoc para la justificación completa).
+  }, [activeJob?.id]);
+
+  const nombreSucursal = (t: TrabajoRealRow) => tiendaNombreById[t.tienda_id] ?? 'Sin sucursal';
 
   const prevM = () => {
     if (viewMonth === 0) {
@@ -110,12 +182,12 @@ export function MasterCalendar() {
     }
   };
 
-  const trabMes = TRABAJOS.filter((t) => {
+  const trabMes = (trabajos ?? []).filter((t) => {
     const d = new Date(`${t.fecha}T00:00`);
     return (
       d.getFullYear() === viewYear &&
       d.getMonth() === viewMonth &&
-      (filtroSuc === 'Todas' || t.sucursal === filtroSuc)
+      (filtroSuc === 'Todas' || nombreSucursal(t) === filtroSuc)
     );
   });
 
@@ -133,8 +205,8 @@ export function MasterCalendar() {
     d === hoy.getDate() && viewMonth === hoy.getMonth() && viewYear === hoy.getFullYear();
 
   const selJobs = selDate
-    ? TRABAJOS.filter(
-        (t) => t.fecha === selDate && (filtroSuc === 'Todas' || t.sucursal === filtroSuc),
+    ? (trabajos ?? []).filter(
+        (t) => t.fecha === selDate && (filtroSuc === 'Todas' || nombreSucursal(t) === filtroSuc),
       )
     : [];
 
@@ -176,6 +248,14 @@ export function MasterCalendar() {
           </div>
         }
       />
+      {loadError ? (
+        <p className="mx-sub" style={{ color: 'var(--red)' }}>
+          {loadError}
+        </p>
+      ) : trabajos === null ? (
+        <Loading label="Cargando trabajos…" />
+      ) : (
+        <>
       <div className="mx-cal-outer">
         <div className="mx-cal-hd">
           <span className="mx-cal-month">
@@ -211,7 +291,7 @@ export function MasterCalendar() {
                 {jobs.length > 0 ? (
                   <div className="mx-cal-dots">
                     {jobs.slice(0, 5).map((t, j) => {
-                      const c = SUSCOL[t.sucursal];
+                      const c = SUSCOL[nombreSucursal(t)];
                       return (
                         <span
                           key={j}
@@ -255,20 +335,21 @@ export function MasterCalendar() {
           ) : (
             <div className="mx-joblist">
               {selJobs.map((t) => {
-                const e = ESTADO[t.estado] ?? ESTADO.pendiente;
-                const sc = SUSCOL[t.sucursal];
+                const e = trabajoEstadoInfo(t.estado);
+                const suc = nombreSucursal(t);
+                const sc = SUSCOL[suc];
                 return (
                   <div key={t.id} className="mx-jobrow" style={{ cursor: 'default' }}>
                     <div className="mx-jobrow-main">
                       <div className="mx-jobrow-top">
-                        <span className="mx-jobrow-id">{t.id}</span>
+                        <span className="mx-jobrow-id">{t.codigo}</span>
                         <Badge tone={e.tone}>{e.label}</Badge>
-                        {sc.fg ? (
+                        {sc?.fg ? (
                           <span
                             className="mx-suc-badge"
                             style={{ background: sc.bg, color: sc.fg }}
                           >
-                            {t.sucursal}
+                            {suc}
                           </span>
                         ) : null}
                       </div>
@@ -282,12 +363,10 @@ export function MasterCalendar() {
                           <Clock size={12} />
                           {t.hora}
                         </span>
-                        {t.instalador ? (
-                          <span>
-                            <User size={12} />
-                            {t.instalador}
-                          </span>
-                        ) : null}
+                        {/* `t.instalador` (mock) sin equivalente real -- ver
+                            JSDoc "Sprint 7.1" arriba: la fila real solo tiene
+                            `instalador_asignado_id` (uuid), sin nombre
+                            denormalizado. */}
                         <span
                           style={{
                             fontFamily: 'var(--fm)',
@@ -296,7 +375,7 @@ export function MasterCalendar() {
                             fontSize: 12,
                           }}
                         >
-                          ${t.precio}
+                          ${t.precio_sugerido ?? 0}
                         </span>
                       </div>
                     </div>
@@ -336,6 +415,8 @@ export function MasterCalendar() {
           );
         })}
       </div>
+        </>
+      )}
     </PageContainer>
   );
 }

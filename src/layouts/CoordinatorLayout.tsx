@@ -579,6 +579,29 @@ export function CoordinatorLayout({
             };
             setActiveJob(newJob);
             setShowPublishModal(false);
+            // Sprint 7.1, Objetivo 6 ("Tiempo real") -- punto de integración
+            // documentado, NO conectado en este Sprint. `setActiveJob`
+            // (arriba) ya propaga el nuevo trabajo a "Despacho en vivo"/
+            // "Mis trabajos"/Calendario Maestro para ESTA sesión (Objetivo
+            // 5, ver `TrabajosPage.tsx`/`master-calendar.tsx`), pero no a
+            // otras sesiones (otro Coordinador de la misma tienda, un
+            // Instalador elegible) -- eso requiere Realtime real. La
+            // infraestructura genérica ya existe (`useRealtime()`,
+            // `src/hooks/useRealtime.ts`, Sprint 4.1.1: crea/suscribe/limpia
+            // un canal, sin ningún listener de `postgres_changes` registrado
+            // -- documentado ahí como deliberado, a la espera de que un
+            // Sprint funcional decida qué eventos importan). Conectar solo
+            // el caso "nuevo trabajo" sin también cubrir los eventos futuros
+            // (asignación, cancelación -- Sprints 7.2+) dejaría una
+            // suscripción a medio terminar; por eso este Sprint documenta el
+            // punto exacto en vez de implementarlo parcialmente (Regla
+            // explícita del brief: "No crear una implementación
+            // incompleta"). Integración futura: `useRealtime('trabajos:' +
+            // tiendaId)` en `TrabajosPage.tsx`/`DespachoPage.tsx`/
+            // `master-calendar.tsx`, registrando `postgres_changes` (INSERT
+            // sobre `trabajos`, filtrado por `tienda_id`) sobre el `channel`
+            // que el hook ya devuelve, invalidando/recargando la lista
+            // correspondiente en el callback.
           } catch (err: unknown) {
             pushToast(
               'error',
