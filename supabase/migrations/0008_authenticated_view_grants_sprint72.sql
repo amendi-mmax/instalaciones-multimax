@@ -1,0 +1,26 @@
+-- Sprint 7.2 — Corrección de privilegios SQL (GRANT) sobre la vista
+-- trabajos_para_instalador
+--
+-- Diagnóstico (confirmado vía MCP, validación funcional extremo a extremo
+-- con datos reales persistidos): el Instalador no puede leer sus propias
+-- solicitudes -- SELECT sobre trabajos_para_instalador falla con
+-- 42501 permission denied for view trabajos_para_instalador.
+--
+-- Causa raíz: el GRANT de un objeto vista es independiente del GRANT de
+-- las tablas subyacentes (trabajos, trabajo_instaladores), ambas ya
+-- correctamente concedidas a authenticated. information_schema.role_table_grants
+-- confirma que authenticated nunca tuvo SELECT sobre esta vista desde su
+-- creación -- mismo defecto de infraestructura ya diagnosticado y
+-- corregido dos veces en este incidente (migraciones 0007 y, antes,
+-- Sprint 5.2.2.2 sobre trabajos), tercer caso, objeto distinto.
+--
+-- La vista ya filtra internamente por auth.uid() (join contra
+-- trabajo_instaladores ti ON ti.instalador_id = auth.uid()) -- el RLS de
+-- las tablas subyacentes ya es correcto y no se modifica; el único hueco
+-- es este GRANT SELECT faltante sobre el objeto vista en sí.
+--
+-- Mismo patrón exacto que 0007/Sprint 5.2.2.2: GRANT aditivo, sin tocar
+-- RLS, sin SECURITY DEFINER, sin cambios de frontend/repositorios/servicios,
+-- sin modificar el RPC notificar_instaladores_elegibles.
+
+grant select on public.trabajos_para_instalador to authenticated;

@@ -2,6 +2,70 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 7 — Sprint 7.2 — Mejora de UX: Toast de notificación exitosa] — 2026-08-03 — 🟢 Implementado, compilando
+
+Ronda de estabilización previa a continuar la validación funcional: el diagnóstico previo (incidente de privilegios `GRANT`, ya cerrado con las migraciones `0007`/`0008`) confirmó que `notificar_instaladores_elegibles()` funciona correctamente, `trabajo_instaladores` recibe los registros, y el frontend ya recibía correctamente el valor retornado por el RPC -- pero no existía ningún Toast para el caso de éxito (`data > 0`), solo para error y para 0 instaladores elegibles. Mejora puramente de retroalimentación visual, sin tocar el RPC, RLS, migraciones, `repositories`/`services`, reglas de elegibilidad, `ResponsesPanel` ni `InstallerDashboard`.
+
+**Implementado**:
+- `src/layouts/CoordinatorLayout.tsx` -- nueva rama `else` en el bloque de `notificacionResult` (`onPublish`): cuando `notificacionResult.data > 0`, muestra un Toast `'info'` ("Trabajo publicado correctamente." / "Se notificó a N instalador(es) elegible(s).") con singular/plural calculado a partir del propio valor devuelto por el RPC en esa misma invocación -- sin ninguna consulta adicional a Supabase. Mismo sistema de Toast (`pushToast`) ya usado en el resto de `CoordinatorLayout.tsx`.
+
+**Criterio de aceptación agregado al Sprint 7.2**: el Coordinador recibe un Toast informativo indicando la cantidad exacta de instaladores notificados cuando `notificar_instaladores_elegibles()` retorna un valor mayor que cero (antes: sin retroalimentación visual en ese caso).
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio.
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes, sin advertencias nuevas.
+
+Sin `git commit`/`push`/PR/merge.
+
+## [Fase 7 — Sprint 7.2 — Notificación a instaladores elegibles y envío de ofertas] — 2026-07-31 — 🟢 Implementado, compilando
+
+Continuación directa del Sprint 7.1: completa el flujo de publicación para que un trabajo publicado llegue a los instaladores elegibles y estos puedan enviar una oferta al Coordinador. Precedido por varias rondas de auditoría exclusivamente funcional (sin código) donde el usuario confirmó formalmente las decisiones de negocio antes de autorizar la implementación.
+
+**Decisiones funcionales confirmadas por el usuario (sin margen de interpretación del desarrollador)**:
+- **Elegibilidad**: `instaladores.activo = true AND instaladores.suspendido = false AND misma empresa AND misma provincia AND misma zona` que el trabajo -- sin cálculo geográfico/distancia, sin PostGIS, sin Google Maps.
+- **Mecanismo de notificación**: RPC nuevo (`notificar_instaladores_elegibles`), no un loop del lado del cliente -- atómico, una sola sentencia `INSERT ... SELECT ... ON CONFLICT DO NOTHING`.
+- **0 instaladores elegibles**: NO es un error técnico -- el trabajo permanece publicado (sin rollback, sin eliminación), el Coordinador recibe un Toast informativo (`tone: 'info'`, no `'error'`) indicando que no existen instaladores elegibles para esa empresa/provincia/zona.
+- **Detalle del trabajo (Instalador)**: sin ruta ni página nueva -- patrón maestro-detalle interno, mismo criterio que `MasterCalendar` (`selDate`).
+
+**Idempotencia del RPC (regla explícita, documentada por pedido del usuario)**: `notificar_instaladores_elegibles(p_trabajo_id)` es seguro de reinvocar sobre el mismo trabajo cualquier cantidad de veces -- la tabla `trabajo_instaladores` ya tenía, desde antes de este Sprint, una restricción real `UNIQUE(trabajo_id, instalador_id)` (verificada vía `pg_constraint`, no asumida); el `INSERT` del RPC usa `ON CONFLICT (trabajo_id, instalador_id) DO NOTHING` sobre esa misma restricción, así que una segunda invocación para el mismo trabajo no duplica notificaciones ni falla -- simplemente no inserta nada nuevo para los instaladores ya notificados, y `RETURNS integer` (`GET DIAGNOSTICS ... row_count`) siempre refleja cuántas filas realmente se insertaron en esa invocación puntual, nunca un total acumulado.
+
+**Implementado**:
+- `supabase/migrations/0006_notificar_instaladores_elegibles.sql` (NUEVO, aprobado y aplicado vía `apply_migration`) -- función `notificar_instaladores_elegibles(p_trabajo_id uuid) RETURNS integer`, `SECURITY INVOKER` (mismo criterio que `submit_bid`/`asignar_instalador`), sin `GRANT`/policy nuevos -- las policies RLS ya existentes del Coordinador (`SELECT` sobre `trabajos`, `SELECT` sobre `instaladores`, `INSERT` sobre `trabajo_instaladores`) ya cubren todo lo que la función necesita bajo el `auth.uid()` de quien la invoca.
+- `src/lib/supabase/config.ts` -- `RPC_FUNCTIONS.notificarInstaladoresElegibles`.
+- `src/services/database.service.ts` -- `callNotificarInstaladoresElegibles()`, mismo patrón `ServiceResult<T>` que el resto de los wrappers de RPC.
+- `src/types/database.generated.ts` -- regenerado vía `generate_typescript_types` (agrega `ofertas`, `trabajo_instaladores`, la vista `trabajos_para_instalador`, y las 4 funciones RPC reales del esquema).
+- `src/layouts/CoordinatorLayout.tsx` -- `onPublish` invoca `callNotificarInstaladoresElegibles` tras el `INSERT` exitoso del trabajo; Toast `'info'` (0 elegibles, no error) o `'error'` (fallo real del RPC) según corresponda; `newJob.trabajoId = row.id` (uuid real, antes ausente de `JobSummaryCardJob`).
+- `src/repositories/trabajos-para-instalador.repository.ts` (NUEVO) -- lectura tipada de la vista `trabajos_para_instalador` (`getAll`/`getByTrabajoId`), ya filtrada por RLS a `auth.uid()`; no implementa `Repository<T>` (vista de solo lectura, sin `create`/`update`/`remove`).
+- `src/components/shared/installer-solicitudes.tsx` (NUEVO) -- reemplaza el estado vacío fijo de la pestaña "Solicitudes" del Instalador por el listado real de trabajos notificados, con patrón maestro-detalle (lista ↔ detalle, mismo estado local que `MasterCalendar`) y formulario de oferta embebido (`submit_bid`, ya existente desde Sprint 5.2.2.1), reutilizando el lenguaje visual `.mx-myjobs`/`.mx-myjob*` (Sprint 3.12) en vez de inventar una convención visual nueva.
+- `src/components/shared/installer-dashboard.tsx` -- pestaña "Solicitudes" monta `InstallerSolicitudes` en vez de `InstallerSolicitudesEmptyState` (que se conserva, reutilizado adentro, como estado vacío real cuando efectivamente no hay solicitudes).
+- `src/components/shared/job-summary-card.tsx` -- `JobSummaryCardJob.trabajoId?: string` (opcional, retrocompatible con el job de demostración de `DespachoPage.tsx`, que no tiene un `trabajos` real detrás).
+- `src/components/shared/responses-panel.tsx` -- reemplaza el estado vacío fijo (Sprint 5.1.3) por las ofertas reales del `activeJob` (`ofertasRepository.getByTrabajoId`), con nombre del instalador resuelto vía `instaladoresRepository.getByEmpresaId` (mismo patrón de mapa id→nombre ya usado para `tienda_id` en `master-calendar.tsx`, Sprint 7.1); orden por precio/tiempo de respuesta ya funcional sobre datos reales, orden por calificación/distancia documentado como inerte en esta ronda (atributos del instalador, no de la oferta, fuera del alcance mínimo de este Sprint); sin `activeJob`/`trabajoId` (caso demo), comportamiento idéntico al anterior a este Sprint, cero regresión. Selección del instalador ganador explícitamente fuera de alcance (solo lectura).
+
+**Criterios de aceptación oficiales del Sprint 7.2** (confirmados por el usuario antes de iniciar la implementación):
+1. El trabajo se publica correctamente (sin regresión respecto al Sprint 7.1).
+2. Se crean automáticamente las filas correspondientes en `trabajo_instaladores` para cada instalador elegible.
+3. La elegibilidad se calcula correctamente (`activo`/`suspendido`/empresa/provincia/zona).
+4. Los instaladores suspendidos quedan excluidos de la notificación.
+5. El caso de 0 instaladores elegibles se comporta según lo definido (trabajo publicado igual, sin error técnico, Toast informativo).
+6. El Instalador visualiza sus solicitudes reales (trabajos notificados).
+7. El Instalador visualiza el detalle de una solicitud.
+8. El Instalador puede enviar una única oferta por trabajo.
+9. El Coordinador visualiza las ofertas recibidas.
+10. `npm run typecheck` sin errores.
+11. `npm run build` sin errores.
+12. `npm run lint` sin errores.
+13. El Coordinador recibe un Toast informativo con la cantidad exacta de instaladores notificados cuando el resultado es mayor que cero (agregado en la ronda de mejora de UX del 2026-08-03, ver entrada correspondiente arriba).
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio.
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes (`AuthContext.tsx`/`useRealtime.ts`/`supabase/client.ts`), sin advertencias nuevas.
+
+Pendiente: validación funcional manual del usuario contra Producción. Sin `git commit`/`push`/PR/merge -- pendientes de aprobación explícita del usuario.
+
 ## [Fase 7 — Sprint 7.1 — Aprobación final] — 2026-07-30 — ✅ APROBADO
 
 El usuario ejecutó pruebas manuales completas sobre la implementación final (incluidas ambas correcciones de la validación funcional -- `SUCURSALES` en `PublishModal` y la policy RLS `admins ven trabajos de su empresa`) y aprobó el Sprint. Checklist confirmado por el usuario:

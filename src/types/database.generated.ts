@@ -496,6 +496,14 @@ export type Database = {
         Args: { p_instalador_id: string; p_trabajo_id: string }
         Returns: undefined
       }
+      instalador_fue_notificado: {
+        Args: { p_trabajo_id: string }
+        Returns: boolean
+      }
+      notificar_instaladores_elegibles: {
+        Args: { p_trabajo_id: string }
+        Returns: number
+      }
       submit_bid: {
         Args: {
           p_comentario: string

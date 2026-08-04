@@ -83,6 +83,17 @@ export interface JobSummaryCardJob {
    * urgencia que no existe), documentado explícitamente ahí.
    */
   urgente: boolean;
+  /**
+   * Sprint 7.2 — id real del trabajo en Postgres (`trabajos.id`), NO el
+   * `codigo` legible que ya ocupa `id` (ver arriba). Opcional: el job de
+   * demostración de `DespachoPage.tsx` no tiene un `trabajos` real detrás y
+   * sigue sin este campo, sin romper nada — únicamente el `activeJob` real,
+   * publicado por `PublishModal`/`CoordinatorLayout.tsx` (Sprint 5.2.1), lo
+   * completa. Lo consume `ResponsesPanel` (Sprint 7.2) para poder pedir
+   * `ofertasRepository.getByTrabajoId(trabajoId)` — antes de este campo no
+   * había forma de llegar del `activeJob` en memoria al uuid real.
+   */
+  trabajoId?: string;
 }
 
 export interface JobSummaryCardProps {

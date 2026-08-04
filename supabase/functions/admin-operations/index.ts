@@ -267,10 +267,27 @@ async function inviteInstalador(
     return jsonResponse({ ok: false, error: { message: 'El correo es obligatorio.' } }, 400);
   }
 
+  // Regla arquitectónica permanente (ver ARCHITECTURE.md §14.10/CLAUDE.md):
+  // ningún flujo de Auth depende exclusivamente del "Site URL" del
+  // Dashboard -- `redirectTo` explícito, apuntando a `/nueva-contrasena`
+  // (`SetPasswordPage`, ya soporta `type=invite`). Esta función no tiene
+  // acceso a `window.location.origin` (corre en Deno, no en el navegador)
+  // -- se lee de `APP_URL`, un Secret nuevo, mismo mecanismo ya documentado
+  // en README.md §2 ("supabase secrets set NOMBRE_VARIABLE=valor") para
+  // cualquier variable adicional a las 3 que Supabase inyecta solo. Si
+  // `APP_URL` todavía no está configurado, se omite `redirectTo` por
+  // completo -- mismo comportamiento exacto que antes de este cambio
+  // (depende del Site URL del Dashboard), en vez de fallar la invitación.
+  const appUrl = Deno.env.get('APP_URL');
+  const inviteOptions: { data: Record<string, string>; redirectTo?: string } = {
+    data: { nombre, rol: 'instalador' },
+  };
+  if (appUrl) {
+    inviteOptions.redirectTo = `${appUrl.replace(/\/$/, '')}/nueva-contrasena`;
+  }
+
   const { data: inviteData, error: inviteError } =
-    await serviceRoleClient.auth.admin.inviteUserByEmail(email, {
-      data: { nombre, rol: 'instalador' },
-    });
+    await serviceRoleClient.auth.admin.inviteUserByEmail(email, inviteOptions);
 
   if (inviteError || !inviteData?.user) {
     return jsonResponse(

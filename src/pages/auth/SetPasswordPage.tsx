@@ -36,12 +36,17 @@ import { useAuth } from '@/hooks/useAuth';
  * pantalla de login sin saber qué hacer" (Regla del Sprint: "no mostrar
  * pantallas intermedias").
  *
- * **NO implementado en este Sprint** (fuera de alcance, ver brief): no se
- * pasa ningún `redirectTo` desde el origen del enlace (Edge Function
- * `admin-operations` / `resetPasswordForEmail`) -- ambos siguen usando el
- * "Site URL" del Dashboard tal cual, sin cambios. Esta página queda lista
- * para recibir ese enlace en cuanto un Sprint futuro corrija el `redirectTo`
- * (Issue 3 documentado en la estabilización del Sprint 6.2).
+ * **Actualización (Sprint 7.2, corrección de `redirectTo`)**: el origen del
+ * enlace ya no depende únicamente del "Site URL" del Dashboard (limitación
+ * documentada originalmente acá, Issue 3 de la estabilización del Sprint
+ * 6.2) -- tanto `resetPasswordForEmail()` (`auth.service.ts`, calcula
+ * `window.location.origin` en runtime) como `inviteUserByEmail()`
+ * (`admin-operations/index.ts`, Edge Function, vía el Secret `APP_URL`)
+ * pasan ahora `redirectTo` explícito apuntando a esta misma ruta
+ * (`/nueva-contrasena`) -- regla arquitectónica permanente, ver
+ * `ARCHITECTURE.md` §14.10/`CLAUDE.md`. Esta página no necesitó ningún
+ * cambio de lógica: `type=recovery`/`type=invite` siguen llegando en el
+ * fragmento de la URL exactamente igual, sin importar el host.
  */
 function isRecoveryLink(): boolean {
   if (typeof window === 'undefined') return false;

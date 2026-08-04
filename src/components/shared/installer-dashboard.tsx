@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { InstallerJobs } from '@/components/shared/installer-jobs';
 import { InstallerProfile } from '@/components/shared/installer-profile';
 import { InstallerSidebar } from '@/components/shared/installer-sidebar';
-import { InstallerSolicitudesEmptyState } from '@/components/shared/installer-solicitudes-empty-state';
+import { InstallerSolicitudes } from '@/components/shared/installer-solicitudes';
 import { MxPhoneTabs } from '@/components/shared/mx-phone-tabs';
 import { MxSubtabButton } from '@/components/shared/mx-subtab-button';
 import { PhoneFrame, type PhoneFrameOption } from '@/components/shared/phone-frame';
@@ -101,6 +101,17 @@ import { INSTALLERS } from '@/constants';
  * `mx-alert`/`mx-offer`, fuera de alcance) — se omite esa parte del handler
  * sin alterar el resto; reportado como limitación conocida, no corregida en
  * silencio.
+ *
+ * AJUSTE (Sprint 7.2): la pestaña "Solicitudes" deja de mostrar el estado
+ * vacío fijo (`InstallerSolicitudesEmptyState`, todavía usado adentro como
+ * fallback real cuando efectivamente no hay solicitudes) — ahora renderiza
+ * `InstallerSolicitudes`, que lista los trabajos reales notificados al
+ * instalador autenticado (vista `trabajos_para_instalador`) y permite ver
+ * el detalle y enviar una oferta (`submit_bid`), sin ruta ni página nueva
+ * (patrón maestro-detalle interno, mismo criterio que `MasterCalendar`).
+ * No depende de `meId`/`INSTALLERS` (ese selector sigue siendo exclusivo de
+ * demostración, sin relación con la sesión real -- ver JSDoc de `meInfo`
+ * más abajo, sin cambios de este Sprint).
  */
 export interface InstallerDashboardProps {
   meId: string;
@@ -150,7 +161,7 @@ export function InstallerDashboard({ meId, onMeIdChange }: InstallerDashboardPro
             </MxPhoneTabs>
           }
         >
-          {instTab === 'solicitudes' ? <InstallerSolicitudesEmptyState /> : null}
+          {instTab === 'solicitudes' ? <InstallerSolicitudes /> : null}
           {instTab === 'trabajos' ? <InstallerJobs /> : null}
           {instTab === 'perfil' ? <InstallerProfile meInfo={meInfo} /> : null}
         </PhoneFrame>

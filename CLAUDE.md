@@ -144,6 +144,18 @@ Después de modificar una Edge Function:
 
 ---
 
+# Autenticación — enlaces de Auth
+
+Ningún flujo de autenticación debe depender exclusivamente del Site URL configurado en Supabase.
+
+Todos los enlaces generados desde la aplicación (recuperación de contraseña, invitación, y cualquier flujo de Auth futuro que redirija) deberán enviar explícitamente `redirectTo`.
+
+El Dashboard de Supabase actuará únicamente como allowlist mediante Redirect URLs cuando sea posible.
+
+Ver `ARCHITECTURE.md` §14.10 para el detalle técnico completo (Sprint 7.2).
+
+---
+
 # Base de datos
 
 Nunca modificar directamente la estructura.

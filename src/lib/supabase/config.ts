@@ -51,6 +51,7 @@ export const VIEWS = {
 export const RPC_FUNCTIONS = {
   asignarInstalador: 'asignar_instalador',
   submitBid: 'submit_bid',
+  notificarInstaladoresElegibles: 'notificar_instaladores_elegibles',
 } as const;
 
 /**
