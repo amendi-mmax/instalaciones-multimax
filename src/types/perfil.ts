@@ -62,4 +62,42 @@ export interface Perfil {
    * `admin`/`coordinador` (no es un dato faltante, no aplica).
    */
   documentosOk: boolean | null;
+  /**
+   * Sprint 7.3 (Módulo de Cuenta de Usuario) -- campos adicionales para "Mi
+   * Perfil", sin ninguna consulta nueva a Supabase: `resolveProfile()` ya
+   * hacía `select('*')` sobre la fila real de `admins`/`coordinadores`/
+   * `instaladores` (ver `profile.service.ts`), estos valores ya viajaban en
+   * esa misma respuesta -- este Sprint solo los expone en `Perfil`, no los
+   * obtiene de ningún lado nuevo.
+   *
+   * `telefono`: columna propia en `admins`/`instaladores`; `coordinadores`
+   * no la tiene -- `null` para ese rol (no es un dato faltante).
+   * `provincia`/`zona`: columnas propias únicamente de `instaladores` --
+   * `null` para `admin`/`coordinador` (esos roles no tienen ubicación
+   * propia en el schema real; la "Sucursal" de un coordinador ya se expone
+   * arriba como `tiendaNombre`).
+   * `creadoEn`: `created_at` de la fila real (`admins`/`coordinadores`/
+   * `instaladores`), presente en las 3 tablas -- fecha de alta del PERFIL,
+   * no de la cuenta de Supabase Auth (`auth.users.created_at`, distinta,
+   * expuesta aparte por `useAuth().user.created_at` cuando haga falta).
+   */
+  telefono: string | null;
+  provincia: string | null;
+  zona: string | null;
+  creadoEn: string;
+  /**
+   * Métricas reales exclusivas de `instaladores` (columnas propias:
+   * `rating`/`cumplimiento`/`aceptacion`/`km`) -- `null` para `admin`/
+   * `coordinador`, que no tienen ningún concepto equivalente en el schema
+   * real. Agrupadas en un sub-objeto (en vez de 4 campos sueltos en
+   * `Perfil`) para dejar explícito que son un conjunto que solo existe
+   * junto, nunca parcial.
+   */
+  instaladorInfo: {
+    rating: number;
+    /** `cumplimiento`/`aceptacion`/`km` son nullable en el schema real (`database.generated.ts`) -- `null` hasta que el instalador acumule historial suficiente. */
+    cumplimiento: number | null;
+    aceptacion: number | null;
+    km: number | null;
+  } | null;
 }

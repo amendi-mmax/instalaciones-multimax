@@ -156,6 +156,22 @@ Ver `ARCHITECTURE.md` §14.10 para el detalle técnico completo (Sprint 7.2).
 
 ---
 
+# Módulo de Cuenta de Usuario
+
+Las pantallas de cuenta (`/perfil`, `/configuracion`, `/cambiar-contrasena`) son rutas hermanas de `/` en `AppRouter.tsx`, con su propio layout (`AccountLayout.tsx`) — no dependen de `RootLayout.tsx`/`CoordinatorLayout.tsx` ni de sus ramas por rol.
+
+Cualquier Sprint futuro que agregue una pantalla nueva a este módulo debe seguir el mismo criterio: layout propio, resuelto vía `useAuth()`/`useUserContext()` directamente, sin modificar `RootLayout.tsx`/`CoordinatorLayout.tsx`.
+
+Ninguna preferencia de usuario tiene tabla real en Supabase todavía — se persisten en `localStorage`, exclusivamente vía `account.service.ts` (nunca directamente desde un componente) hasta que exista una migración explícitamente autorizada para eso.
+
+Toda pantalla de este módulo (y `HeaderUserMenu`) debe consumir `useUserContext()` (`src/hooks/useUserContext.ts`) como única fuente del usuario/perfil/preferencias — no llamar a `useAuth()`/`useUserPreferences()` por separado para datos que `UserContext` ya expone. Las acciones de sesión (`login`/`logout`/`updatePassword`) siguen viniendo de `useAuth()` — `UserContext` expone datos derivados, no acciones.
+
+Cualquier ruta "de vuelta al Dashboard" debe usar `getDashboardRoute(rol)` (`src/lib/role-helpers.ts`) — nunca un `Navigate to="/despacho"` hardcodeado nuevo. Excepción documentada: `CoordinatorIndexRedirect` (`AppRouter.tsx`) resuelve una pregunta distinta (ver `ARCHITECTURE.md` §14.12) y no reutiliza este helper a propósito.
+
+Ver `ARCHITECTURE.md` §14.11 (Sprint 7.3) y §14.12 (Sprint 7.3.1) para el detalle técnico completo.
+
+---
+
 # Base de datos
 
 Nunca modificar directamente la estructura.

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import { SupabaseProvider } from '@/providers/SupabaseProvider';
 import { AuthProvider } from '@/providers/AuthProvider';
+import { UserProvider } from '@/contexts/UserContext';
 
 /**
  * AppProviders — composición recomendada de los 3 Providers de esta capa,
@@ -9,9 +10,21 @@ import { AuthProvider } from '@/providers/AuthProvider';
  *
  *   <SupabaseProvider>       -- expone el cliente (useSupabase)
  *     <AuthProvider>         -- envuelve SessionProvider por dentro
- *       {children}           -- useAuth()/useSession()/useSupabase() disponibles
+ *       <UserProvider>       -- Sprint 7.3.1, ver su propio JSDoc
+ *         {children}         -- useAuth()/useSession()/useSupabase()/useUserContext() disponibles
+ *       </UserProvider>
  *     </AuthProvider>
  *   </SupabaseProvider>
+ *
+ * **`UserProvider` (Sprint 7.3.1, Módulo de Cuenta de Usuario)** -- se
+ * monta acá, DENTRO de `<AuthProvider>` (necesita `useAuth()`) y
+ * envolviendo la app ENTERA, no solo el módulo de Cuenta -- ver el JSDoc
+ * completo de `UserContext.tsx` para por qué (resumen: `HeaderUserMenu`,
+ * montado por `RootLayout.tsx`/`CoordinatorLayout.tsx`, ambos archivos
+ * restringidos en ese Sprint, también necesita `useUserContext()`; la
+ * única forma de lograrlo sin tocar esos 2 archivos es montar el Provider
+ * más arriba en el árbol, acá). No implementa ninguna lógica de Auth --
+ * solo compone/deriva sobre `useAuth()`, sin queries nuevas.
  *
  * **No se monta todavía en `src/App.tsx`** -- este Sprint (4.1.1, Fase A)
  * no modifica la UI ni desarrolla pantallas nuevas ("NO modifica la UI"),
@@ -32,7 +45,9 @@ export interface AppProvidersProps {
 export function AppProviders({ children }: AppProvidersProps) {
   return (
     <SupabaseProvider>
-      <AuthProvider>{children}</AuthProvider>
+      <AuthProvider>
+        <UserProvider>{children}</UserProvider>
+      </AuthProvider>
     </SupabaseProvider>
   );
 }

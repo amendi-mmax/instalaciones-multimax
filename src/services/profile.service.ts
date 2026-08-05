@@ -111,6 +111,12 @@ export async function resolveProfile(
         tiendaId: null,
         tiendaNombre: null,
         documentosOk: null,
+        // Sprint 7.3 -- ya viajaban en `row` (select('*') sin cambios).
+        telefono: row.telefono,
+        provincia: null,
+        zona: null,
+        creadoEn: row.created_at,
+        instaladorInfo: null,
       },
     };
   }
@@ -137,6 +143,12 @@ export async function resolveProfile(
         tiendaId: row.tienda_id,
         tiendaNombre,
         documentosOk: null,
+        // Sprint 7.3 -- `coordinadores` no tiene columna `telefono`/`provincia`/`zona`.
+        telefono: null,
+        provincia: null,
+        zona: null,
+        creadoEn: row.created_at,
+        instaladorInfo: null,
       },
     };
   }
@@ -160,6 +172,17 @@ export async function resolveProfile(
         tiendaId: null,
         tiendaNombre: null,
         documentosOk: row.documentos_ok,
+        // Sprint 7.3 -- ya viajaban en `row` (select('*') sin cambios).
+        telefono: row.telefono,
+        provincia: row.provincia,
+        zona: row.zona,
+        creadoEn: row.created_at,
+        instaladorInfo: {
+          rating: row.rating,
+          cumplimiento: row.cumplimiento,
+          aceptacion: row.aceptacion,
+          km: row.km,
+        },
       },
     };
   }

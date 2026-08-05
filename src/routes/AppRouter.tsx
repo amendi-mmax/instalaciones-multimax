@@ -2,12 +2,16 @@ import type { ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { RootLayout } from '@/layouts/RootLayout';
+import { AccountLayout } from '@/layouts/AccountLayout';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { SetPasswordPage } from '@/pages/auth/SetPasswordPage';
 import { DespachoPage } from '@/pages/coordinator/DespachoPage';
 import { TrabajosPage } from '@/pages/coordinator/TrabajosPage';
 import { TrabajoDetailPage } from '@/pages/coordinator/TrabajoDetailPage';
+import { ProfilePage } from '@/pages/account/ProfilePage';
+import { SettingsPage } from '@/pages/account/SettingsPage';
+import { ChangePasswordPage } from '@/pages/account/ChangePasswordPage';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { PublicRoute } from '@/components/auth/PublicRoute';
 import { Loading } from '@/components/ui/spinner';
@@ -161,6 +165,32 @@ export function AppRouter() {
             </CoordinatorOnlyRoute>
           }
         />
+      </Route>
+      {/*
+        Sprint 7.3 (Módulo de Cuenta de Usuario) -- `/perfil`/`/configuracion`/
+        `/cambiar-contrasena`, las 3 pantallas del menú de usuario
+        (`HeaderUserMenu`, hasta este Sprint deshabilitadas sin destino real).
+        Declaradas como rutas HERMANAS de `/` (mismo nivel que `/login`), no
+        como hijas de `RootLayout` -- ver el JSDoc completo de
+        `AccountLayout.tsx` para la justificación: `RootLayout` no monta un
+        `<Outlet/>` para `instalador`/`admin` fuera de "Modo Coordinador", y
+        "Mi cuenta" debe funcionar para los 3 roles por igual, sin tocar
+        `RootLayout.tsx`/`CoordinatorLayout.tsx` (área restringida de este
+        Sprint, dueña de la publicación de trabajos). `AccountLayout` resuelve
+        `profile`/`onLogout` por su cuenta vía `useAuth()` -- mismo criterio
+        que `RootLayout`, sin depender de contexto compartido con las rutas de
+        arriba.
+      */}
+      <Route
+        element={
+          <ProtectedRoute>
+            <AccountLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route path="/perfil" element={<ProfilePage />} />
+        <Route path="/configuracion" element={<SettingsPage />} />
+        <Route path="/cambiar-contrasena" element={<ChangePasswordPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

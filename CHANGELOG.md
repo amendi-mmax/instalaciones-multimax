@@ -2,6 +2,60 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 7 — Sprint 7.3.1 — Refinamiento arquitectónico del Módulo de Cuenta de Usuario] — 2026-08-05 — 🟢 Implementado, compilando
+
+Sprint 7.2 (y todo lo adyacente: Auth/`redirectTo`/`resetPassword`/Edge Functions/invitaciones/recuperación de contraseña/`CoordinatorLayout.tsx`/`ResponsesPanel`/publicación de trabajos/instaladores/RLS/migraciones/RPC/funciones SQL) permaneció completamente congelado -- verificado por `git status`, cero archivos de esas áreas tocados. Objetivo exclusivo: refactor arquitectónico del módulo de Cuenta de Usuario (Sprint 7.3) -- sin ningún cambio de look & feel.
+
+**Implementado**:
+- `src/services/account.service.ts` (NUEVO) -- `AccountService` centralizado: `getPerfil` (reexporta `resolveProfile()` sin tocarlo), `getUserSummary`, `getPreferences`/`setPreferences`/`setPreference` (localStorage, movido tal cual desde `useUserPreferences.ts`), `changePassword` (orquesta `login`+`updatePassword`, recibidos como parámetros -- no reimplementa Auth), `updatePerfil` (firma preparada, `NOT_IMPLEMENTED`).
+- `src/contexts/user.context.ts` + `src/contexts/UserContext.tsx` + `src/hooks/useUserContext.ts` (NUEVOS) -- `UserContext`/`UserProvider`/`useUserContext()`, separados en 3 archivos (mismo patrón ya usado por Auth) para evitar el warning de Fast Refresh de un archivo `.tsx` que mezcla componente + no-componente (confirmado en este Sprint con el primer intento de un único archivo). Compone `useAuth()` + `useUserPreferences()` -- cero queries nuevas a Supabase.
+- `src/providers/AppProviders.tsx` (MODIFICADO) -- monta `<UserProvider>` dentro de `<AuthProvider>`, envolviendo TODA la app -- única forma de que `HeaderUserMenu` (montado por `RootLayout.tsx`/`CoordinatorLayout.tsx`, ambos restringidos) también consuma `useUserContext()` sin tocar esos 2 archivos.
+- `src/lib/role-helpers.ts` (NUEVO) -- `isAdmin`/`isCoordinator`/`isInstaller`/`getDashboardRoute(rol)`.
+- `src/layouts/AccountLayout.tsx` (MODIFICADO) -- agrega breadcrumb + botón "← Volver al Dashboard" (`getDashboardRoute`), único lugar de navegación del módulo; `profile`/`rol` ahora vía `useUserContext()`.
+- `src/pages/account/ProfilePage.tsx` (MODIFICADO) -- misma tarjeta visual, separada en 3 secciones internas (Información personal/organizacional/de cuenta) reutilizando `CardHeader`; consume `useUserContext()`.
+- `src/pages/account/SettingsPage.tsx`/`ChangePasswordPage.tsx` (MODIFICADOS) -- consumen `useUserContext()`; `ChangePasswordPage` delega la orquestación completa a `accountService.changePassword()`, queda únicamente como presentación.
+- `src/components/shared/header-user-menu.tsx` (MODIFICADO) -- los datos mostrados ya no vienen de la prop `profile`, vienen exclusivamente de `useUserContext()`.
+- `src/hooks/useUserPreferences.ts` (MODIFICADO) -- ya no toca `localStorage` directamente, delega en `account.service.ts`.
+
+**Decisión documentada, sin aplicar**: `CoordinatorIndexRedirect` (`AppRouter.tsx`) NO se refactorizó para usar `getDashboardRoute()` -- resuelve una pregunta distinta (ver `ARCHITECTURE.md` §14.12); forzar el mismo helper ahí habría introducido una regresión real para el caso `admin`.
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio.
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes (ninguno nuevo -- el primer intento de `UserContext.tsx` en un único archivo sí generó 1 warning nuevo de Fast Refresh, corregido antes de este cierre).
+
+Sin `git commit`/`push`/PR.
+
+## [Fase 7 — Sprint 7.3 — Módulo de Cuenta de Usuario (Perfil, Configuración, Seguridad)] — 2026-08-04 — 🟢 Implementado, compilando
+
+Sprint 7.2 congelado explícitamente -- ningún archivo relacionado con publicación de trabajos/`ResponsesPanel`/instaladores/RPC/Supabase/Edge Functions/autenticación existente fue modificado (verificado: `git status` solo muestra `header-user-menu.tsx`, `AppRouter.tsx`, `profile.service.ts`, `types/perfil.ts` y archivos nuevos bajo `src/pages/account/`/`src/layouts/AccountLayout.tsx`/`src/lib/`/`src/hooks/`/`src/components/shared/password-strength-meter.tsx`).
+
+Implementa las 3 pantallas del menú de usuario (`HeaderUserMenu`, `disabled` sin destino real desde el Sprint 4.2.1): "Mi perfil", "Configuración" y "Cambiar contraseña" -- mismo look & feel del resto de HANDYMAX (Card/Badge/Input/Button/Switch/Select/Toast ya existentes, cero librerías nuevas).
+
+**Decisión arquitectónica**: `/perfil`/`/configuracion`/`/cambiar-contrasena` se declaran como rutas hermanas de `/` en `AppRouter.tsx`, con un layout propio (`AccountLayout.tsx`, nuevo) -- necesario porque `RootLayout.tsx` no monta ningún `<Outlet/>` para `instalador`/`admin` fuera de "Modo Coordinador" (ver `ARCHITECTURE.md` §14.11 para el detalle completo), y modificar ese árbol de decisión habría significado tocar `RootLayout.tsx`/`CoordinatorLayout.tsx`, el área restringida de este Sprint. Resultado: cero cambios en esos 2 archivos.
+
+**Implementado**:
+- `src/layouts/AccountLayout.tsx` (NUEVO) -- Header/Footer (sin modificar) + navegación `MxSubtabs`/`MxSubtabButton` (mismo patrón visual que `CoordinatorLayout`/`AdminPanel`) + `<Outlet/>`.
+- `src/pages/account/ProfilePage.tsx` (NUEVO, `/perfil`) -- datos reales de `useAuth().profile`/`user`, "No disponible" para todo campo sin valor real, botón "Editar perfil" preparado (`disabled`).
+- `src/pages/account/SettingsPage.tsx` (NUEVO, `/configuracion`) -- Preferencias/Dashboard/Seguridad; Notificaciones/Sonidos/Confirmaciones/Recordar sucursal/Vista inicial/Mostrar ayudas reales vía `localStorage` (`useUserPreferences`, nuevo); Tema/Idioma/Sesiones activas deshabilitados con badge "Próximamente" (pedido explícito del brief); Último login/Dispositivo como información real de solo lectura.
+- `src/pages/account/ChangePasswordPage.tsx` (NUEVO, `/cambiar-contrasena`) -- contraseña actual + nueva + confirmar, mostrar/ocultar, `PasswordStrengthMeter` (nuevo) con validaciones en tiempo real (longitud/mayúscula/minúscula/número/carácter especial), Toast éxito/error, reautenticación real antes de `updatePassword` (`useAuth().login()` + `useAuth().updatePassword()`, ambos ya existentes, API oficial de Supabase, sin implementación propia).
+- `src/hooks/useUserPreferences.ts` (NUEVO) -- preferencias de usuario en `localStorage`, con clave por `profile.id`.
+- `src/lib/password-strength.ts` (NUEVO) -- funciones puras de validación/fortaleza de contraseña.
+- `src/lib/perfil-format.ts` (NUEVO) -- `ROL_LABEL`/`ESTADO_LABEL`/`ESTADO_TONE`/`formatFecha`/`initialsFrom`, centraliza 2 constantes que estaban duplicadas en `header-user-menu.tsx`.
+- `src/components/shared/password-strength-meter.tsx` (NUEVO) -- reutiliza `Progress` (`ui/progress.tsx`, sin consumidor real hasta este Sprint).
+- `src/types/perfil.ts`/`src/services/profile.service.ts` (MODIFICADOS) -- `Perfil` extendido con `telefono`/`provincia`/`zona`/`creadoEn`/`instaladorInfo`, poblados desde filas que `resolveProfile()` ya consultaba (`select('*')`, cero queries nuevas a Supabase).
+- `src/components/shared/header-user-menu.tsx` (MODIFICADO) -- los 3 ítems de menú dejan de estar `disabled` y navegan a las rutas nuevas; importa `ROL_LABEL`/`ESTADO_LABEL`/`initialsFrom` desde `perfil-format.ts` en vez de duplicarlos.
+- `src/routes/AppRouter.tsx` (MODIFICADO) -- agrega `AccountLayout` + las 3 rutas nuevas, sin tocar ninguna ruta existente.
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio.
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes, sin advertencias nuevas.
+
+Sin `git commit`/`push`/PR.
+
 ## [Fase 7 — Sprint 7.2 — Mejora de UX: Toast de notificación exitosa] — 2026-08-03 — 🟢 Implementado, compilando
 
 Ronda de estabilización previa a continuar la validación funcional: el diagnóstico previo (incidente de privilegios `GRANT`, ya cerrado con las migraciones `0007`/`0008`) confirmó que `notificar_instaladores_elegibles()` funciona correctamente, `trabajo_instaladores` recibe los registros, y el frontend ya recibía correctamente el valor retornado por el RPC -- pero no existía ningún Toast para el caso de éxito (`data > 0`), solo para error y para 0 instaladores elegibles. Mejora puramente de retroalimentación visual, sin tocar el RPC, RLS, migraciones, `repositories`/`services`, reglas de elegibilidad, `ResponsesPanel` ni `InstallerDashboard`.
