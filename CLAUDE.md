@@ -172,6 +172,18 @@ Ver `ARCHITECTURE.md` §14.11 (Sprint 7.3) y §14.12 (Sprint 7.3.1) para el deta
 
 ---
 
+# BackOffice de Administración (Dashboard Ejecutivo)
+
+Ningún indicador/KPI de la interfaz debe mostrar jamás mensajes técnicos: nombres de tabla, columnas, SQL, RLS, RPC, mensajes crudos de Supabase/Postgrest, ni stack traces. Esa información vive únicamente en `ARCHITECTURE.md`.
+
+Todo indicador debe soportar exactamente 4 estados (`AdminKpiStatus`, `src/services/admin-dashboard.service.ts`): `ready` (valor real), `loading` (Skeleton), `pending` (badge "Próximamente", sin texto adicional), `error` (mensaje genérico fijo, nunca el mensaje real de Supabase).
+
+Todo KPI del BackOffice se renderiza con `AdminKpiCard` (`src/components/shared/admin-kpi-card.tsx`) — ninguna pantalla debe construir su propia tarjeta de indicador. La capa de datos sigue el patrón de 3 pasos documentado en `admin-dashboard.service.ts` (obtención → transformación → presentación vía `buildAdminKpiViewModels`) para agregar KPIs nuevos sin tocar el componente.
+
+Ver `ARCHITECTURE.md` §14.13 (Sprint 8.1) y §14.14 (Sprint 8.1.1) para el detalle técnico completo, incluida la causa raíz exacta (verificada vía MCP) de por qué "Tiempo promedio de respuesta"/"Tiempo promedio de instalación" siguen en estado `pending`.
+
+---
+
 # Base de datos
 
 Nunca modificar directamente la estructura.

@@ -1,4 +1,4 @@
-import { Activity, Settings, User } from 'lucide-react';
+import { Activity, Settings } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { MxSubtabButton } from '@/components/shared/mx-subtab-button';
@@ -50,6 +50,27 @@ import { MxSubtabs } from '@/components/shared/mx-subtabs';
  * retiran por completo cuando el MVP sea aprobado e implemente el modelo
  * definitivo de permisos (admin ve únicamente "Administración", sin este
  * selector) -- no hay ninguna intención de mantenerlo en producción.
+ *
+ * **AJUSTE (Sprint 8.1, "Evolución del BackOffice de Administración")**:
+ * requisito explícito del brief -- "Eliminar definitivamente la pestaña
+ * 'Instalador' del Dashboard Administrador ya que actualmente no aporta
+ * funcionalidad". Ese mismo Sprint restringe explícitamente modificar
+ * `RootLayout.tsx` -- dueño real de `adminVista`/`showInstalador` y del
+ * `useEffect` de sincronización de URL (ver su JSDoc, bloque "SPRINT
+ * 5.1.1"). Resolución sin conflicto: se retira la opción `'instalador'`
+ * únicamente del ARRAY que este componente renderiza (`ADMIN_VISTAS`,
+ * abajo) -- el botón deja de existir, un admin ya no puede navegar a esa
+ * vista desde la UI (cumple el requisito: la pestaña queda eliminada) --
+ * pero el tipo `AdminVista` NO se angosta (sigue incluyendo `'instalador'`
+ * como valor válido) precisamente para que `RootLayout.tsx` (`useState
+ * <AdminVista>`, las comparaciones `adminVista === 'instalador'`) siga
+ * compilando exactamente igual, sin necesitar ningún cambio -- si se
+ * hubiera angostado el tipo, TypeScript habría exigido tocar
+ * `RootLayout.tsx` para resolver el error de tipo resultante, violando la
+ * restricción explícita de este Sprint. La rama `showInstalador` de
+ * `RootLayout.tsx` para `admin` queda como código inalcanzable (nadie
+ * puede ya producir `adminVista === 'instalador'`), no eliminado -- un
+ * Sprint futuro sin esa restricción puede limpiarlo del todo.
  */
 export type AdminVista = 'administracion' | 'coordinador' | 'instalador';
 
@@ -59,10 +80,14 @@ interface AdminVistaOption {
   icon: ReactNode;
 }
 
+/**
+ * Sprint 8.1: ya NO incluye la opción `'instalador'` -- ver JSDoc de
+ * cabecera. El import de `User` (ícono que usaba esa opción) se retira
+ * junto con ella.
+ */
 const ADMIN_VISTAS: AdminVistaOption[] = [
   { value: 'administracion', label: 'Administración', icon: <Settings size={14} /> },
   { value: 'coordinador', label: 'Coordinador', icon: <Activity size={14} /> },
-  { value: 'instalador', label: 'Instalador', icon: <User size={14} /> },
 ];
 
 export interface AdminVistaSwitchProps {

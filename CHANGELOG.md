@@ -2,6 +2,56 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 8 — Sprint 8.1.1 — Refinamiento del Dashboard Ejecutivo (KPIs)] — 2026-08-06 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
+
+Continuación exclusiva del Sprint 8.1, únicamente sobre el módulo de Dashboard Administrativo. Ningún archivo restringido tocado (`CoordinatorLayout.tsx`/`RootLayout.tsx`/Auth/Login/Invitaciones/instaladores/publicación de trabajos/`ResponsesPanel`/Edge Functions/RPC/migraciones existentes/lógica del Sprint 7.x) -- verificado con `git status`: solo `admin-panel.tsx` (sin cambios en esta ronda, ya correcto desde 8.1), `admin-kpi-dashboard.tsx`, 2 archivos nuevos y `ARCHITECTURE.md`/`PROJECT_STATUS.md`/`CLAUDE.md`/`docs/SPRINTS_INDEX.md`.
+
+**Ajuste 1 (espaciado)**: `AdminKpiDashboard` ahora envuelto en `PageContainer` (`.mx-page`), igual que sus 2 pestañas hermanas -- corrige el espacio insuficiente entre la tarjeta y la barra de tabs, sin ningún valor de espaciado nuevo.
+
+**Ajuste 2/3 (sin mensajes técnicos, 4 estados uniformes)**: eliminados por completo los campos `tiempoPromedioRespuestaMotivo`/`tiempoPromedioInstalacionMotivo` (Sprint 8.1) -- ese texto con nombres reales de tabla/columna/RLS nunca debe llegar a la UI (Regla nueva, permanente, agregada a `CLAUDE.md`); la causa raíz técnica completa queda documentada únicamente en `ARCHITECTURE.md` §14.13/§14.14. Se definieron 4 estados uniformes para todo indicador: `ready`/`loading`/`pending`/`error` -- este último SIEMPRE con el mensaje genérico fijo "No fue posible cargar este indicador.", nunca el mensaje real de Supabase.
+
+**Ajuste 3.1 (componente único)**: `src/components/shared/admin-kpi-card.tsx` (NUEVO) -- `AdminKpiCard`, reutiliza las mismas 3 clases CSS que ya usaban `Counter`/`StatTile` (`.mx-stat-v`/`.mx-stat-l`/`.mx-stat-s`, sin clases nuevas) + `Skeleton`/`Badge` (ambos ya existentes, sin consumidor real hasta ahora) para los 4 estados. Los 8 KPIs del Dashboard pasan todos por este único componente -- cero lógica de tarjeta duplicada.
+
+**Ajuste 4 (servicio en 3 capas)**: `admin-dashboard.service.ts` reescrito -- obtención (repositorios, sin cambios de fondo) → transformación (funciones puras, `AdminKpiData`) → presentación (`buildAdminKpiViewModels()`, NUEVO, único punto que decide `status`/orden/etiquetas).
+
+**Ajuste 5**: arquitectura preparada para KPIs futuros (Sprints 8.2/8.4/8.6/8.7/8.8/8.9) -- patrón de 3 pasos documentado en el propio servicio, sin infraestructura especulativa.
+
+**Ajuste 7 (performance)**: `useMemo` sobre el cálculo de los view models en `AdminKpiDashboard`.
+
+**Ronda de consolidación (mismo Sprint, auditoría explícita de duplicación pedida por el usuario)**: se detectó que `AdminKpiCard` reconstruía a mano, para el estado `'ready'`, el mismo markup que `StatTile`/`Counter` ya encapsulan (`.mx-stat`/`.mx-stat-v`/`.mx-stat-l`/`.mx-stat-s`) -- lógica duplicada real, no solo reutilización de clases. Corregido: el caso `'ready'` ahora delega 100% en `<StatTile/>` (cero markup propio); los 3 estados restantes (`loading`/`pending`/`error`, sin equivalente en `StatTile`/`Counter`) conservan su wrapper local, ahora sin competir con una reimplementación paralela. `StatTile`/`Counter`/`CoordinatorKpiRow` sin ningún cambio -- se descartó ensanchar `Counter.value` a `ReactNode` porque habría envuelto `Skeleton`/`Badge` dentro de `.mx-stat-v` (anidado inválido, alteración real de estructura), violando "no modificar el comportamiento visual actual". CSS de salida verificado con el mismo hash de build que la ronda anterior (`index-CmZH8fGn.css`) -- cero cambios visuales. `typecheck`/`build`/`lint` limpios.
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio.
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes, sin advertencias nuevas.
+
+Sin `git commit`/`push`. **Sprint 8.1.1 detenido para revisión del usuario antes de continuar con el Sprint 8.2**, por instrucción explícita del brief.
+
+## [Fase 8 — Sprint 8.1 — Dashboard Ejecutivo (BackOffice de Administración)] — 2026-08-06 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
+
+Primer sub-sprint de la Fase 8 ("Evolución del BackOffice de Administración"). Por instrucción explícita del brief, se implementa ÚNICAMENTE el Sprint 8.1 y se entrega este reporte para revisión antes de continuar con el 8.2. Ningún archivo restringido fue tocado (Auth/Login/`redirectTo`/Sprint 7.2/Sprint 7.3/`CoordinatorLayout.tsx`/`RootLayout.tsx`/publicación de trabajos/`ResponsesPanel`/instaladores-flujo-operativo/Edge Functions/RLS/RPC/migraciones existentes) -- verificado con `git status`: solo `admin-panel.tsx`, `admin-vista-switch.tsx` y 2 archivos nuevos.
+
+**Auditoría previa obligatoria vía MCP (antes de escribir código)**: se consultó `information_schema.columns` y `pg_policies` sobre `trabajos`/`trabajo_instaladores`/`instaladores`/`ofertas` para determinar, con evidencia real y no supuesta, cuáles de los 8 KPIs mínimos pedidos por el brief son calculables hoy. Hallazgos:
+- `trabajos.publicado_at`/`estado` (real, `timestamptz`/`text`) -- alcanzan para "Publicados hoy"/"Activos"/"Pendientes"/"Finalizados"/"Cancelados".
+- `instaladores.activo`/`suspendido` (real, `boolean`) -- alcanzan para "Instaladores activos".
+- `trabajo_instaladores.notificado_at`/`respondido_at` (ambas columnas SÍ existen, `timestamptz`) -- pero la tabla **no tiene ninguna policy RLS de `SELECT` para el rol `admin`** (confirmado en `pg_policies`: solo `coordinadores`/instalador-propio) -- mismo patrón de hueco ya corregido 3 veces en Sprints anteriores para otras tablas/vista, esta vez sobre un cuarto objeto, sin corregir en este Sprint (fuera de alcance: el brief de 8.1 es el Dashboard, no RLS). Como el `GRANT` de tabla sí existe (migración `0007`), la consulta no fallaría -- devolvería `0` filas silenciosamente, mostrando un promedio de un conjunto vacío como si fuera real. Se optó por NO ejecutar esa consulta y declarar el indicador explícitamente "No disponible", en vez de fabricar un número.
+- `trabajos` **no tiene ninguna columna de timestamp de finalización** (`asignado_at` existe, no hay `completado_at`/equivalente) -- estructuralmente imposible de calcular "Tiempo promedio de instalación" con el schema actual, sin importar RLS.
+
+**Implementado**:
+- `src/services/admin-dashboard.service.ts` (NUEVO) -- `AdminKpis`/`getAdminKpis()`: 6 indicadores reales (`publicadosHoy`/`activos`/`pendientes`/`finalizados`/`cancelados`/`instaladoresActivos`, sobre `trabajosRepository.getAll()`/`instaladoresRepository.getAll()`, ya scoped por RLS a la empresa del admin -- mismo patrón que `MasterCalendar`/`AdminInstaladores`, sin filtrar `empresa_id` en la query) + 2 indicadores `null` documentados (`tiempoPromedioRespuestaMin`/`tiempoPromedioInstalacionMin`, cada uno con su propio motivo textual). `calcularTiempoPromedioRespuestaMin()` ya implementado y exportado, listo para activarse en cuanto exista la policy RLS faltante -- arquitectura preparada sin migración especulativa.
+- `src/components/shared/admin-kpi-dashboard.tsx` (NUEVO) -- `AdminKpiDashboard`, reutiliza `Card`/`CardHeader`/`StatGrid`/`StatTile`/`Loading` (cero componentes/CSS nuevos); los 2 indicadores no disponibles se muestran "No disponible" dentro de la misma grilla + nota explicativa debajo (mismo patrón que `SettingsPage.tsx`, Sprint 7.3).
+- `src/components/shared/admin-panel.tsx` (MODIFICADO) -- nueva pestaña "Dashboard" (ícono `LayoutDashboard`), activa por defecto, antes de "Calendario maestro"/"Instaladores" (ambas sin cambios) -- mismo patrón `MxSubtabs`/`MxSubtabButton` ya usado.
+- `src/components/shared/admin-vista-switch.tsx` (MODIFICADO) -- requisito explícito del brief ("Eliminar definitivamente la pestaña 'Instalador' del Dashboard Administrador"): se retira la opción `'instalador'` únicamente del array `ADMIN_VISTAS` que este componente renderiza -- el tipo `AdminVista` NO se angosta (sigue incluyendo `'instalador'`) para que `RootLayout.tsx` (dueño real de `adminVista`/`showInstalador`, explícitamente restringido este Sprint) siga compilando sin ningún cambio. Resultado: el botón desaparece de la UI (un admin ya no puede navegar a esa vista), cero bytes tocados en `RootLayout.tsx`.
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio.
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes, sin advertencias nuevas.
+
+Sin `git commit`/`push`. **Sprint 8.1 detenido para revisión del usuario antes de continuar con el Sprint 8.2**, por instrucción explícita del brief.
+
 ## [Fase 7 — Sprint 7.3.1 — Refinamiento arquitectónico del Módulo de Cuenta de Usuario] — 2026-08-05 — 🟢 Implementado, compilando
 
 Sprint 7.2 (y todo lo adyacente: Auth/`redirectTo`/`resetPassword`/Edge Functions/invitaciones/recuperación de contraseña/`CoordinatorLayout.tsx`/`ResponsesPanel`/publicación de trabajos/instaladores/RLS/migraciones/RPC/funciones SQL) permaneció completamente congelado -- verificado por `git status`, cero archivos de esas áreas tocados. Objetivo exclusivo: refactor arquitectónico del módulo de Cuenta de Usuario (Sprint 7.3) -- sin ningún cambio de look & feel.
