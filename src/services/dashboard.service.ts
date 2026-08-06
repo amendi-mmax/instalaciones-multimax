@@ -54,7 +54,14 @@ export interface CoordinatorKpis {
  * 0 en vez de un valor incorrecto (degradación segura, no un dato
  * fabricado).
  */
-function hoyComoTexto(): string {
+/**
+ * Exportada desde el Sprint 8.2 ("Master Calendar (Fase 1)") -- reutilizada
+ * tal cual por `calendar.service.ts` para derivar `vencido` (mismo formato
+ * `'YYYY-MM-DD'`, misma función, evita duplicar esta lógica en 2
+ * archivos). Sin cambios de comportamiento para los consumidores ya
+ * existentes de este archivo (`getCoordinatorKpis`, abajo).
+ */
+export function hoyComoTexto(): string {
   const hoy = new Date();
   const yyyy = hoy.getFullYear();
   const mm = String(hoy.getMonth() + 1).padStart(2, '0');

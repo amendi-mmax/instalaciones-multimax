@@ -2,6 +2,36 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 8 — Sprint 8.2 — Master Calendar (Fase 1)] — 2026-08-06 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
+
+Segundo sub-sprint de la Fase 8, exclusivamente sobre `MasterCalendar`. Ningún archivo restringido tocado (Auth/`RootLayout.tsx`/`CoordinatorLayout.tsx`/Dashboard Ejecutivo Sprint 8.1/Cuenta de Usuario/publicación de trabajos/flujo de instaladores/Edge Functions/RLS/migraciones/RPC existentes/`ResponsesPanel`) -- verificado con `git status`: 5 archivos modificados (`master-calendar.tsx`/`ui/drawer.tsx`/`trabajos.repository.ts`/`dashboard.service.ts`/`globals.css`) + 8 archivos nuevos + documentación.
+
+**Arquitectura en capas**: `types/calendar.ts` (NUEVO) + `services/calendar.service.ts` (NUEVO, obtención → transformación, mismo criterio de 3 capas del Sprint 8.1.1) + `hooks/useCalendarData.ts` (NUEVO, única fuente de estado del módulo) + 5 componentes puramente presentacionales (NUEVOS: `CalendarFilterBar`/`CalendarDayIndicators`/`CalendarJobCard`/`CalendarDayDrawer`/`CalendarLegend`) + `MasterCalendar` reescrito como orquestador delgado.
+
+**Rendimiento (8.2.6)**: `trabajosRepository.getByMonthAndFilters()` (NUEVO método, aditivo) reemplaza el `getAll()` + filtrado 100% en cliente que el `MasterCalendar` anterior usaba desde el Sprint 7.1 -- ahora una sola consulta server-side por combinación mes+filtros (`fecha LIKE 'YYYY-MM%'` + cada filtro activo). Abrir el Drawer de un día NO dispara ningún request adicional (`getDayJobs()`, función pura sobre el mes ya en memoria).
+
+**Filtros persistentes (8.2.1)**: `filters` es un `useState` independiente de `viewYear`/`viewMonth` en `useCalendarData` -- navegar de mes nunca resetea los filtros activos.
+
+**Drawer lateral (8.2.3)**: el único `Drawer` existente (`ui/drawer.tsx`, Fase 3) era en realidad un bottom-sheet -- se agregó `variant?: 'sheet' | 'lateral'` (default `'sheet'`, cero cambio para `PublishModal`, único consumidor previo) en vez de crear un componente paralelo. CSS nuevo mínimo y aditivo (`.mx-drawer-lateral-bg`/`.mx-drawer-lateral-panel`/`@keyframes mxdrawerin`).
+
+**Acciones rápidas (8.2.4)**: 5 botones `disabled` por trabajo (Ver detalle/Editar/Reasignar/Cambiar prioridad/Cambiar estado) con `Tooltip` explicando que están reservados para un Sprint futuro -- primer consumidor real de `ui/tooltip.tsx` (Fase 3, sin uso hasta ahora).
+
+**Interpretaciones de datos honestas (ninguna inventada)**: Prioridad = 2 niveles reales (`urgente boolean`, no 3 inventados); "vencido"/"crítico" derivados de `estado`+`fecha`/`urgente` (no existen esas columnas); "Empresa instaladora" = `empresas` hoy (no existe todavía la entidad distinta que introducirá el Sprint 8.3); "Tiempo estimado"/"Tiempo real" siempre "No disponible" (no existen esas columnas en `trabajos`, mismo hallazgo ya documentado en el Sprint 8.1 para el KPI equivalente).
+
+**Estados uniformes (8.2.8)**: `CalendarLoadStatus = 'loading' | 'ready' | 'error'` a nivel de módulo -- error siempre muestra únicamente "No fue posible cargar la información.", nunca el mensaje real de Supabase.
+
+**Regresión prevenida**: se preservó el trigger `activeJob?.id` (`useOperationalContext()`) dentro de `useCalendarData`, que el `MasterCalendar` anterior ya usaba desde el Sprint 7.1 para refrescarse inmediatamente tras publicar un trabajo, sin recargar la página.
+
+**Auditoría de duplicación (pedida por el brief)**: `CalendarFilterBar` reutiliza `Select` en vez del `<select>` con estilos en línea que el filtro de sucursal anterior usaba (corrige una inconsistencia preexistente, no una duplicación nueva); `hoyComoTexto()` (`dashboard.service.ts`, antes privada) se exportó y se reutiliza tal cual desde `calendar.service.ts` en vez de reimplementarse. Sin componentes/CSS/helpers/hooks/tipos duplicados detectados.
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio.
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes, sin advertencias nuevas (se detectó y corrigió un `eslint-disable` sobrante en `useCalendarData.ts` durante el desarrollo).
+
+Sin `git commit`/`push`. **Sprint 8.2 detenido para revisión del usuario antes de continuar con el Sprint 8.3**, por instrucción explícita del brief.
+
 ## [Fase 8 — Sprint 8.1.1 — Refinamiento del Dashboard Ejecutivo (KPIs)] — 2026-08-06 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
 
 Continuación exclusiva del Sprint 8.1, únicamente sobre el módulo de Dashboard Administrativo. Ningún archivo restringido tocado (`CoordinatorLayout.tsx`/`RootLayout.tsx`/Auth/Login/Invitaciones/instaladores/publicación de trabajos/`ResponsesPanel`/Edge Functions/RPC/migraciones existentes/lógica del Sprint 7.x) -- verificado con `git status`: solo `admin-panel.tsx` (sin cambios en esta ronda, ya correcto desde 8.1), `admin-kpi-dashboard.tsx`, 2 archivos nuevos y `ARCHITECTURE.md`/`PROJECT_STATUS.md`/`CLAUDE.md`/`docs/SPRINTS_INDEX.md`.

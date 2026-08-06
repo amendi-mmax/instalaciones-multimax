@@ -184,6 +184,22 @@ Ver `ARCHITECTURE.md` §14.13 (Sprint 8.1) y §14.14 (Sprint 8.1.1) para el deta
 
 ---
 
+# Calendario Maestro (Master Calendar)
+
+Toda consulta del Calendario Maestro debe ir scoped server-side por mes visible + filtros activos (`trabajosRepository.getByMonthAndFilters`, columna `fecha` es `text` formato `'YYYY-MM-DD'`) — nunca traer todos los trabajos y filtrar en cliente.
+
+Los filtros (`CalendarFilterValues`) deben persistir mientras el usuario navega entre meses — ningún efecto debe resetearlos al cambiar de mes.
+
+Abrir el detalle de un día (Drawer) nunca debe disparar una consulta nueva a Supabase — `getDayJobs()` (`src/services/calendar.service.ts`) es una función pura sobre los trabajos del mes ya cargado.
+
+Toda la lógica de negocio del módulo vive en `useCalendarData` (`src/hooks/useCalendarData.ts`); los componentes de presentación (`CalendarFilterBar`/`CalendarDayIndicators`/`CalendarJobCard`/`CalendarDayDrawer`/`CalendarLegend`) reciben todo por props, sin acceder a Supabase/servicios directamente.
+
+El panel lateral del día usa `Drawer` con `variant="lateral"` (`src/components/ui/drawer.tsx`) — la variante por defecto (`'sheet'`, bottom-sheet) sigue siendo la de `PublishModal`, sin cambios. Cualquier Sprint futuro que necesite un panel lateral debe reutilizar esta variante, no crear un componente `Drawer` nuevo.
+
+Ver `ARCHITECTURE.md` §14.15 (Sprint 8.2) para el detalle técnico completo, incluidas las interpretaciones de datos documentadas (Prioridad de 2 niveles, "vencido"/"crítico" derivados, "Empresa instaladora" = `empresas` hasta el Sprint 8.3, tiempos estimado/real siempre "No disponible").
+
+---
+
 # Base de datos
 
 Nunca modificar directamente la estructura.
