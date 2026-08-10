@@ -17,18 +17,23 @@ import { Navigation, ShieldCheck, Star, TrendingUp } from 'lucide-react';
  * colisión conceptual con un componente que este proyecto todavía no
  * tiene. Ver "Dependencias/riesgos" en `docs/sprints/sprint-3.2.md`.
  *
- * `km` (distancia al trabajo activo) no es un campo del modelo de
- * dominio `Usuario` (`types/domain.ts`): en el prototipo vive
- * únicamente en el mock `INSTALLERS`, no en `handymax_supabase_schema_v3.sql`.
- * Se deja como prop obligatoria de este componente; de dónde saldrá ese
- * dato en producción queda pendiente para cuando se conecte el módulo
- * Installer a Supabase — reportado, no resuelto aquí.
+ * **Estabilización del módulo Instalador (post Sprint 8.2)**: `rating`/
+ * `km`/`cumplimiento`/`aceptacion` dejaron de alimentarse del mock
+ * `INSTALLERS` — son columnas reales de `instaladores` (confirmadas vía
+ * `database.generated.ts`/MCP: `rating` siempre tiene un valor real para un
+ * instalador real; `km`/`cumplimiento`/`aceptacion` son nullable — `null`
+ * hasta que el instalador acumule historial suficiente, no un dato faltante
+ * del schema). Las 4 props pasan a ser `number | null`; `null` se muestra
+ * como `—` en vez de fabricar un cero o un porcentaje inventado — `rating`
+ * también puede llegar `null` cuando quien ve esta pantalla es un `admin`
+ * en "Modo Instalador" (sin fila propia en `instaladores`, ver
+ * `installer-dashboard.tsx`).
  */
 export interface InstallerProfileSummaryProps {
-  rating: number;
-  km: number;
-  cumplimiento: number;
-  aceptacion: number;
+  rating: number | null;
+  km: number | null;
+  cumplimiento: number | null;
+  aceptacion: number | null;
 }
 
 export function InstallerProfileSummary({
@@ -41,19 +46,19 @@ export function InstallerProfileSummary({
     <div className="mx-profile">
       <div>
         <Star size={13} className="mx-starc" />
-        <b>{rating}</b> calificación
+        <b>{rating ?? '—'}</b> calificación
       </div>
       <div>
         <Navigation size={13} />
-        <b>{km} km</b> al trabajo
+        <b>{km != null ? `${km} km` : '—'}</b> al trabajo
       </div>
       <div>
         <ShieldCheck size={13} />
-        <b>{cumplimiento}%</b> cumplimiento
+        <b>{cumplimiento != null ? `${cumplimiento}%` : '—'}</b> cumplimiento
       </div>
       <div>
         <TrendingUp size={13} />
-        <b>{aceptacion}%</b> aceptación
+        <b>{aceptacion != null ? `${aceptacion}%` : '—'}</b> aceptación
       </div>
     </div>
   );

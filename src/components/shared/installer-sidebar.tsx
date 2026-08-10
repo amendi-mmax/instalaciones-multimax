@@ -30,10 +30,10 @@ import { InstallerSidebarCard } from '@/components/shared/installer-sidebar-card
  * `docs/sprints/sprint-3.2.md`.
  */
 export interface InstallerSidebarProps {
-  rating: number;
-  km: number;
-  cumplimiento: number;
-  aceptacion: number;
+  rating: number | null;
+  km: number | null;
+  cumplimiento: number | null;
+  aceptacion: number | null;
 }
 
 export function InstallerSidebar({ rating, km, cumplimiento, aceptacion }: InstallerSidebarProps) {

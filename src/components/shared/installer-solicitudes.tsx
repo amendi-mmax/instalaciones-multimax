@@ -34,9 +34,11 @@ import {
  * `InstallerDashboard` ya ocurre así (`instTab`).
  *
  * **Fuente de datos**: `trabajosParaInstaladorRepository` (vista real
- * `trabajos_para_instalador`, ya filtrada por RLS a `auth.uid()` -- no
- * depende de `meId`/`INSTALLERS` mock, que sigue siendo exclusivamente el
- * selector "quién soy" de demostración, sin relación con la sesión real).
+ * `trabajos_para_instalador`, ya filtrada por RLS a `auth.uid()`). Nunca
+ * dependió del selector mock `meId`/`INSTALLERS` -- ese mecanismo se
+ * eliminó por completo en la Estabilización del módulo Instalador (post
+ * Sprint 8.2, ver `installer-dashboard.tsx`), sin ningún cambio necesario
+ * en este archivo.
  *
  * **Oferta única**: `submit_bid` ya garantiza una sola oferta por
  * instalador por trabajo (`ON CONFLICT ... DO NOTHING`, ver migración
