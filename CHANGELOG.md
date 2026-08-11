@@ -2,6 +2,35 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 8 — Sprint 8.3 — Administración de Empresas Instaladoras] — 2026-08-11 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
+
+CRUD completo de "Empresas Instaladoras" sobre Supabase -- catálogo oficial que usará el Sprint 8.4 (registro de instaladores + relación real). Este Sprint NO implementa ese registro ni toca la tabla `instaladores`. Ningún archivo restringido tocado (Dashboard Ejecutivo/Master Calendar/Publicación de Trabajos/Solicitudes/Mis Trabajos/`ResponsesPanel`/Sidebar/`Radar`/Auth/Roles/Permisos) -- verificado con `git status`. `Perfil` (`installer-profile.tsx`) recibió únicamente la preparación mínima autorizada explícitamente por el brief (sección 7).
+
+**Gate de migración**: antes de aplicar `0009_empresas_instaladoras.sql`, se auditó explícitamente (a pedido del usuario) contra el schema real completo (`list_tables verbose` + `referential_constraints`, no contra `0001_initial_schema.sql`/`0002_auth_roles_rls.sql`, que documentan un modelo anterior ya superado -- ver `supabase/migrations/legacy/`). Se detectó y corrigió una inconsistencia real antes de aplicar: el borrador inicial usaba `empresa_id ... ON DELETE CASCADE`, pero los 5 FKs `empresa_id` reales (`admins`/`coordinadores`/`instaladores`/`tiendas`/`trabajos`) usan todos `NO ACTION` -- corregido para seguir exactamente esa convención. Detalle completo de la auditoría, incluidas las decisiones sobre `updated_at`/GRANTs/RLS, en el propio archivo de migración y en `ARCHITECTURE.md` §14.16.
+
+**Migración** (`supabase/migrations/0009_empresas_instaladoras.sql`, aplicada vía MCP): tabla `empresas_instaladoras` (`id`/`empresa_id`/`nombre`/`razon_social`/`contacto`/`email`/`telefono`/`direccion`/`ciudad`/`provincia`/`pais`/`logo_url`/`activa`/`created_at`/`updated_at`), `UNIQUE(empresa_id, nombre)`, índices (`empresa_id`/`activa`/`nombre`), trigger `updated_at` (función `set_updated_at()`, nueva, reutilizable), RLS admin-only (SELECT/INSERT/UPDATE, sin policy de DELETE -- borrado lógico reforzado en la base de datos, no solo en la UI) con el mismo patrón `EXISTS (SELECT 1 FROM admins ...)` ya validado en Producción (migraciones 0004/0005), GRANT `authenticated` (SELECT/INSERT/UPDATE). Tipos TypeScript regenerados (`database.generated.ts`) y `TABLES.empresasInstaladoras` agregado a `lib/supabase/config.ts`.
+
+**Repository** (`empresas-instaladoras.repository.ts`, NUEVO): `listar`/`obtenerPorId`/`crear`/`actualizar`/`activar`/`desactivar` -- nombres exactos pedidos por el brief, deliberadamente sin implementar `Repository<T>` (mismo criterio ya usado por `trabajosParaInstaladorRepository`). Sin `DELETE` -- `activar`/`desactivar` son azúcar sobre `actualizar(id, {activa})`.
+
+**Tipos** (`types/empresa-instaladora.ts`, NUEVO): `EmpresaInstaladoraRow`/`CrearEmpresaInstaladoraInput`/`ActualizarEmpresaInstaladoraInput` (alias con nombre de dominio sobre `TableRow`/`TableInsert`/`TableUpdate`, sin duplicar la forma a mano), `EmpresaInstaladoraFormValues` (campos de formulario, todos `string`), `EmpresaInstaladoraSort`. Sin `any` en ningún archivo del Sprint.
+
+**Hook** (`useEmpresasInstaladoras.ts`, NUEVO): única fuente de estado de la pantalla (mismo criterio que `useCalendarData`, Sprint 8.2) -- carga el catálogo completo del tenant activo en una sola consulta y resuelve búsqueda/orden/paginación 100% en cliente vía `useMemo` (catálogo administrativo pequeño, mismo criterio que `AdminInstaladores`). Wrappers `crear`/`actualizar`/`activar`/`desactivar` recargan el listado tras cada escritura exitosa.
+
+**UI** (`admin-empresas-instaladoras.tsx` + `empresa-instaladora-form-dialog.tsx`, NUEVOS): pantalla "Empresas instaladoras", cuarta pestaña de `AdminPanel` (`admin-panel.tsx`, MODIFICADO, mismo patrón `MxSubtabs`/`MxSubtabButton`). Listado reutiliza `.mx-admintable`/`.mx-adminrow*`/`.mx-admin-act` (Sprint 3.13/6.2); búsqueda vía `SearchBox` (Fase 3, primer consumidor real); orden vía `Select` nativo; paginación vía `Button variant="ghost"` (sin componente nuevo). Crear/Editar comparten un único diálogo sobre `Modal` (`ui/modal.tsx`, Fase 3, primer consumidor real) con campos `.mx-fields`/`Input` (mismo patrón que `PublishModal`). Activar/Desactivar piden confirmación vía `ConfirmDialog` (ya existente). Toast local (`useState`+`pushToast`/`dismissToast`, mismo patrón que `CoordinatorLayout.tsx`). Sin componente/CSS nuevo salvo lo estrictamente necesario.
+
+**Datos mock**: ninguno existía para "Empresas Instaladoras" (módulo nuevo) -- nada que eliminar en ese frente.
+
+**Preparación mínima Sprint 8.4** (`installer-profile.tsx`, único cambio en el Perfil, autorizado explícitamente por el brief sección 7): `resolveEmpresaInstaladoraLabel()` centraliza la decisión de qué mostrar en "Empresa instaladora" -- hoy siempre `null` (la relación no existe todavía en `Perfil`) → "Pendiente de asignación"; el Sprint 8.4 solo necesita pasar el valor real una vez `Perfil` lo exponga.
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio (1865 módulos).
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes, sin advertencias nuevas.
+- `git status` -- limpio tras los cambios (ningún archivo fuera del alcance declarado).
+
+Sin CRUD de registro de instaladores, sin cambios a `instaladores`/Auth/Roles/Permisos. **Detenido para revisión del usuario antes de continuar con el Sprint 8.4.**
+
 ## [Estabilización del módulo Instalador (post Sprint 8.2)] — 2026-08-07 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
 
 Ronda de estabilización (no un Sprint funcional nuevo), previa al Sprint 8.3: elimina el comportamiento mock del módulo del Instalador y lo conecta con datos reales de Supabase. Ningún archivo restringido tocado (Dashboard Ejecutivo/Calendario Maestro/Administración/`PublishModal`/Coordinador/`ResponsesPanel`/Auth/Edge Functions/RLS/migraciones/RPC) -- verificado con `git status`: 9 archivos del módulo Instalador (+ `RootLayout.tsx`/`constants/index.ts`, ambos con un recorte mínimo y acotado) y 1 archivo eliminado.

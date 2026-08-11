@@ -13,6 +13,7 @@ export { type Repository } from '@/repositories/base.repository';
 export { adminsRepository } from '@/repositories/admins.repository';
 export { coordinadoresRepository } from '@/repositories/coordinadores.repository';
 export { empresasRepository } from '@/repositories/empresas.repository';
+export { empresasInstaladorasRepository } from '@/repositories/empresas-instaladoras.repository';
 export { instaladoresRepository } from '@/repositories/instaladores.repository';
 export { tiendasRepository } from '@/repositories/tiendas.repository';
 export { trabajosRepository } from '@/repositories/trabajos.repository';

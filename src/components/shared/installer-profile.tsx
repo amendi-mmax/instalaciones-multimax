@@ -27,16 +27,23 @@ import type { Perfil } from '@/types/perfil';
  *   — un instalador no está ligado a una tienda específica. Se muestra "No
  *   disponible" (mismo texto que `ProfilePage.tsx` usa para el mismo caso).
  * - **Empresa instaladora** (corrección posterior a la primera entrega de
- *   esta ronda, pedida explícitamente por el usuario): `profile.empresaNombre`
- *   resuelve al *tenant* real (`empresas`, p. ej. "Multimax") vía
- *   `empresa_id` — NO es la empresa instaladora (subcontratista) que el
- *   negocio necesita, esa relación (`empresa_instaladora_id` o equivalente)
- *   todavía no existe en el schema; es precisamente lo que introducirá el
- *   Sprint 8.3. Mostrar el nombre del tenant ahí habría sido engañoso (un
- *   valor real pero de la pregunta equivocada, no un placeholder honesto).
- *   Se muestra siempre "Pendiente de asignación", sin importar
- *   `profile.empresaNombre` — cuando el Sprint 8.3 implemente la relación
- *   real, este campo deberá leerla desde ahí, no desde `empresaNombre`.
+ *   la estabilización, pedida explícitamente por el usuario): `profile.
+ *   empresaNombre` resuelve al *tenant* real (`empresas`, p. ej.
+ *   "Multimax") vía `empresa_id` — NO es la empresa instaladora
+ *   (subcontratista) que el negocio necesita. El Sprint 8.3 creó el
+ *   catálogo (`empresas_instaladoras`, `AdminEmpresasInstaladoras`) pero
+ *   TODAVÍA no existe la relación `instaladores -> empresas_instaladoras`
+ *   (`empresa_id`/`empresa_instaladora_id`, tabla `instaladores` sin
+ *   cambios en este Sprint) ni el registro de instaladores que la
+ *   completaría -- eso es explícitamente el Sprint 8.4, fuera de alcance.
+ *   Preparación mínima (Sprint 8.3, sección 7 del brief, "que
+ *   automáticamente muestre el nombre de la empresa" una vez exista la
+ *   relación): `empresaInstaladoraNombre` de abajo es el ÚNICO lugar que
+ *   decide qué mostrar en esa fila -- hoy siempre `null` (la relación no
+ *   existe todavía en `Perfil`), así que cae en el fallback "Pendiente de
+ *   asignación"; el Sprint 8.4 solo necesita reemplazar ese `null` por el
+ *   campo real una vez lo agregue a `Perfil`/`profile.service.ts`, sin
+ *   tocar el JSX de abajo.
  * - **Avatar**: ninguna de las 3 tablas de perfil tiene columna
  *   `avatar`/`avatar_url` (confirmado desde Sprint 4.2.1) — se conserva el
  *   avatar de iniciales ya existente (`mx-profava`), que no es un dato mock,
@@ -71,12 +78,26 @@ function iniciales(nombre: string): string {
   return nombre ? nombre[0] : 'M';
 }
 
+/**
+ * Punto único de preparación para el Sprint 8.4 (ver JSDoc de cabecera).
+ * `empresaInstaladoraNombre` es `string | null` -- hoy siempre `null`
+ * porque `Perfil` todavía no expone esa relación; cuando el Sprint 8.4 la
+ * agregue, basta con pasar el valor real como argumento acá, sin tocar el
+ * resto de este archivo.
+ */
+function resolveEmpresaInstaladoraLabel(empresaInstaladoraNombre: string | null): string {
+  return empresaInstaladoraNombre ?? 'Pendiente de asignación';
+}
+
 export function InstallerProfile({ profile }: InstallerProfileProps) {
   const info = profile.instaladorInfo;
   const rating = info?.rating ?? null;
   const cumplimiento = info?.cumplimiento ?? null;
   const aceptacion = info?.aceptacion ?? null;
   const km = info?.km ?? null;
+  // Sprint 8.4: sustituir `null` por el campo real una vez `Perfil` lo exponga.
+  const empresaInstaladoraNombre: string | null = null;
+  const empresaInstaladoraLabel = resolveEmpresaInstaladoraLabel(empresaInstaladoraNombre);
 
   return (
     <div className="mx-profscreen">
@@ -128,7 +149,7 @@ export function InstallerProfile({ profile }: InstallerProfileProps) {
             <Building2 size={14} />
             <div>
               <b>EMPRESA INSTALADORA</b>
-              Pendiente de asignación
+              {empresaInstaladoraLabel}
             </div>
           </div>
           <div className="mx-kv-row">

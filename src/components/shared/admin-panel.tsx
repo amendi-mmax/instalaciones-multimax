@@ -1,6 +1,7 @@
-import { Calendar, LayoutDashboard, Users } from 'lucide-react';
+import { Building2, Calendar, LayoutDashboard, Users } from 'lucide-react';
 import { useState } from 'react';
 
+import { AdminEmpresasInstaladoras } from '@/components/shared/admin-empresas-instaladoras';
 import { AdminInstaladores } from '@/components/shared/admin-instaladores';
 import { AdminKpiDashboard } from '@/components/shared/admin-kpi-dashboard';
 import { MasterCalendar } from '@/components/shared/master-calendar';
@@ -60,12 +61,20 @@ import { MxSubtabs } from '@/components/shared/mx-subtabs';
  * ningún cambio, ahora accesibles como segunda/tercera pestaña en vez de
  * primera/segunda.
  *
+ * **AJUSTE DE INTEGRACIÓN (Sprint 8.3, "Administración de Empresas
+ * Instaladoras")**: se agrega una cuarta pestaña, "Empresas" (ícono
+ * `Building2`), al final -- renderiza `AdminEmpresasInstaladoras` (NUEVO).
+ * Mismo patrón `MxSubtabs`/`MxSubtabButton`, sin CSS/markup de navegación
+ * nuevo. `AdminKpiDashboard`/`MasterCalendar`/`AdminInstaladores`
+ * permanecen sin ningún cambio.
+ *
  * Sin props, sin CSS propio (compone únicamente clases ya portadas:
  * `.mx-subtabs-wrap`/`.mx-subtabs` desde el Sprint 3.3, y las de
- * `AdminKpiDashboard`/`MasterCalendar`/`AdminInstaladores`).
+ * `AdminKpiDashboard`/`MasterCalendar`/`AdminInstaladores`/
+ * `AdminEmpresasInstaladoras`).
  */
 export function AdminPanel() {
-  const [tab, setTab] = useState<'dashboard' | 'calendario' | 'instaladores'>('dashboard');
+  const [tab, setTab] = useState<'dashboard' | 'calendario' | 'instaladores' | 'empresas'>('dashboard');
 
   return (
     <div>
@@ -91,8 +100,18 @@ export function AdminPanel() {
         >
           Instaladores
         </MxSubtabButton>
+        <MxSubtabButton
+          active={tab === 'empresas'}
+          icon={<Building2 size={14} />}
+          onClick={() => setTab('empresas')}
+        >
+          Empresas
+        </MxSubtabButton>
       </MxSubtabs>
-      {tab === 'dashboard' ? <AdminKpiDashboard /> : tab === 'calendario' ? <MasterCalendar /> : <AdminInstaladores />}
+      {tab === 'dashboard' ? <AdminKpiDashboard /> : null}
+      {tab === 'calendario' ? <MasterCalendar /> : null}
+      {tab === 'instaladores' ? <AdminInstaladores /> : null}
+      {tab === 'empresas' ? <AdminEmpresasInstaladoras /> : null}
     </div>
   );
 }
