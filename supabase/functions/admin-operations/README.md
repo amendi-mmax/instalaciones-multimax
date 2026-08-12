@@ -26,6 +26,18 @@ Esto es distinto del resto de este proyecto (`.env`/`.env.example`, leídos por 
 supabase secrets set NOMBRE_VARIABLE=valor --project-ref bdevkryrgmttxnlxaisd
 ```
 
+**`APP_URL` (Sprint 7.2, ronda de corrección de `redirectTo`)** — sí hay que configurarla a mano, con este mismo mecanismo. `invite_instalador` la usa para armar el `redirectTo` del correo de invitación (`${APP_URL}/nueva-contrasena`), regla arquitectónica permanente descrita en `ARCHITECTURE.md` §14.10/`CLAUDE.md` ("ningún flujo de Auth depende exclusivamente del Site URL del Dashboard"). Sin esta variable configurada, la función sigue funcionando exactamente igual que antes (sin `redirectTo`, dependiente del Site URL) -- no es obligatoria para que `invite_instalador` funcione, pero sí para que el enlace de invitación abra el host correcto:
+
+```bash
+# Desarrollo (probar el enlace de invitación contra un Vite local):
+supabase secrets set APP_URL=http://localhost:5173 --project-ref bdevkryrgmttxnlxaisd
+
+# Producción (una vez desplegado el frontend):
+supabase secrets set APP_URL=https://<dominio-real-de-produccion> --project-ref bdevkryrgmttxnlxaisd
+```
+
+Al ser un único valor por proyecto (no por invocación), cambiar de "estoy probando en local" a "esto es Producción" implica volver a correr `secrets set` con el valor correspondiente -- no hay una forma de que la Edge Function reciba el origen del navegador que la invocó (a diferencia de `resetPasswordForEmail()`, que sí corre en el navegador y puede leer `window.location.origin` directamente, ver `auth.service.ts`).
+
 ## 3. Desplegar
 
 ```bash

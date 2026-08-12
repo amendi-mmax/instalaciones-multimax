@@ -1,7 +1,9 @@
-import { Calendar, Users } from 'lucide-react';
+import { Building2, Calendar, LayoutDashboard, Users } from 'lucide-react';
 import { useState } from 'react';
 
+import { AdminEmpresasInstaladoras } from '@/components/shared/admin-empresas-instaladoras';
 import { AdminInstaladores } from '@/components/shared/admin-instaladores';
+import { AdminKpiDashboard } from '@/components/shared/admin-kpi-dashboard';
 import { MasterCalendar } from '@/components/shared/master-calendar';
 import { MxSubtabButton } from '@/components/shared/mx-subtab-button';
 import { MxSubtabs } from '@/components/shared/mx-subtabs';
@@ -45,16 +47,45 @@ import { MxSubtabs } from '@/components/shared/mx-subtabs';
  * null` (Sprint 3.13) por el ternario verbatim del HTML fuente (arriba),
  * ahora que ambas ramas tienen componente real.
  *
+ * **AJUSTE DE INTEGRACIÓN (Sprint 8.1, "Evolución del BackOffice de
+ * Administración")**: se agrega una tercera pestaña, "Dashboard" (ícono
+ * `LayoutDashboard`), AHORA ACTIVA POR DEFECTO -- "Convertir la pantalla
+ * principal del Administrador en un Dashboard Ejecutivo" (brief textual).
+ * Renderiza `AdminKpiDashboard` (nuevo, ver su propio JSDoc para el detalle
+ * completo de los 8 indicadores). Sin equivalente en
+ * `Multimax_Despacho_v1.3.html` (este Sprint ya no migra HTML del
+ * prototipo -- es evolución del BackOffice, fase posterior a la
+ * reconstrucción 1:1) -- se integra con el mismo patrón de pestañas
+ * `MxSubtabs`/`MxSubtabButton` ya usado por las otras 2, sin CSS/markup de
+ * navegación nuevo. `MasterCalendar`/`AdminInstaladores` permanecen sin
+ * ningún cambio, ahora accesibles como segunda/tercera pestaña en vez de
+ * primera/segunda.
+ *
+ * **AJUSTE DE INTEGRACIÓN (Sprint 8.3, "Administración de Empresas
+ * Instaladoras")**: se agrega una cuarta pestaña, "Empresas" (ícono
+ * `Building2`), al final -- renderiza `AdminEmpresasInstaladoras` (NUEVO).
+ * Mismo patrón `MxSubtabs`/`MxSubtabButton`, sin CSS/markup de navegación
+ * nuevo. `AdminKpiDashboard`/`MasterCalendar`/`AdminInstaladores`
+ * permanecen sin ningún cambio.
+ *
  * Sin props, sin CSS propio (compone únicamente clases ya portadas:
  * `.mx-subtabs-wrap`/`.mx-subtabs` desde el Sprint 3.3, y las de
- * `MasterCalendar`/`AdminInstaladores`).
+ * `AdminKpiDashboard`/`MasterCalendar`/`AdminInstaladores`/
+ * `AdminEmpresasInstaladoras`).
  */
 export function AdminPanel() {
-  const [tab, setTab] = useState<'calendario' | 'instaladores'>('calendario');
+  const [tab, setTab] = useState<'dashboard' | 'calendario' | 'instaladores' | 'empresas'>('dashboard');
 
   return (
     <div>
       <MxSubtabs>
+        <MxSubtabButton
+          active={tab === 'dashboard'}
+          icon={<LayoutDashboard size={14} />}
+          onClick={() => setTab('dashboard')}
+        >
+          Dashboard
+        </MxSubtabButton>
         <MxSubtabButton
           active={tab === 'calendario'}
           icon={<Calendar size={14} />}
@@ -69,8 +100,18 @@ export function AdminPanel() {
         >
           Instaladores
         </MxSubtabButton>
+        <MxSubtabButton
+          active={tab === 'empresas'}
+          icon={<Building2 size={14} />}
+          onClick={() => setTab('empresas')}
+        >
+          Empresas
+        </MxSubtabButton>
       </MxSubtabs>
-      {tab === 'calendario' ? <MasterCalendar /> : <AdminInstaladores />}
+      {tab === 'dashboard' ? <AdminKpiDashboard /> : null}
+      {tab === 'calendario' ? <MasterCalendar /> : null}
+      {tab === 'instaladores' ? <AdminInstaladores /> : null}
+      {tab === 'empresas' ? <AdminEmpresasInstaladoras /> : null}
     </div>
   );
 }

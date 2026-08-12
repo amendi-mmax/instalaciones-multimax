@@ -10,6 +10,7 @@ import { PublishModal, type PublishForm } from '@/components/shared/publish-moda
 import { SucursalSelect } from '@/components/shared/sucursal-select';
 import { Toast, ToastViewport, type ToastTone } from '@/components/ui/toast';
 import { trabajosRepository } from '@/repositories';
+import { callNotificarInstaladoresElegibles } from '@/services/database.service';
 import type { TableInsert } from '@/services/database.service';
 import { useAuth } from '@/hooks/useAuth';
 import { useOperationalContext } from '@/hooks/useOperationalContext';
@@ -576,9 +577,89 @@ export function CoordinatorLayout({
               sucursal: form.sucursal,
               bidMins: row.bid_minutos,
               urgente: row.urgente,
+              trabajoId: row.id,
             };
             setActiveJob(newJob);
             setShowPublishModal(false);
+
+            // Sprint 7.2 ("Publicación de trabajos", continuación) --
+            // notifica a los instaladores elegibles (activo/no suspendido/
+            // misma empresa/provincia/zona) vía el RPC `notificar_instaladores_
+            // elegibles`, en una única transacción del lado del servidor (ver
+            // `supabase/migrations/0006_notificar_instaladores_elegibles.sql`
+            // para la regla de elegibilidad completa y la justificación de
+            // por qué es un RPC y no un loop de `INSERT`s desde el cliente).
+            //
+            // Paso SEPARADO del `INSERT` de `trabajos` de arriba (el RPC
+            // necesita `row.id`, que solo existe después de que el `INSERT`
+            // ya se confirmó) -- por diseño, el trabajo YA quedó publicado en
+            // este punto sin importar el resultado de este paso. Regla de
+            // negocio aprobada explícitamente: `0` instaladores notificados
+            // es un resultado VÁLIDO del proceso (trabajo publicado, pero sin
+            // cobertura de instaladores para esa empresa/provincia/zona en
+            // este momento) -- nunca se revierte ni se elimina el trabajo, y
+            // nunca se trata como error técnico. Un fallo real del RPC (red/
+            // permisos) sí se distingue con su propio mensaje, para no
+            // confundir "no había a quién notificar" con "no se pudo
+            // notificar".
+            const notificacionResult = await callNotificarInstaladoresElegibles({
+              p_trabajo_id: row.id,
+            });
+
+            if (!notificacionResult.ok) {
+              pushToast(
+                'error',
+                'Trabajo publicado, pero no se pudo notificar a los instaladores',
+                notificacionResult.error.message,
+              );
+            } else if (notificacionResult.data === 0) {
+              // Tono `info` (no `error`): esta situación es un resultado
+              // VÁLIDO del proceso, no un error técnico -- Decisión aprobada
+              // explícitamente, ver JSDoc de arriba.
+              pushToast(
+                'info',
+                'Trabajo publicado',
+                'No existen instaladores elegibles para la empresa, provincia y zona seleccionadas, por lo que no se notificó a ningún instalador.',
+              );
+            } else {
+              // Mejora de UX (Sprint 7.2, ronda posterior al cierre técnico)
+              // -- `notificacionResult.data` (`> 0`) ya es el conteo real
+              // devuelto por el RPC en esta misma invocación; el mensaje se
+              // arma con ese valor directamente, sin ninguna consulta
+              // adicional a Supabase. Singular/plural ("instalador"/
+              // "instaladores elegible"/"elegibles") calculado en el propio
+              // mensaje, sin nuevo estado ni componente.
+              const cantidad = notificacionResult.data;
+              pushToast(
+                'info',
+                'Trabajo publicado correctamente.',
+                `Se notificó a ${cantidad} instalador${cantidad === 1 ? '' : 'es'} elegible${cantidad === 1 ? '' : 's'}.`,
+              );
+            }
+
+            // Sprint 7.1, Objetivo 6 ("Tiempo real") -- punto de integración
+            // documentado, NO conectado en este Sprint. `setActiveJob`
+            // (arriba) ya propaga el nuevo trabajo a "Despacho en vivo"/
+            // "Mis trabajos"/Calendario Maestro para ESTA sesión (Objetivo
+            // 5, ver `TrabajosPage.tsx`/`master-calendar.tsx`), pero no a
+            // otras sesiones (otro Coordinador de la misma tienda, un
+            // Instalador elegible) -- eso requiere Realtime real. La
+            // infraestructura genérica ya existe (`useRealtime()`,
+            // `src/hooks/useRealtime.ts`, Sprint 4.1.1: crea/suscribe/limpia
+            // un canal, sin ningún listener de `postgres_changes` registrado
+            // -- documentado ahí como deliberado, a la espera de que un
+            // Sprint funcional decida qué eventos importan). Conectar solo
+            // el caso "nuevo trabajo" sin también cubrir los eventos futuros
+            // (asignación, cancelación -- Sprints 7.2+) dejaría una
+            // suscripción a medio terminar; por eso este Sprint documenta el
+            // punto exacto en vez de implementarlo parcialmente (Regla
+            // explícita del brief: "No crear una implementación
+            // incompleta"). Integración futura: `useRealtime('trabajos:' +
+            // tiendaId)` en `TrabajosPage.tsx`/`DespachoPage.tsx`/
+            // `master-calendar.tsx`, registrando `postgres_changes` (INSERT
+            // sobre `trabajos`, filtrado por `tienda_id`) sobre el `channel`
+            // que el hook ya devuelve, invalidando/recargando la lista
+            // correspondiente en el callback.
           } catch (err: unknown) {
             pushToast(
               'error',

@@ -144,6 +144,62 @@ Después de modificar una Edge Function:
 
 ---
 
+# Autenticación — enlaces de Auth
+
+Ningún flujo de autenticación debe depender exclusivamente del Site URL configurado en Supabase.
+
+Todos los enlaces generados desde la aplicación (recuperación de contraseña, invitación, y cualquier flujo de Auth futuro que redirija) deberán enviar explícitamente `redirectTo`.
+
+El Dashboard de Supabase actuará únicamente como allowlist mediante Redirect URLs cuando sea posible.
+
+Ver `ARCHITECTURE.md` §14.10 para el detalle técnico completo (Sprint 7.2).
+
+---
+
+# Módulo de Cuenta de Usuario
+
+Las pantallas de cuenta (`/perfil`, `/configuracion`, `/cambiar-contrasena`) son rutas hermanas de `/` en `AppRouter.tsx`, con su propio layout (`AccountLayout.tsx`) — no dependen de `RootLayout.tsx`/`CoordinatorLayout.tsx` ni de sus ramas por rol.
+
+Cualquier Sprint futuro que agregue una pantalla nueva a este módulo debe seguir el mismo criterio: layout propio, resuelto vía `useAuth()`/`useUserContext()` directamente, sin modificar `RootLayout.tsx`/`CoordinatorLayout.tsx`.
+
+Ninguna preferencia de usuario tiene tabla real en Supabase todavía — se persisten en `localStorage`, exclusivamente vía `account.service.ts` (nunca directamente desde un componente) hasta que exista una migración explícitamente autorizada para eso.
+
+Toda pantalla de este módulo (y `HeaderUserMenu`) debe consumir `useUserContext()` (`src/hooks/useUserContext.ts`) como única fuente del usuario/perfil/preferencias — no llamar a `useAuth()`/`useUserPreferences()` por separado para datos que `UserContext` ya expone. Las acciones de sesión (`login`/`logout`/`updatePassword`) siguen viniendo de `useAuth()` — `UserContext` expone datos derivados, no acciones.
+
+Cualquier ruta "de vuelta al Dashboard" debe usar `getDashboardRoute(rol)` (`src/lib/role-helpers.ts`) — nunca un `Navigate to="/despacho"` hardcodeado nuevo. Excepción documentada: `CoordinatorIndexRedirect` (`AppRouter.tsx`) resuelve una pregunta distinta (ver `ARCHITECTURE.md` §14.12) y no reutiliza este helper a propósito.
+
+Ver `ARCHITECTURE.md` §14.11 (Sprint 7.3) y §14.12 (Sprint 7.3.1) para el detalle técnico completo.
+
+---
+
+# BackOffice de Administración (Dashboard Ejecutivo)
+
+Ningún indicador/KPI de la interfaz debe mostrar jamás mensajes técnicos: nombres de tabla, columnas, SQL, RLS, RPC, mensajes crudos de Supabase/Postgrest, ni stack traces. Esa información vive únicamente en `ARCHITECTURE.md`.
+
+Todo indicador debe soportar exactamente 4 estados (`AdminKpiStatus`, `src/services/admin-dashboard.service.ts`): `ready` (valor real), `loading` (Skeleton), `pending` (badge "Próximamente", sin texto adicional), `error` (mensaje genérico fijo, nunca el mensaje real de Supabase).
+
+Todo KPI del BackOffice se renderiza con `AdminKpiCard` (`src/components/shared/admin-kpi-card.tsx`) — ninguna pantalla debe construir su propia tarjeta de indicador. La capa de datos sigue el patrón de 3 pasos documentado en `admin-dashboard.service.ts` (obtención → transformación → presentación vía `buildAdminKpiViewModels`) para agregar KPIs nuevos sin tocar el componente.
+
+Ver `ARCHITECTURE.md` §14.13 (Sprint 8.1) y §14.14 (Sprint 8.1.1) para el detalle técnico completo, incluida la causa raíz exacta (verificada vía MCP) de por qué "Tiempo promedio de respuesta"/"Tiempo promedio de instalación" siguen en estado `pending`.
+
+---
+
+# Calendario Maestro (Master Calendar)
+
+Toda consulta del Calendario Maestro debe ir scoped server-side por mes visible + filtros activos (`trabajosRepository.getByMonthAndFilters`, columna `fecha` es `text` formato `'YYYY-MM-DD'`) — nunca traer todos los trabajos y filtrar en cliente.
+
+Los filtros (`CalendarFilterValues`) deben persistir mientras el usuario navega entre meses — ningún efecto debe resetearlos al cambiar de mes.
+
+Abrir el detalle de un día (Drawer) nunca debe disparar una consulta nueva a Supabase — `getDayJobs()` (`src/services/calendar.service.ts`) es una función pura sobre los trabajos del mes ya cargado.
+
+Toda la lógica de negocio del módulo vive en `useCalendarData` (`src/hooks/useCalendarData.ts`); los componentes de presentación (`CalendarFilterBar`/`CalendarDayIndicators`/`CalendarJobCard`/`CalendarDayDrawer`/`CalendarLegend`) reciben todo por props, sin acceder a Supabase/servicios directamente.
+
+El panel lateral del día usa `Drawer` con `variant="lateral"` (`src/components/ui/drawer.tsx`) — la variante por defecto (`'sheet'`, bottom-sheet) sigue siendo la de `PublishModal`, sin cambios. Cualquier Sprint futuro que necesite un panel lateral debe reutilizar esta variante, no crear un componente `Drawer` nuevo.
+
+Ver `ARCHITECTURE.md` §14.15 (Sprint 8.2) para el detalle técnico completo, incluidas las interpretaciones de datos documentadas (Prioridad de 2 niveles, "vencido"/"crítico" derivados, "Empresa instaladora" = `empresas` hasta el Sprint 8.3, tiempos estimado/real siempre "No disponible").
+
+---
+
 # Base de datos
 
 Nunca modificar directamente la estructura.

@@ -1891,6 +1891,50 @@
   overflow-y: auto;
   animation: mxup 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
+
+/* ---- Drawer LATERAL (Sprint 8.2, "Master Calendar (Fase 1)") --
+   variante nueva de Drawer (`variant="lateral"`, `ui/drawer.tsx`): panel
+   anclado al borde derecho en vez de bottom-sheet -- mismos tokens de
+   color/borde/blur que `.mx-modal-bg`/`.mx-modal-panel` (arriba), mismo
+   timing/easing de animación que `mxup`, solo con el eje y el anclaje
+   cambiados (`translateX` en vez de `translateY`, `justify-content:
+   flex-end` en vez de `center`). No reemplaza a `.mx-modal-*` -- ambas
+   variantes coexisten, `PublishModal` sigue usando la original sin
+   ningún cambio. */
+.mx-drawer-lateral-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 12, 24, 0.9);
+  z-index: 200;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  backdrop-filter: blur(6px);
+}
+.mx-drawer-lateral-panel {
+  background: var(--surf);
+  border-left: 1px solid var(--line);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.35);
+  width: 100%;
+  max-width: 420px;
+  height: 100%;
+  overflow-y: auto;
+  animation: mxdrawerin 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes mxdrawerin {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@media (max-width: 560px) {
+  .mx-drawer-lateral-panel {
+    max-width: 100%;
+  }
+}
+
 .mx-modal-hd {
   display: flex;
   align-items: center;

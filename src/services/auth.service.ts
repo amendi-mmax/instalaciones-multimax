@@ -90,20 +90,38 @@ export async function refreshSession(): Promise<
 }
 
 /**
+ * URL a la que Supabase redirige tras el click en el correo de recuperación
+ * (o de invitación, ver `admin-operations/index.ts` -- misma regla, otro
+ * runtime). Regla arquitectónica permanente (ver `ARCHITECTURE.md` §14.10 /
+ * `CLAUDE.md`): ningún flujo de Auth depende exclusivamente del "Site URL"
+ * del Dashboard -- se envía `redirectTo` explícito, calculado en runtime con
+ * `window.location.origin` (nunca un host hardcodeado), para que el mismo
+ * código funcione sin cambios tanto en `localhost:5173` (desarrollo) como en
+ * el dominio real de Producción. El Dashboard solo actúa como *allowlist*
+ * (Redirect URLs) cuando esté disponible -- no como única fuente del
+ * destino.
+ */
+function buildAuthRedirectTo(): string {
+  return `${window.location.origin}/nueva-contrasena`;
+}
+
+/**
  * Envía el correo de recuperación de contraseña vía
  * `supabase.auth.resetPasswordForEmail()` -- únicamente ese mecanismo, per
- * el brief de este Sprint ("NO el flujo SMTP propio, eso queda para un
- * Sprint futuro de Notificaciones con Amazon SES"). No se pasa `redirectTo`
- * explícito: no existe todavía, en este Sprint, ninguna pantalla de
- * "definir nueva contraseña" a la que redirigir tras el click en el correo
- * (fuera de la lista de entregables pedidos) -- Supabase usa el "Site URL"
- * ya configurado en el Dashboard del proyecto como destino por defecto.
- * Documentado como limitación conocida en `SPRINT_4_2_1_AUTH_REPORT.md`.
+ * el brief del Sprint 4.2.1 ("NO el flujo SMTP propio, eso queda para un
+ * Sprint futuro de Notificaciones con Amazon SES"). Pasa `redirectTo`
+ * explícito (`buildAuthRedirectTo()`) apuntando a `/nueva-contrasena`
+ * (`SetPasswordPage`, Sprint 6.3, ya soporta el caso `type=recovery`) --
+ * corrige la limitación documentada originalmente en este mismo Sprint
+ * (dependía únicamente del "Site URL" del Dashboard, que en la práctica
+ * seguía apuntando a un host/puerto sin nada corriendo).
  */
 export async function resetPasswordForEmail(
   email: string,
 ): Promise<{ ok: true } | { ok: false; error: HandymaxServiceError }> {
-  const { error } = await getClient().auth.resetPasswordForEmail(email);
+  const { error } = await getClient().auth.resetPasswordForEmail(email, {
+    redirectTo: buildAuthRedirectTo(),
+  });
   if (error) {
     return { ok: false, error: normalizeSupabaseError(error) };
   }

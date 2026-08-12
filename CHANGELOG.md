@@ -2,6 +2,409 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Sprint 8.4.1 — Reconstrucción de Migraciones Supabase] — 2026-08-12 — 🟢 Reconstruido, solo archivos del repositorio — DETENIDO PARA REVISIÓN
+
+Resuelve el único hallazgo crítico de la Auditoría de Deployment Readiness previa: `supabase/migrations/` no reproducía el esquema real si se aplicaba en orden desde cero. **Auditoría de solo lectura**: sin `db push`/`db reset`/`migration up`, sin desplegar Edge Functions, sin modificar tablas/datos/RLS de Producción -- todo el trabajo fue sobre archivos del repositorio, con el esquema real consultado exhaustivamente vía MCP (solo lectura) para verificar cada decisión antes de escribirla.
+
+**Problema encontrado**: `0001_initial_schema.sql`/`0002_auth_roles_rls.sql` eran copias byte a byte (`diff`, sin diferencias) de `migrations/legacy/0001.../0002...` -- el modelo antiguo `usuarios`/`sucursales`/`bids`, superado por la Producción real desde el Sprint 4.0.2 (ver corrección ya existente en la cabecera de este mismo archivo, más abajo). `0003_service_role_grants_admins_instaladores.sql` en adelante ya asumen el modelo real (`admins`/`coordinadores`/`instaladores`) -- aplicar la carpeta completa fallaba en `0003` ("relation public.admins does not exist"). Auditoría adicional (Fase 1, vía MCP) encontró que 4 funciones (`set_bid_cierra_at`/`asignar_instalador`/`instalador_fue_notificado`/`submit_bid`), 1 event trigger (`ensure_rls`/`rls_auto_enable`) y la vista `trabajos_para_instalador` estaban activos en Producción real sin ningún `CREATE` correspondiente en ninguna migración -- creados fuera de banda en algún punto no documentado de la historia del proyecto.
+
+**Solución aplicada**: se reconstruyó `0001_initial_schema.sql` completo a partir del esquema REAL verificado (columnas/tipos/defaults/PK/UNIQUE/FK con `delete_rule`/índices, las 18 policies RLS confirmadas como previas a `0003`, las 4 funciones + event trigger). `0002_auth_roles_rls.sql` quedó retirada (no-op documentado, numeración conservada -- no se renumeró `0003` en adelante, para no alterar ninguna referencia externa a los nombres de archivo ya existentes). Único archivo de `0003`-`0010` modificado: `0008_authenticated_view_grants_sprint72.sql` (se le agregó el `CREATE OR REPLACE VIEW` de `trabajos_para_instalador`, que faltaba por completo -- definición exacta obtenida de Producción real). `0003`/`0004`/`0005`/`0006`/`0007`/`0009`/`0010` quedaron exactamente iguales.
+
+**Verificación (Fase 5, simulación lógica, sin ejecución real)**: se extrajo vía `grep` cada tabla/vista referenciada en `0003`-`0010` y se confirmó que las 9 tablas + 1 vista ya existen en el punto de la cadena donde cada migración las usa; se confirmó que ninguna migración de la cadena oficial sigue referenciando `usuarios`/`sucursales`/`bids`/`notificaciones` como identificador SQL real.
+
+**Riesgos**: la reconstrucción se basó en el estado real de Producción consultado vía MCP en el momento de este Sprint -- si Producción cambia entre esa consulta y una futura reconstrucción desde cero, el archivo podría quedar desactualizado (mismo riesgo que cualquier migración versionada manualmente, no exclusivo de esta ronda). No se pudo ejecutar una prueba real de principio a fin (`supabase db reset` contra un proyecto vacío) por estar explícitamente fuera de alcance de este Sprint -- la verificación es lógica/por inspección, no una ejecución confirmada.
+
+**Compatibilidad**: cero cambios de comportamiento para el frontend -- ningún tipo TypeScript, repositorio, servicio o componente se tocó. `database.generated.ts` no necesita regenerarse (el esquema no cambió, solo su representación en migraciones).
+
+**Confirmación de que el esquema actual NO cambió**: todo objeto que el nuevo `0001` crea usa `CREATE TABLE IF NOT EXISTS`/`CREATE OR REPLACE FUNCTION`/`DROP POLICY IF EXISTS`+`CREATE POLICY`/`CREATE INDEX IF NOT EXISTS` -- idempotente por diseño. **Confirmación de que Producción NO se vio afectada**: ningún `apply_migration`/`db push`/`db reset`/`migration up` se ejecutó durante este Sprint -- verificado, cero llamadas de escritura a Supabase. **Confirmación de reproducibilidad**: `0001` → `0010`, en orden, sobre un proyecto Supabase nuevo, crean las 8 tablas + la vista + las 18 policies base + las 4 funciones + el event trigger + los objetos incrementales de `0003`-`0010`, sin ninguna referencia a un objeto inexistente en el punto donde se usa (verificado por inspección exhaustiva, no por ejecución real).
+
+Documentación actualizada: `ARCHITECTURE.md` §14.18, `supabase/README.md` (§1 corregida, §11 nueva), `README.md` raíz (afirmación de "pg_dump real" corregida). Sin `git commit`/`push`. **Detenido para revisión del usuario -- no se continuó con ningún otro Sprint.**
+
+## [Fase 8 — Sprint 8.4 — Registro de Instaladores utilizando Empresas Instaladoras reales] — 2026-08-11 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
+
+Conecta el módulo de Instaladores con el catálogo real creado en el Sprint 8.3 -- elimina por completo el uso de "empresa" como texto libre/no persistido en el registro de instaladores. Ningún archivo restringido tocado (Dashboard/Calendar/Solicitudes/Mis Trabajos/Publicaciones/Roles/Auth/Sidebar/CRUD de Empresas Instaladoras) -- verificado con `git status`.
+
+**Gate de migración + Edge Function (aprobado explícitamente antes de ejecutarse)**: el catálogo `empresas_instaladoras` (Sprint 8.3) no tenía ninguna relación real desde `instaladores` -- sin una columna nueva, "guardar únicamente `empresa_id`" (Parte 4 del brief) no tenía dónde persistirse. Se creó `supabase/migrations/0010_instaladores_empresa_instaladora.sql` (aplicada vía MCP): `instaladores.empresa_instaladora_id` (uuid, nullable, FK a `empresas_instaladoras`, sin `ON DELETE CASCADE` -- mismo criterio que las demás FKs `empresa_id` reales) + índice. **Cero cambios a RLS existente** (regla explícita del brief) -- verificado con `pg_policies` antes y después: las 3 policies de `empresas_instaladoras` del Sprint 8.3 quedaron idénticas.
+
+**Tensión resuelta -- "el Perfil debe mostrar el nombre real" vs. "NO modificar RLS"**: `empresas_instaladoras` es admin-only (Sprint 8.3) -- un instalador no puede leer directamente el nombre de su propia empresa. En vez de agregar una policy nueva, la misma migración crea `nombre_empresa_instaladora(uuid)`, función `SECURITY DEFINER` de solo lectura (mismo patrón ya probado en este proyecto: `instalador_fue_notificado()`, migración `0002`) que responde exclusivamente "¿cuál es el nombre de la empresa con este id?", sin exponer ninguna otra columna ni permitir listar. `GRANT EXECUTE` a `authenticated`.
+
+**Edge Function `admin-operations`** (obtenida la versión desplegada antes de modificar, comparada con el código local -- coincidían exactamente): `invite_instalador` ahora acepta `empresa_instaladora_id` (opcional) y lo persiste en el INSERT a `instaladores`. Redesplegada (versión 6) tras el cambio -- sin tocar `verifyCaller()`/`suspend_instalador`/`reactivate_instalador`.
+
+**Parte 1/9 (auditoría de mocks)**: sin hallazgos nuevos dentro del módulo Instalador -- ya se había limpiado por completo en la ronda de Estabilización posterior al Sprint 8.2. `INSTALLERS`/`InstallerMock` (`constants/index.ts`, incluye `'Instalaciones PTY'`/`'ClimaTech Panamá'`) se conservan intactos porque siguen en uso real por `Radar`/`AssignedPanel` (Coordinador) y por el mock `TRABAJOS` del Calendario -- ambos explícitamente restringidos este Sprint ("NO modificar Coordinador"/"NO modificar Calendar"), documentado en vez de romper esa restricción. Los nombres "Doctor Tec"/"Global Cool"/"Air Pro"/"Sky PTY" del brief no existen en ningún archivo del proyecto (verificado con `grep`).
+
+**Parte 2/3/4 (formulario "Invitar instalador")**: "Empresa / taller" (`admin-instaladores.tsx`) dejó de ser un `<input>` de texto libre (que además nunca se guardaba en ningún lado -- `form.empresa` solo alimentaba el mensaje de éxito) y pasa a ser un `Select` (`ui/select.tsx`, componente reutilizable existente) poblado con `empresasInstaladorasRepository.listar(empresaId)` (Sprint 8.3, sin modificar), filtrado a `activa === true` en el propio componente y ordenado por nombre (el repositorio ya ordena así). El formulario guarda únicamente `empresa_instaladora_id`.
+
+**Parte 5 (listado)**: cada fila de `AdminInstaladores` resuelve "Empresa Instaladora" mediante un mapa `id -> nombre` construido del mismo catálogo -- nunca texto hardcodeado; "Pendiente de asignación" cuando `empresa_instaladora_id` es `null`.
+
+**Parte 6 (Perfil)**: `InstallerProfile` resuelve el nombre real vía `callNombreEmpresaInstaladora()` (nuevo, `database.service.ts`, mismo patrón que `callAsignarInstalador`/`callSubmitBid`) cuando `profile.empresaInstaladoraId` no es `null`; "Pendiente de asignación" en caso contrario -- reemplaza el `null` fijo que la Estabilización posterior al Sprint 8.2 había dejado preparado explícitamente para este momento.
+
+**Parte 7**: sin empresas activas, `AdminInstaladores` muestra "No existen empresas instaladoras registradas. Debe crear una empresa antes de registrar instaladores." y deshabilita "Enviar invitación".
+
+**Parte 8 (validaciones)**: nombre/correo (formato válido)/teléfono/empresa, ninguno puede quedar vacío -- mensajes vía Toast local (mismo patrón `pushToast`/`dismissToast` ya usado por `AdminEmpresasInstaladoras`, Sprint 8.3), sin tocar el mensaje de éxito/error de servidor ya existente (`mx-invite-ok`/`<p>`, mismo layout/estilos de siempre).
+
+**`Perfil`/`profile.service.ts`**: `empresaInstaladoraId: string | null` agregado -- para `instalador`, viaja en la misma fila ya consultada (`select('*')`, sin query adicional); `null` para `admin`/`coordinador`. El nombre deliberadamente no vive en `Perfil` (ver función `SECURITY DEFINER` arriba).
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio (1865 módulos).
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes, sin advertencias nuevas.
+- `git status` -- limpio tras los cambios, ningún archivo fuera del alcance declarado.
+
+Sin Sprint 8.5, sin autenticación nueva, sin cambios a Coordinador/Dashboard/Empresas/Calendar/Solicitudes/Mis Trabajos. **Detenido para revisión del usuario.**
+
+## [Fase 8 — Sprint 8.3 — Administración de Empresas Instaladoras] — 2026-08-11 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
+
+CRUD completo de "Empresas Instaladoras" sobre Supabase -- catálogo oficial que usará el Sprint 8.4 (registro de instaladores + relación real). Este Sprint NO implementa ese registro ni toca la tabla `instaladores`. Ningún archivo restringido tocado (Dashboard Ejecutivo/Master Calendar/Publicación de Trabajos/Solicitudes/Mis Trabajos/`ResponsesPanel`/Sidebar/`Radar`/Auth/Roles/Permisos) -- verificado con `git status`. `Perfil` (`installer-profile.tsx`) recibió únicamente la preparación mínima autorizada explícitamente por el brief (sección 7).
+
+**Gate de migración**: antes de aplicar `0009_empresas_instaladoras.sql`, se auditó explícitamente (a pedido del usuario) contra el schema real completo (`list_tables verbose` + `referential_constraints`, no contra `0001_initial_schema.sql`/`0002_auth_roles_rls.sql`, que documentan un modelo anterior ya superado -- ver `supabase/migrations/legacy/`). Se detectó y corrigió una inconsistencia real antes de aplicar: el borrador inicial usaba `empresa_id ... ON DELETE CASCADE`, pero los 5 FKs `empresa_id` reales (`admins`/`coordinadores`/`instaladores`/`tiendas`/`trabajos`) usan todos `NO ACTION` -- corregido para seguir exactamente esa convención. Detalle completo de la auditoría, incluidas las decisiones sobre `updated_at`/GRANTs/RLS, en el propio archivo de migración y en `ARCHITECTURE.md` §14.16.
+
+**Migración** (`supabase/migrations/0009_empresas_instaladoras.sql`, aplicada vía MCP): tabla `empresas_instaladoras` (`id`/`empresa_id`/`nombre`/`razon_social`/`contacto`/`email`/`telefono`/`direccion`/`ciudad`/`provincia`/`pais`/`logo_url`/`activa`/`created_at`/`updated_at`), `UNIQUE(empresa_id, nombre)`, índices (`empresa_id`/`activa`/`nombre`), trigger `updated_at` (función `set_updated_at()`, nueva, reutilizable), RLS admin-only (SELECT/INSERT/UPDATE, sin policy de DELETE -- borrado lógico reforzado en la base de datos, no solo en la UI) con el mismo patrón `EXISTS (SELECT 1 FROM admins ...)` ya validado en Producción (migraciones 0004/0005), GRANT `authenticated` (SELECT/INSERT/UPDATE). Tipos TypeScript regenerados (`database.generated.ts`) y `TABLES.empresasInstaladoras` agregado a `lib/supabase/config.ts`.
+
+**Repository** (`empresas-instaladoras.repository.ts`, NUEVO): `listar`/`obtenerPorId`/`crear`/`actualizar`/`activar`/`desactivar` -- nombres exactos pedidos por el brief, deliberadamente sin implementar `Repository<T>` (mismo criterio ya usado por `trabajosParaInstaladorRepository`). Sin `DELETE` -- `activar`/`desactivar` son azúcar sobre `actualizar(id, {activa})`.
+
+**Tipos** (`types/empresa-instaladora.ts`, NUEVO): `EmpresaInstaladoraRow`/`CrearEmpresaInstaladoraInput`/`ActualizarEmpresaInstaladoraInput` (alias con nombre de dominio sobre `TableRow`/`TableInsert`/`TableUpdate`, sin duplicar la forma a mano), `EmpresaInstaladoraFormValues` (campos de formulario, todos `string`), `EmpresaInstaladoraSort`. Sin `any` en ningún archivo del Sprint.
+
+**Hook** (`useEmpresasInstaladoras.ts`, NUEVO): única fuente de estado de la pantalla (mismo criterio que `useCalendarData`, Sprint 8.2) -- carga el catálogo completo del tenant activo en una sola consulta y resuelve búsqueda/orden/paginación 100% en cliente vía `useMemo` (catálogo administrativo pequeño, mismo criterio que `AdminInstaladores`). Wrappers `crear`/`actualizar`/`activar`/`desactivar` recargan el listado tras cada escritura exitosa.
+
+**UI** (`admin-empresas-instaladoras.tsx` + `empresa-instaladora-form-dialog.tsx`, NUEVOS): pantalla "Empresas instaladoras", cuarta pestaña de `AdminPanel` (`admin-panel.tsx`, MODIFICADO, mismo patrón `MxSubtabs`/`MxSubtabButton`). Listado reutiliza `.mx-admintable`/`.mx-adminrow*`/`.mx-admin-act` (Sprint 3.13/6.2); búsqueda vía `SearchBox` (Fase 3, primer consumidor real); orden vía `Select` nativo; paginación vía `Button variant="ghost"` (sin componente nuevo). Crear/Editar comparten un único diálogo sobre `Modal` (`ui/modal.tsx`, Fase 3, primer consumidor real) con campos `.mx-fields`/`Input` (mismo patrón que `PublishModal`). Activar/Desactivar piden confirmación vía `ConfirmDialog` (ya existente). Toast local (`useState`+`pushToast`/`dismissToast`, mismo patrón que `CoordinatorLayout.tsx`). Sin componente/CSS nuevo salvo lo estrictamente necesario.
+
+**Datos mock**: ninguno existía para "Empresas Instaladoras" (módulo nuevo) -- nada que eliminar en ese frente.
+
+**Preparación mínima Sprint 8.4** (`installer-profile.tsx`, único cambio en el Perfil, autorizado explícitamente por el brief sección 7): `resolveEmpresaInstaladoraLabel()` centraliza la decisión de qué mostrar en "Empresa instaladora" -- hoy siempre `null` (la relación no existe todavía en `Perfil`) → "Pendiente de asignación"; el Sprint 8.4 solo necesita pasar el valor real una vez `Perfil` lo exponga.
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio (1865 módulos).
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes, sin advertencias nuevas.
+- `git status` -- limpio tras los cambios (ningún archivo fuera del alcance declarado).
+
+Sin CRUD de registro de instaladores, sin cambios a `instaladores`/Auth/Roles/Permisos. **Detenido para revisión del usuario antes de continuar con el Sprint 8.4.**
+
+## [Estabilización del módulo Instalador (post Sprint 8.2)] — 2026-08-07 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
+
+Ronda de estabilización (no un Sprint funcional nuevo), previa al Sprint 8.3: elimina el comportamiento mock del módulo del Instalador y lo conecta con datos reales de Supabase. Ningún archivo restringido tocado (Dashboard Ejecutivo/Calendario Maestro/Administración/`PublishModal`/Coordinador/`ResponsesPanel`/Auth/Edge Functions/RLS/migraciones/RPC) -- verificado con `git status`: 9 archivos del módulo Instalador (+ `RootLayout.tsx`/`constants/index.ts`, ambos con un recorte mínimo y acotado) y 1 archivo eliminado.
+
+**Prerrequisito encontrado y corregido antes de empezar**: la rama `feature/sprint-8-2-1-installer-stabilization` había sido creada desde el commit posterior al Sprint 6.3 (`5830be3`), 5 commits detrás de la punta real del trabajo (Sprint 7.1→7.2→7.3.1→8.1→8.2, `c26e813`, en `feature/sprint-8-1-admin-dashboard`) -- el Dashboard Ejecutivo, el Calendario Maestro rehecho y `InstallerSolicitudes` (Sprint 7.2) no existían todavía en este working tree. Se hizo `git merge feature/sprint-8-1-admin-dashboard` (fast-forward limpio, sin conflictos, sin commit adicional) antes de tocar ningún archivo, con `typecheck`/`build`/`lint` limpios tras la fusión.
+
+**Punto 1 ("Mis trabajos")**: `installer-jobs.tsx` reescrito -- elimina por completo el mock `MISJOBS`/`ESTADO`; consume `trabajosParaInstaladorRepository` (vista real `trabajos_para_instalador`, Sprint 7.2, mismo repositorio que ya usa `InstallerSolicitudes` -- sin repositorio/servicio nuevo), filtrado a `gane_yo === true` (trabajos efectivamente asignados a este instalador, columna real `instalador_asignado_id`, confirmada vía MCP contra `information_schema.columns`/`pg_policies` -- el comentario histórico de la migración `0002` que decía que esa columna "no existe" quedó obsoleto, se verificó el estado real en vivo en vez de asumirlo). Agrupa "Próximos"/"Historial" según `estado_trabajo` real (`live`/`assigned`/`completed`/`cancelled`, vía `trabajoEstadoInfo()` ya existente). Estado vacío con el texto exacto pedido: "No tienes trabajos asignados." / "Cuando aceptes un trabajo aparecerá aquí." -- sin tarjetas ni placeholders. Verificado vía MCP que Producción no tiene todavía ningún trabajo con `estado <> 'live'` -- no se pudo validar visualmente el caso "Historial" con datos reales por ausencia de esos datos, no por un defecto de la consulta (documentado en el propio archivo).
+
+**Punto 2 (Perfil del instalador)**: `installer-profile.tsx` reescrito -- reemplaza `meInfo: InstallerMock` por el `Perfil` real (`useAuth()`, mismo tipo que `ProfilePage.tsx`, Sprint 7.3). Campos reales agregados (bloque "Información", reutiliza `.mx-kv`/`.mx-kv-row`, sin CSS nuevo): empresa, correo, teléfono, fecha de registro (`formatFecha()`, reutilizado de `lib/perfil-format.ts`). Badge "Instalador verificado"/"Documentos pendientes" ahora depende de `documentos_ok` real (antes fijo `tone="green"` siempre). Estructuralmente ausentes del schema real (`instaladores`, confirmado vía MCP), documentados y mostrados como "No disponible": **sucursal** (solo `coordinadores` tiene `tienda_id`), **ciudad** (no existe como columna distinta de `provincia`/`zona`, ya mostradas), **avatar** (ninguna tabla de perfil tiene esa columna -- se conserva el avatar de iniciales, no es mock). Métricas (`rating`/`cumplimiento`/`aceptacion`/`km`): auditoría vía MCP confirmó que SÍ son columnas reales de `instaladores` (no "no existen" como asumía la redacción original del brief) -- `rating` siempre real; `cumplimiento`/`aceptacion`/`km` nullable (`null` hasta que el instalador acumule historial). Se muestra el valor real cuando existe y `—` cuando es `null`, nunca un número inventado.
+
+**Punto 3 (Empresa instaladora)**: el selector `.mx-mesel` (`PhoneFrame`) dejó de listar identidades mock (`INSTALLERS`, cada una una "empresa" de demostración distinta, intercambiable) -- ahora muestra una única opción fija y queda `disabled` (nuevo prop opcional en `phone-frame.tsx`, default `false`, mismo criterio de "`<select>` deshabilitado sin duplicar el componente" ya usado en `sucursal-select.tsx`/`publish-modal.tsx`, Sprint 5.2.3.1/5.2.3.2) -- mismo diseño visual, ya no editable.
+
+**Corrección posterior (mismo día, pedida explícitamente por el usuario tras revisar la primera entrega)**: esa única opción, y el campo "Empresa instaladora" del bloque "Información" de `installer-profile.tsx`, mostraban inicialmente `profile.empresaNombre` -- resuelve al *tenant* real (`empresas`, p. ej. "Multimax") vía `empresa_id`, NO a una empresa instaladora (subcontratista) real. Esa relación (`empresa_instaladora_id` o equivalente) todavía no existe en el schema -- es precisamente lo que introducirá el Sprint 8.3 (CRUD + relación dinámica). Mostrar el nombre del tenant ahí era un valor real de la pregunta equivocada, no un placeholder honesto. Corregido en ambos archivos: se muestra siempre la etiqueta fija "Pendiente de asignación", sin depender de `profile.empresaNombre`. Documentado en ambos JSDoc que, cuando el Sprint 8.3 implemente la relación real, este campo deberá leerla desde ahí. `typecheck`/`build`/`lint` re-ejecutados tras la corrección, limpios.
+
+**Punto 4 (Contador de simulación)**: `CountRing` -- componente, import, props mock (`COUNTRING_DEMO_REMAINING`/`COUNTRING_DEMO_TOTAL`) y su mount en `RootLayout.tsx` (Sprint 3.8, integración temporal de validación visual sin datos reales) eliminados por completo (archivo `components/shared/countring.tsx` borrado). Auditoría previa (`grep` de todo `src/`) confirmó que ningún otro archivo lo importaba/usaba. `LiveCountdown` (componente distinto, en uso real dentro de "Despacho en vivo" del Coordinador) no se tocó. No se encontró ningún botón del flujo antiguo de simulación dentro del módulo Instalador -- el único botón "Simular respuestas" del proyecto pertenece a `LiveDispatchCard`/`ResponsesPanel` (Coordinador, explícitamente restringido este Sprint, y documentado como funcionalidad nueva deliberada, no un remanente del prototipo).
+
+**Punto 5 (Flujo real de notificaciones)**: verificado, sin cambios necesarios -- `InstallerSolicitudes` (Sprint 7.2) ya consumía exclusivamente datos reales (`trabajosParaInstaladorRepository`/`callSubmitBid`), sin ningún mock/repositorio/servicio de prueba.
+
+**Punto 6 (Limpieza)**: `MISJOBS`/`MisJobMock` (`constants/index.ts`) eliminados -- único consumidor real era `installer-jobs.tsx`, ya reescrito. `INSTALLERS`/`InstallerMock`/`ESTADO`/`EstadoUiKey` NO se eliminaron (verificado vía `grep`: siguen en uso real por `Radar`/`AssignedPanel`, Coordinador, y por el mock `TRABAJOS`/`TrabajoMock` del Calendario -- ambos fuera de alcance de esta ronda).
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio (1858 módulos, uno menos que antes por la eliminación de `countring.tsx`).
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes, sin advertencias nuevas.
+
+Sin `git commit`/`push`. **Detenido para revisión del usuario antes de continuar con cualquier otro Sprint (incluido el 8.3).**
+
+## [Fase 8 — Sprint 8.2 — Master Calendar (Fase 1)] — 2026-08-06 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
+
+Segundo sub-sprint de la Fase 8, exclusivamente sobre `MasterCalendar`. Ningún archivo restringido tocado (Auth/`RootLayout.tsx`/`CoordinatorLayout.tsx`/Dashboard Ejecutivo Sprint 8.1/Cuenta de Usuario/publicación de trabajos/flujo de instaladores/Edge Functions/RLS/migraciones/RPC existentes/`ResponsesPanel`) -- verificado con `git status`: 5 archivos modificados (`master-calendar.tsx`/`ui/drawer.tsx`/`trabajos.repository.ts`/`dashboard.service.ts`/`globals.css`) + 8 archivos nuevos + documentación.
+
+**Arquitectura en capas**: `types/calendar.ts` (NUEVO) + `services/calendar.service.ts` (NUEVO, obtención → transformación, mismo criterio de 3 capas del Sprint 8.1.1) + `hooks/useCalendarData.ts` (NUEVO, única fuente de estado del módulo) + 5 componentes puramente presentacionales (NUEVOS: `CalendarFilterBar`/`CalendarDayIndicators`/`CalendarJobCard`/`CalendarDayDrawer`/`CalendarLegend`) + `MasterCalendar` reescrito como orquestador delgado.
+
+**Rendimiento (8.2.6)**: `trabajosRepository.getByMonthAndFilters()` (NUEVO método, aditivo) reemplaza el `getAll()` + filtrado 100% en cliente que el `MasterCalendar` anterior usaba desde el Sprint 7.1 -- ahora una sola consulta server-side por combinación mes+filtros (`fecha LIKE 'YYYY-MM%'` + cada filtro activo). Abrir el Drawer de un día NO dispara ningún request adicional (`getDayJobs()`, función pura sobre el mes ya en memoria).
+
+**Filtros persistentes (8.2.1)**: `filters` es un `useState` independiente de `viewYear`/`viewMonth` en `useCalendarData` -- navegar de mes nunca resetea los filtros activos.
+
+**Drawer lateral (8.2.3)**: el único `Drawer` existente (`ui/drawer.tsx`, Fase 3) era en realidad un bottom-sheet -- se agregó `variant?: 'sheet' | 'lateral'` (default `'sheet'`, cero cambio para `PublishModal`, único consumidor previo) en vez de crear un componente paralelo. CSS nuevo mínimo y aditivo (`.mx-drawer-lateral-bg`/`.mx-drawer-lateral-panel`/`@keyframes mxdrawerin`).
+
+**Acciones rápidas (8.2.4)**: 5 botones `disabled` por trabajo (Ver detalle/Editar/Reasignar/Cambiar prioridad/Cambiar estado) con `Tooltip` explicando que están reservados para un Sprint futuro -- primer consumidor real de `ui/tooltip.tsx` (Fase 3, sin uso hasta ahora).
+
+**Interpretaciones de datos honestas (ninguna inventada)**: Prioridad = 2 niveles reales (`urgente boolean`, no 3 inventados); "vencido"/"crítico" derivados de `estado`+`fecha`/`urgente` (no existen esas columnas); "Empresa instaladora" = `empresas` hoy (no existe todavía la entidad distinta que introducirá el Sprint 8.3); "Tiempo estimado"/"Tiempo real" siempre "No disponible" (no existen esas columnas en `trabajos`, mismo hallazgo ya documentado en el Sprint 8.1 para el KPI equivalente).
+
+**Estados uniformes (8.2.8)**: `CalendarLoadStatus = 'loading' | 'ready' | 'error'` a nivel de módulo -- error siempre muestra únicamente "No fue posible cargar la información.", nunca el mensaje real de Supabase.
+
+**Regresión prevenida**: se preservó el trigger `activeJob?.id` (`useOperationalContext()`) dentro de `useCalendarData`, que el `MasterCalendar` anterior ya usaba desde el Sprint 7.1 para refrescarse inmediatamente tras publicar un trabajo, sin recargar la página.
+
+**Auditoría de duplicación (pedida por el brief)**: `CalendarFilterBar` reutiliza `Select` en vez del `<select>` con estilos en línea que el filtro de sucursal anterior usaba (corrige una inconsistencia preexistente, no una duplicación nueva); `hoyComoTexto()` (`dashboard.service.ts`, antes privada) se exportó y se reutiliza tal cual desde `calendar.service.ts` en vez de reimplementarse. Sin componentes/CSS/helpers/hooks/tipos duplicados detectados.
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio.
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes, sin advertencias nuevas (se detectó y corrigió un `eslint-disable` sobrante en `useCalendarData.ts` durante el desarrollo).
+
+Sin `git commit`/`push`. **Sprint 8.2 detenido para revisión del usuario antes de continuar con el Sprint 8.3**, por instrucción explícita del brief.
+
+## [Fase 8 — Sprint 8.1.1 — Refinamiento del Dashboard Ejecutivo (KPIs)] — 2026-08-06 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
+
+Continuación exclusiva del Sprint 8.1, únicamente sobre el módulo de Dashboard Administrativo. Ningún archivo restringido tocado (`CoordinatorLayout.tsx`/`RootLayout.tsx`/Auth/Login/Invitaciones/instaladores/publicación de trabajos/`ResponsesPanel`/Edge Functions/RPC/migraciones existentes/lógica del Sprint 7.x) -- verificado con `git status`: solo `admin-panel.tsx` (sin cambios en esta ronda, ya correcto desde 8.1), `admin-kpi-dashboard.tsx`, 2 archivos nuevos y `ARCHITECTURE.md`/`PROJECT_STATUS.md`/`CLAUDE.md`/`docs/SPRINTS_INDEX.md`.
+
+**Ajuste 1 (espaciado)**: `AdminKpiDashboard` ahora envuelto en `PageContainer` (`.mx-page`), igual que sus 2 pestañas hermanas -- corrige el espacio insuficiente entre la tarjeta y la barra de tabs, sin ningún valor de espaciado nuevo.
+
+**Ajuste 2/3 (sin mensajes técnicos, 4 estados uniformes)**: eliminados por completo los campos `tiempoPromedioRespuestaMotivo`/`tiempoPromedioInstalacionMotivo` (Sprint 8.1) -- ese texto con nombres reales de tabla/columna/RLS nunca debe llegar a la UI (Regla nueva, permanente, agregada a `CLAUDE.md`); la causa raíz técnica completa queda documentada únicamente en `ARCHITECTURE.md` §14.13/§14.14. Se definieron 4 estados uniformes para todo indicador: `ready`/`loading`/`pending`/`error` -- este último SIEMPRE con el mensaje genérico fijo "No fue posible cargar este indicador.", nunca el mensaje real de Supabase.
+
+**Ajuste 3.1 (componente único)**: `src/components/shared/admin-kpi-card.tsx` (NUEVO) -- `AdminKpiCard`, reutiliza las mismas 3 clases CSS que ya usaban `Counter`/`StatTile` (`.mx-stat-v`/`.mx-stat-l`/`.mx-stat-s`, sin clases nuevas) + `Skeleton`/`Badge` (ambos ya existentes, sin consumidor real hasta ahora) para los 4 estados. Los 8 KPIs del Dashboard pasan todos por este único componente -- cero lógica de tarjeta duplicada.
+
+**Ajuste 4 (servicio en 3 capas)**: `admin-dashboard.service.ts` reescrito -- obtención (repositorios, sin cambios de fondo) → transformación (funciones puras, `AdminKpiData`) → presentación (`buildAdminKpiViewModels()`, NUEVO, único punto que decide `status`/orden/etiquetas).
+
+**Ajuste 5**: arquitectura preparada para KPIs futuros (Sprints 8.2/8.4/8.6/8.7/8.8/8.9) -- patrón de 3 pasos documentado en el propio servicio, sin infraestructura especulativa.
+
+**Ajuste 7 (performance)**: `useMemo` sobre el cálculo de los view models en `AdminKpiDashboard`.
+
+**Ronda de consolidación (mismo Sprint, auditoría explícita de duplicación pedida por el usuario)**: se detectó que `AdminKpiCard` reconstruía a mano, para el estado `'ready'`, el mismo markup que `StatTile`/`Counter` ya encapsulan (`.mx-stat`/`.mx-stat-v`/`.mx-stat-l`/`.mx-stat-s`) -- lógica duplicada real, no solo reutilización de clases. Corregido: el caso `'ready'` ahora delega 100% en `<StatTile/>` (cero markup propio); los 3 estados restantes (`loading`/`pending`/`error`, sin equivalente en `StatTile`/`Counter`) conservan su wrapper local, ahora sin competir con una reimplementación paralela. `StatTile`/`Counter`/`CoordinatorKpiRow` sin ningún cambio -- se descartó ensanchar `Counter.value` a `ReactNode` porque habría envuelto `Skeleton`/`Badge` dentro de `.mx-stat-v` (anidado inválido, alteración real de estructura), violando "no modificar el comportamiento visual actual". CSS de salida verificado con el mismo hash de build que la ronda anterior (`index-CmZH8fGn.css`) -- cero cambios visuales. `typecheck`/`build`/`lint` limpios.
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio.
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes, sin advertencias nuevas.
+
+Sin `git commit`/`push`. **Sprint 8.1.1 detenido para revisión del usuario antes de continuar con el Sprint 8.2**, por instrucción explícita del brief.
+
+## [Fase 8 — Sprint 8.1 — Dashboard Ejecutivo (BackOffice de Administración)] — 2026-08-06 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
+
+Primer sub-sprint de la Fase 8 ("Evolución del BackOffice de Administración"). Por instrucción explícita del brief, se implementa ÚNICAMENTE el Sprint 8.1 y se entrega este reporte para revisión antes de continuar con el 8.2. Ningún archivo restringido fue tocado (Auth/Login/`redirectTo`/Sprint 7.2/Sprint 7.3/`CoordinatorLayout.tsx`/`RootLayout.tsx`/publicación de trabajos/`ResponsesPanel`/instaladores-flujo-operativo/Edge Functions/RLS/RPC/migraciones existentes) -- verificado con `git status`: solo `admin-panel.tsx`, `admin-vista-switch.tsx` y 2 archivos nuevos.
+
+**Auditoría previa obligatoria vía MCP (antes de escribir código)**: se consultó `information_schema.columns` y `pg_policies` sobre `trabajos`/`trabajo_instaladores`/`instaladores`/`ofertas` para determinar, con evidencia real y no supuesta, cuáles de los 8 KPIs mínimos pedidos por el brief son calculables hoy. Hallazgos:
+- `trabajos.publicado_at`/`estado` (real, `timestamptz`/`text`) -- alcanzan para "Publicados hoy"/"Activos"/"Pendientes"/"Finalizados"/"Cancelados".
+- `instaladores.activo`/`suspendido` (real, `boolean`) -- alcanzan para "Instaladores activos".
+- `trabajo_instaladores.notificado_at`/`respondido_at` (ambas columnas SÍ existen, `timestamptz`) -- pero la tabla **no tiene ninguna policy RLS de `SELECT` para el rol `admin`** (confirmado en `pg_policies`: solo `coordinadores`/instalador-propio) -- mismo patrón de hueco ya corregido 3 veces en Sprints anteriores para otras tablas/vista, esta vez sobre un cuarto objeto, sin corregir en este Sprint (fuera de alcance: el brief de 8.1 es el Dashboard, no RLS). Como el `GRANT` de tabla sí existe (migración `0007`), la consulta no fallaría -- devolvería `0` filas silenciosamente, mostrando un promedio de un conjunto vacío como si fuera real. Se optó por NO ejecutar esa consulta y declarar el indicador explícitamente "No disponible", en vez de fabricar un número.
+- `trabajos` **no tiene ninguna columna de timestamp de finalización** (`asignado_at` existe, no hay `completado_at`/equivalente) -- estructuralmente imposible de calcular "Tiempo promedio de instalación" con el schema actual, sin importar RLS.
+
+**Implementado**:
+- `src/services/admin-dashboard.service.ts` (NUEVO) -- `AdminKpis`/`getAdminKpis()`: 6 indicadores reales (`publicadosHoy`/`activos`/`pendientes`/`finalizados`/`cancelados`/`instaladoresActivos`, sobre `trabajosRepository.getAll()`/`instaladoresRepository.getAll()`, ya scoped por RLS a la empresa del admin -- mismo patrón que `MasterCalendar`/`AdminInstaladores`, sin filtrar `empresa_id` en la query) + 2 indicadores `null` documentados (`tiempoPromedioRespuestaMin`/`tiempoPromedioInstalacionMin`, cada uno con su propio motivo textual). `calcularTiempoPromedioRespuestaMin()` ya implementado y exportado, listo para activarse en cuanto exista la policy RLS faltante -- arquitectura preparada sin migración especulativa.
+- `src/components/shared/admin-kpi-dashboard.tsx` (NUEVO) -- `AdminKpiDashboard`, reutiliza `Card`/`CardHeader`/`StatGrid`/`StatTile`/`Loading` (cero componentes/CSS nuevos); los 2 indicadores no disponibles se muestran "No disponible" dentro de la misma grilla + nota explicativa debajo (mismo patrón que `SettingsPage.tsx`, Sprint 7.3).
+- `src/components/shared/admin-panel.tsx` (MODIFICADO) -- nueva pestaña "Dashboard" (ícono `LayoutDashboard`), activa por defecto, antes de "Calendario maestro"/"Instaladores" (ambas sin cambios) -- mismo patrón `MxSubtabs`/`MxSubtabButton` ya usado.
+- `src/components/shared/admin-vista-switch.tsx` (MODIFICADO) -- requisito explícito del brief ("Eliminar definitivamente la pestaña 'Instalador' del Dashboard Administrador"): se retira la opción `'instalador'` únicamente del array `ADMIN_VISTAS` que este componente renderiza -- el tipo `AdminVista` NO se angosta (sigue incluyendo `'instalador'`) para que `RootLayout.tsx` (dueño real de `adminVista`/`showInstalador`, explícitamente restringido este Sprint) siga compilando sin ningún cambio. Resultado: el botón desaparece de la UI (un admin ya no puede navegar a esa vista), cero bytes tocados en `RootLayout.tsx`.
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio.
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes, sin advertencias nuevas.
+
+Sin `git commit`/`push`. **Sprint 8.1 detenido para revisión del usuario antes de continuar con el Sprint 8.2**, por instrucción explícita del brief.
+
+## [Fase 7 — Sprint 7.3.1 — Refinamiento arquitectónico del Módulo de Cuenta de Usuario] — 2026-08-05 — 🟢 Implementado, compilando
+
+Sprint 7.2 (y todo lo adyacente: Auth/`redirectTo`/`resetPassword`/Edge Functions/invitaciones/recuperación de contraseña/`CoordinatorLayout.tsx`/`ResponsesPanel`/publicación de trabajos/instaladores/RLS/migraciones/RPC/funciones SQL) permaneció completamente congelado -- verificado por `git status`, cero archivos de esas áreas tocados. Objetivo exclusivo: refactor arquitectónico del módulo de Cuenta de Usuario (Sprint 7.3) -- sin ningún cambio de look & feel.
+
+**Implementado**:
+- `src/services/account.service.ts` (NUEVO) -- `AccountService` centralizado: `getPerfil` (reexporta `resolveProfile()` sin tocarlo), `getUserSummary`, `getPreferences`/`setPreferences`/`setPreference` (localStorage, movido tal cual desde `useUserPreferences.ts`), `changePassword` (orquesta `login`+`updatePassword`, recibidos como parámetros -- no reimplementa Auth), `updatePerfil` (firma preparada, `NOT_IMPLEMENTED`).
+- `src/contexts/user.context.ts` + `src/contexts/UserContext.tsx` + `src/hooks/useUserContext.ts` (NUEVOS) -- `UserContext`/`UserProvider`/`useUserContext()`, separados en 3 archivos (mismo patrón ya usado por Auth) para evitar el warning de Fast Refresh de un archivo `.tsx` que mezcla componente + no-componente (confirmado en este Sprint con el primer intento de un único archivo). Compone `useAuth()` + `useUserPreferences()` -- cero queries nuevas a Supabase.
+- `src/providers/AppProviders.tsx` (MODIFICADO) -- monta `<UserProvider>` dentro de `<AuthProvider>`, envolviendo TODA la app -- única forma de que `HeaderUserMenu` (montado por `RootLayout.tsx`/`CoordinatorLayout.tsx`, ambos restringidos) también consuma `useUserContext()` sin tocar esos 2 archivos.
+- `src/lib/role-helpers.ts` (NUEVO) -- `isAdmin`/`isCoordinator`/`isInstaller`/`getDashboardRoute(rol)`.
+- `src/layouts/AccountLayout.tsx` (MODIFICADO) -- agrega breadcrumb + botón "← Volver al Dashboard" (`getDashboardRoute`), único lugar de navegación del módulo; `profile`/`rol` ahora vía `useUserContext()`.
+- `src/pages/account/ProfilePage.tsx` (MODIFICADO) -- misma tarjeta visual, separada en 3 secciones internas (Información personal/organizacional/de cuenta) reutilizando `CardHeader`; consume `useUserContext()`.
+- `src/pages/account/SettingsPage.tsx`/`ChangePasswordPage.tsx` (MODIFICADOS) -- consumen `useUserContext()`; `ChangePasswordPage` delega la orquestación completa a `accountService.changePassword()`, queda únicamente como presentación.
+- `src/components/shared/header-user-menu.tsx` (MODIFICADO) -- los datos mostrados ya no vienen de la prop `profile`, vienen exclusivamente de `useUserContext()`.
+- `src/hooks/useUserPreferences.ts` (MODIFICADO) -- ya no toca `localStorage` directamente, delega en `account.service.ts`.
+
+**Decisión documentada, sin aplicar**: `CoordinatorIndexRedirect` (`AppRouter.tsx`) NO se refactorizó para usar `getDashboardRoute()` -- resuelve una pregunta distinta (ver `ARCHITECTURE.md` §14.12); forzar el mismo helper ahí habría introducido una regresión real para el caso `admin`.
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio.
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes (ninguno nuevo -- el primer intento de `UserContext.tsx` en un único archivo sí generó 1 warning nuevo de Fast Refresh, corregido antes de este cierre).
+
+Sin `git commit`/`push`/PR.
+
+## [Fase 7 — Sprint 7.3 — Módulo de Cuenta de Usuario (Perfil, Configuración, Seguridad)] — 2026-08-04 — 🟢 Implementado, compilando
+
+Sprint 7.2 congelado explícitamente -- ningún archivo relacionado con publicación de trabajos/`ResponsesPanel`/instaladores/RPC/Supabase/Edge Functions/autenticación existente fue modificado (verificado: `git status` solo muestra `header-user-menu.tsx`, `AppRouter.tsx`, `profile.service.ts`, `types/perfil.ts` y archivos nuevos bajo `src/pages/account/`/`src/layouts/AccountLayout.tsx`/`src/lib/`/`src/hooks/`/`src/components/shared/password-strength-meter.tsx`).
+
+Implementa las 3 pantallas del menú de usuario (`HeaderUserMenu`, `disabled` sin destino real desde el Sprint 4.2.1): "Mi perfil", "Configuración" y "Cambiar contraseña" -- mismo look & feel del resto de HANDYMAX (Card/Badge/Input/Button/Switch/Select/Toast ya existentes, cero librerías nuevas).
+
+**Decisión arquitectónica**: `/perfil`/`/configuracion`/`/cambiar-contrasena` se declaran como rutas hermanas de `/` en `AppRouter.tsx`, con un layout propio (`AccountLayout.tsx`, nuevo) -- necesario porque `RootLayout.tsx` no monta ningún `<Outlet/>` para `instalador`/`admin` fuera de "Modo Coordinador" (ver `ARCHITECTURE.md` §14.11 para el detalle completo), y modificar ese árbol de decisión habría significado tocar `RootLayout.tsx`/`CoordinatorLayout.tsx`, el área restringida de este Sprint. Resultado: cero cambios en esos 2 archivos.
+
+**Implementado**:
+- `src/layouts/AccountLayout.tsx` (NUEVO) -- Header/Footer (sin modificar) + navegación `MxSubtabs`/`MxSubtabButton` (mismo patrón visual que `CoordinatorLayout`/`AdminPanel`) + `<Outlet/>`.
+- `src/pages/account/ProfilePage.tsx` (NUEVO, `/perfil`) -- datos reales de `useAuth().profile`/`user`, "No disponible" para todo campo sin valor real, botón "Editar perfil" preparado (`disabled`).
+- `src/pages/account/SettingsPage.tsx` (NUEVO, `/configuracion`) -- Preferencias/Dashboard/Seguridad; Notificaciones/Sonidos/Confirmaciones/Recordar sucursal/Vista inicial/Mostrar ayudas reales vía `localStorage` (`useUserPreferences`, nuevo); Tema/Idioma/Sesiones activas deshabilitados con badge "Próximamente" (pedido explícito del brief); Último login/Dispositivo como información real de solo lectura.
+- `src/pages/account/ChangePasswordPage.tsx` (NUEVO, `/cambiar-contrasena`) -- contraseña actual + nueva + confirmar, mostrar/ocultar, `PasswordStrengthMeter` (nuevo) con validaciones en tiempo real (longitud/mayúscula/minúscula/número/carácter especial), Toast éxito/error, reautenticación real antes de `updatePassword` (`useAuth().login()` + `useAuth().updatePassword()`, ambos ya existentes, API oficial de Supabase, sin implementación propia).
+- `src/hooks/useUserPreferences.ts` (NUEVO) -- preferencias de usuario en `localStorage`, con clave por `profile.id`.
+- `src/lib/password-strength.ts` (NUEVO) -- funciones puras de validación/fortaleza de contraseña.
+- `src/lib/perfil-format.ts` (NUEVO) -- `ROL_LABEL`/`ESTADO_LABEL`/`ESTADO_TONE`/`formatFecha`/`initialsFrom`, centraliza 2 constantes que estaban duplicadas en `header-user-menu.tsx`.
+- `src/components/shared/password-strength-meter.tsx` (NUEVO) -- reutiliza `Progress` (`ui/progress.tsx`, sin consumidor real hasta este Sprint).
+- `src/types/perfil.ts`/`src/services/profile.service.ts` (MODIFICADOS) -- `Perfil` extendido con `telefono`/`provincia`/`zona`/`creadoEn`/`instaladorInfo`, poblados desde filas que `resolveProfile()` ya consultaba (`select('*')`, cero queries nuevas a Supabase).
+- `src/components/shared/header-user-menu.tsx` (MODIFICADO) -- los 3 ítems de menú dejan de estar `disabled` y navegan a las rutas nuevas; importa `ROL_LABEL`/`ESTADO_LABEL`/`initialsFrom` desde `perfil-format.ts` en vez de duplicarlos.
+- `src/routes/AppRouter.tsx` (MODIFICADO) -- agrega `AccountLayout` + las 3 rutas nuevas, sin tocar ninguna ruta existente.
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio.
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes, sin advertencias nuevas.
+
+Sin `git commit`/`push`/PR.
+
+## [Fase 7 — Sprint 7.2 — Mejora de UX: Toast de notificación exitosa] — 2026-08-03 — 🟢 Implementado, compilando
+
+Ronda de estabilización previa a continuar la validación funcional: el diagnóstico previo (incidente de privilegios `GRANT`, ya cerrado con las migraciones `0007`/`0008`) confirmó que `notificar_instaladores_elegibles()` funciona correctamente, `trabajo_instaladores` recibe los registros, y el frontend ya recibía correctamente el valor retornado por el RPC -- pero no existía ningún Toast para el caso de éxito (`data > 0`), solo para error y para 0 instaladores elegibles. Mejora puramente de retroalimentación visual, sin tocar el RPC, RLS, migraciones, `repositories`/`services`, reglas de elegibilidad, `ResponsesPanel` ni `InstallerDashboard`.
+
+**Implementado**:
+- `src/layouts/CoordinatorLayout.tsx` -- nueva rama `else` en el bloque de `notificacionResult` (`onPublish`): cuando `notificacionResult.data > 0`, muestra un Toast `'info'` ("Trabajo publicado correctamente." / "Se notificó a N instalador(es) elegible(s).") con singular/plural calculado a partir del propio valor devuelto por el RPC en esa misma invocación -- sin ninguna consulta adicional a Supabase. Mismo sistema de Toast (`pushToast`) ya usado en el resto de `CoordinatorLayout.tsx`.
+
+**Criterio de aceptación agregado al Sprint 7.2**: el Coordinador recibe un Toast informativo indicando la cantidad exacta de instaladores notificados cuando `notificar_instaladores_elegibles()` retorna un valor mayor que cero (antes: sin retroalimentación visual en ese caso).
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio.
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes, sin advertencias nuevas.
+
+Sin `git commit`/`push`/PR/merge.
+
+## [Fase 7 — Sprint 7.2 — Notificación a instaladores elegibles y envío de ofertas] — 2026-07-31 — 🟢 Implementado, compilando
+
+Continuación directa del Sprint 7.1: completa el flujo de publicación para que un trabajo publicado llegue a los instaladores elegibles y estos puedan enviar una oferta al Coordinador. Precedido por varias rondas de auditoría exclusivamente funcional (sin código) donde el usuario confirmó formalmente las decisiones de negocio antes de autorizar la implementación.
+
+**Decisiones funcionales confirmadas por el usuario (sin margen de interpretación del desarrollador)**:
+- **Elegibilidad**: `instaladores.activo = true AND instaladores.suspendido = false AND misma empresa AND misma provincia AND misma zona` que el trabajo -- sin cálculo geográfico/distancia, sin PostGIS, sin Google Maps.
+- **Mecanismo de notificación**: RPC nuevo (`notificar_instaladores_elegibles`), no un loop del lado del cliente -- atómico, una sola sentencia `INSERT ... SELECT ... ON CONFLICT DO NOTHING`.
+- **0 instaladores elegibles**: NO es un error técnico -- el trabajo permanece publicado (sin rollback, sin eliminación), el Coordinador recibe un Toast informativo (`tone: 'info'`, no `'error'`) indicando que no existen instaladores elegibles para esa empresa/provincia/zona.
+- **Detalle del trabajo (Instalador)**: sin ruta ni página nueva -- patrón maestro-detalle interno, mismo criterio que `MasterCalendar` (`selDate`).
+
+**Idempotencia del RPC (regla explícita, documentada por pedido del usuario)**: `notificar_instaladores_elegibles(p_trabajo_id)` es seguro de reinvocar sobre el mismo trabajo cualquier cantidad de veces -- la tabla `trabajo_instaladores` ya tenía, desde antes de este Sprint, una restricción real `UNIQUE(trabajo_id, instalador_id)` (verificada vía `pg_constraint`, no asumida); el `INSERT` del RPC usa `ON CONFLICT (trabajo_id, instalador_id) DO NOTHING` sobre esa misma restricción, así que una segunda invocación para el mismo trabajo no duplica notificaciones ni falla -- simplemente no inserta nada nuevo para los instaladores ya notificados, y `RETURNS integer` (`GET DIAGNOSTICS ... row_count`) siempre refleja cuántas filas realmente se insertaron en esa invocación puntual, nunca un total acumulado.
+
+**Implementado**:
+- `supabase/migrations/0006_notificar_instaladores_elegibles.sql` (NUEVO, aprobado y aplicado vía `apply_migration`) -- función `notificar_instaladores_elegibles(p_trabajo_id uuid) RETURNS integer`, `SECURITY INVOKER` (mismo criterio que `submit_bid`/`asignar_instalador`), sin `GRANT`/policy nuevos -- las policies RLS ya existentes del Coordinador (`SELECT` sobre `trabajos`, `SELECT` sobre `instaladores`, `INSERT` sobre `trabajo_instaladores`) ya cubren todo lo que la función necesita bajo el `auth.uid()` de quien la invoca.
+- `src/lib/supabase/config.ts` -- `RPC_FUNCTIONS.notificarInstaladoresElegibles`.
+- `src/services/database.service.ts` -- `callNotificarInstaladoresElegibles()`, mismo patrón `ServiceResult<T>` que el resto de los wrappers de RPC.
+- `src/types/database.generated.ts` -- regenerado vía `generate_typescript_types` (agrega `ofertas`, `trabajo_instaladores`, la vista `trabajos_para_instalador`, y las 4 funciones RPC reales del esquema).
+- `src/layouts/CoordinatorLayout.tsx` -- `onPublish` invoca `callNotificarInstaladoresElegibles` tras el `INSERT` exitoso del trabajo; Toast `'info'` (0 elegibles, no error) o `'error'` (fallo real del RPC) según corresponda; `newJob.trabajoId = row.id` (uuid real, antes ausente de `JobSummaryCardJob`).
+- `src/repositories/trabajos-para-instalador.repository.ts` (NUEVO) -- lectura tipada de la vista `trabajos_para_instalador` (`getAll`/`getByTrabajoId`), ya filtrada por RLS a `auth.uid()`; no implementa `Repository<T>` (vista de solo lectura, sin `create`/`update`/`remove`).
+- `src/components/shared/installer-solicitudes.tsx` (NUEVO) -- reemplaza el estado vacío fijo de la pestaña "Solicitudes" del Instalador por el listado real de trabajos notificados, con patrón maestro-detalle (lista ↔ detalle, mismo estado local que `MasterCalendar`) y formulario de oferta embebido (`submit_bid`, ya existente desde Sprint 5.2.2.1), reutilizando el lenguaje visual `.mx-myjobs`/`.mx-myjob*` (Sprint 3.12) en vez de inventar una convención visual nueva.
+- `src/components/shared/installer-dashboard.tsx` -- pestaña "Solicitudes" monta `InstallerSolicitudes` en vez de `InstallerSolicitudesEmptyState` (que se conserva, reutilizado adentro, como estado vacío real cuando efectivamente no hay solicitudes).
+- `src/components/shared/job-summary-card.tsx` -- `JobSummaryCardJob.trabajoId?: string` (opcional, retrocompatible con el job de demostración de `DespachoPage.tsx`, que no tiene un `trabajos` real detrás).
+- `src/components/shared/responses-panel.tsx` -- reemplaza el estado vacío fijo (Sprint 5.1.3) por las ofertas reales del `activeJob` (`ofertasRepository.getByTrabajoId`), con nombre del instalador resuelto vía `instaladoresRepository.getByEmpresaId` (mismo patrón de mapa id→nombre ya usado para `tienda_id` en `master-calendar.tsx`, Sprint 7.1); orden por precio/tiempo de respuesta ya funcional sobre datos reales, orden por calificación/distancia documentado como inerte en esta ronda (atributos del instalador, no de la oferta, fuera del alcance mínimo de este Sprint); sin `activeJob`/`trabajoId` (caso demo), comportamiento idéntico al anterior a este Sprint, cero regresión. Selección del instalador ganador explícitamente fuera de alcance (solo lectura).
+
+**Criterios de aceptación oficiales del Sprint 7.2** (confirmados por el usuario antes de iniciar la implementación):
+1. El trabajo se publica correctamente (sin regresión respecto al Sprint 7.1).
+2. Se crean automáticamente las filas correspondientes en `trabajo_instaladores` para cada instalador elegible.
+3. La elegibilidad se calcula correctamente (`activo`/`suspendido`/empresa/provincia/zona).
+4. Los instaladores suspendidos quedan excluidos de la notificación.
+5. El caso de 0 instaladores elegibles se comporta según lo definido (trabajo publicado igual, sin error técnico, Toast informativo).
+6. El Instalador visualiza sus solicitudes reales (trabajos notificados).
+7. El Instalador visualiza el detalle de una solicitud.
+8. El Instalador puede enviar una única oferta por trabajo.
+9. El Coordinador visualiza las ofertas recibidas.
+10. `npm run typecheck` sin errores.
+11. `npm run build` sin errores.
+12. `npm run lint` sin errores.
+13. El Coordinador recibe un Toast informativo con la cantidad exacta de instaladores notificados cuando el resultado es mayor que cero (agregado en la ronda de mejora de UX del 2026-08-03, ver entrada correspondiente arriba).
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio.
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes (`AuthContext.tsx`/`useRealtime.ts`/`supabase/client.ts`), sin advertencias nuevas.
+
+Pendiente: validación funcional manual del usuario contra Producción. Sin `git commit`/`push`/PR/merge -- pendientes de aprobación explícita del usuario.
+
+## [Fase 7 — Sprint 7.1 — Aprobación final] — 2026-07-30 — ✅ APROBADO
+
+El usuario ejecutó pruebas manuales completas sobre la implementación final (incluidas ambas correcciones de la validación funcional -- `SUCURSALES` en `PublishModal` y la policy RLS `admins ven trabajos de su empresa`) y aprobó el Sprint. Checklist confirmado por el usuario:
+
+- Coordinador publica trabajos correctamente.
+- Sucursal asignada aparece por defecto en el modal de publicación.
+- Validaciones del formulario funcionan correctamente.
+- Trabajo publicado exitosamente en "Despacho en vivo".
+- "Mis trabajos" registra correctamente los trabajos publicados.
+- Persistencia de datos tras recargar (F5) y tras volver a iniciar sesión.
+- Calendario Maestro del Administrador visualiza correctamente los trabajos publicados.
+- Filtro por sucursal funciona correctamente.
+- Sin regresiones funcionales respecto a módulos previamente implementados.
+- Pruebas posteriores a la actualización de la policy RLS satisfactorias.
+
+Sin cambios de código en esta ronda -- únicamente cierre formal del Sprint. Commit y push a `feature/sprint-7-publicacion-trabajos` autorizados explícitamente por el usuario; **sin merge a `develop`**, pendiente de aprobación aparte (regla permanente de `CLAUDE.md`).
+
+## [Fase 7 — Sprint 7.1 — Segunda validación funcional: Calendario Maestro sin datos para Admin] — 2026-07-30 — 🟢 Migración RLS aplicada y validada
+
+El usuario confirmó que el flujo de publicación funciona de punta a punta para el Coordinador (sucursal correcta, INSERT real, "Despacho en vivo"/"Mis trabajos" actualizados sin recargar, persiste tras F5 y tras volver a iniciar sesión). Reportó un nuevo hallazgo: "Calendario Maestro" (Administrador) no muestra el trabajo recién publicado aunque corresponde a la fecha seleccionada.
+
+**Causa raíz (confirmada en vivo vía MCP, no supuesta)**: no es refetch, ni fecha/timezone, ni una fuente de datos distinta -- es RLS. Las 4 policies reales de `public.trabajos` (`pg_policies`) reconocen exclusivamente `auth.uid()` presente en `public.coordinadores` (incluida su propia rama "admin", modelada como `coordinadores.rol = 'admin'` -- un concepto distinto de `public.admins`, la tabla que usa el resto de la app para `profile.rol === 'admin'` desde Sprint 4.2.1). El usuario real de prueba, "Administrador Principal", existe únicamente en `public.admins`, sin fila en `coordinadores` -- ninguna policy lo reconoce, `trabajosRepository.getAll()` devuelve `[]` para el 100% de los trabajos bajo su sesión, no solo el más reciente (confirmado: el trabajo `JOB-8660`, `fecha 2026-07-30`, existe en la tabla con datos correctos). `authenticated` ya tiene `GRANT SELECT` sobre `trabajos` -- el hueco es exclusivamente de policy.
+
+**Checklist del brief, verificado**: (1) patrón Repository→Service→Supabase intacto (`master-calendar.tsx` llama al repositorio directo, sin Service -- inconsistencia menor de estilo respecto a `TrabajosPage`/`dashboard.service.ts`, no la causa); (2) misma tabla que "Mis trabajos", RLS distinto según el rol de la sesión; (3) sin bug de fecha/formato/timezone; (4) el refetch sí se ejecuta tras el `create()` para quien publica -- para una sesión de Administrador distinta, ningún trigger en memoria puede propagarlo sin Realtime (ya documentado como fuera de alcance), pero aun con recarga completa el bloqueo seguiría siendo RLS.
+
+**Corrección**: `supabase/migrations/0005_admins_select_trabajos.sql` -- policy SELECT aditiva para `admins` sobre `trabajos`, scoped por empresa, estructuralmente idéntica a la migración `0004` (`instaladores`) -- verificado explícitamente contra los 4 requisitos del usuario antes de aplicar: (1) solo `SELECT`; (2) no toca ninguna de las 4 policies existentes; (3) sin `INSERT`/`UPDATE`/`DELETE`; (4) mismo patrón exacto que la `0004`. Aprobada y aplicada vía `apply_migration`.
+
+**Validación funcional post-aplicación (RLS real, no solo `pg_policies`)** -- simulación de sesión (`SET LOCAL ROLE authenticated` + `request.jwt.claims`) para 2 usuarios reales:
+
+| Sesión simulada | Trabajos visibles |
+|---|---|
+| Administrador Principal (`public.admins`) | 9 -- incluye `JOB-8660`, el recién publicado |
+| Coordinador Test (tienda "Multimax Paitilla") | 4 -- exactamente los de su propia tienda, sin cambios |
+
+Confirma: el Administrador ya ve el Calendario Maestro completo de su empresa; el Coordinador sigue viendo únicamente lo que sus policies ya permitían (`qual` de esa policy verificado byte-idéntico a antes de aplicar -- no se tocó). Sin regresión en "Mis trabajos" (misma policy de coordinador) ni en "Despacho en vivo" (estado en memoria, no depende de RLS).
+
+### Añadido
+
+- `supabase/migrations/0005_admins_select_trabajos.sql` (NUEVO, aplicado y validado) -- policy `"admins ven trabajos de su empresa"`, SELECT, aditiva.
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio.
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes.
+
+## [Fase 7 — Sprint 7.1 — Publicación de trabajos (Coordinator → Installer)] — 2026-07-30 — 🟢 Implementado, compilando
+
+Primer flujo funcional de publicación de trabajos: Coordinador crea y publica un trabajo real en `trabajos`. Auditoría previa obligatoria (código + MCP) encontró que la mayor parte de la infraestructura YA estaba construida desde la Fase 5 (Sprint 5.2.1/5.2.2.x, en esta misma rama): `PublishModal` con validaciones completas en español, `onPublish` (`CoordinatorLayout.tsx`) haciendo un `INSERT` real vía `trabajosRepository.create()`, y -- verificado en vivo vía MCP, sin asumir -- las policies RLS (`"coordinadores publican en su tienda"`, INSERT) y los GRANT (`authenticated`: `INSERT, SELECT` sobre `trabajos`) que Sprint 5.2.2.1/5.2.2.2 habían dejado listos ya estaban aplicados en Producción (no rastreados como migración formal, pero confirmados con `pg_policies`/`information_schema.role_table_grants`). No fue necesario tocar RLS/migraciones/Edge Functions -- ninguno de los 3 restringidos explícitamente por el brief.
+
+**Lo que realmente faltaba y se implementó**:
+- **Bloqueo durante envío / evitar doble publicación** (Objetivos 1 y 4): `PublishModal` nunca esperaba la promesa de `onPublish` (ya `async` desde el Sprint 5.2.2.1) -- el botón quedaba interactivo durante todo el `INSERT`, permitiendo doble submit con clicks repetidos. Se agregó `isSubmitting` + `await onPublish(f)` + botón deshabilitado con spinner ("Publicando…").
+- **Actualización inmediata sin recargar** (Objetivo 5): "Mis trabajos" (`TrabajosPage.tsx`) solo refetchaba al cambiar de tienda -- se agregó `activeJob?.id` (ya expuesto por `useOperationalContext()`, actualizado por `onPublish` en cada publish exitoso) como trigger adicional de refetch. "Calendario Maestro" (`master-calendar.tsx`) estaba 100% desconectado de datos reales (mock `TRABAJOS`, Sprint 3.14) -- se reemplazó por `trabajosRepository.getAll()` + `tiendasRepository.getAll()` (resolución `tienda_id` → nombre para `SUSCOL`/filtro), `trabajoEstadoInfo()` (vocabulario real `live`/`assigned`/`completed`/`cancelled`, ya existente desde Sprint 5.1) en vez del `ESTADO` mock, con el mismo trigger `activeJob?.id`.
+- **Tiempo real** (Objetivo 6): infraestructura genérica ya existía (`useRealtime()`, Sprint 4.1.1: crea/suscribe/limpia un canal, sin listener de `postgres_changes`). Conectar solo el evento "nuevo trabajo" sin cubrir los eventos futuros de Sprints posteriores (asignación/cancelación) habría dejado una integración a medio terminar -- documentado como punto de integración exacto en `CoordinatorLayout.tsx` (comentario junto a `setActiveJob`), NO implementado, por instrucción explícita del brief ("No crear una implementación incompleta").
+
+**Aclaración funcional -- "Estado inicial: PENDIENTE" (brief histórico) vs. `live` (esquema real de Producción)**: el brief de este Sprint especificaba explícitamente que el estado inicial del trabajo debía ser `PENDIENTE`. Antes de decidir, se verificó el esquema real vía MCP (no se asumió nada): `trabajos.estado` es `text`, `NOT NULL`, `DEFAULT 'live'::text`, **sin** `CHECK constraint` ni tipo `ENUM` -- no hay ninguna restricción técnica que impida usar `'pending'`, pero tampoco existe ese valor en ningún lado del modelo real: `pg_enum` confirma que no hay un tipo `trabajo_estado` en la base de datos (la migración `0002_auth_roles_rls.sql` que sí lo define pertenece a un modelo de esquema legacy distinto, no al vigente); los 8 trabajos reales de Producción están 100% en `estado = 'live'`; y `TrabajoEstadoReal` (`constants/index.ts`, Sprint 5.1) solo reconoce `live`/`assigned`/`completed`/`cancelled`.
+
+Se auditaron además, a pedido del usuario, los 3 consumidores reales de `estado` para descartar cualquier dependencia oculta del literal `'live'` antes de decidir: la vista `trabajos_para_instalador` no filtra por `estado` (usa `trabajo_instaladores` para determinar visibilidad); la función `asignar_instalador()` hace `UPDATE ... SET estado = 'assigned'` sin condicionarse al valor previo; ninguna policy RLS de `trabajos` referencia `estado` en su `qual`. Es decir, cambiar el valor inicial a `'pending'` habría sido técnicamente posible y de bajo riesgo (no habría requerido migración -- bastaba con fijarlo en el payload del `INSERT`).
+
+**Decisión, confirmada con el usuario**: se mantiene `live` -- se optó por respetar el dominio de valores ya existente y validado (`TrabajoEstadoReal`/`TRABAJO_ESTADO_INFO`/`TRABAJOS_FILTROS`/`trabajoEstadoInfo()`, consumido por `TrabajoRow`/`TrabajosPage`/`master-calendar.tsx`) en vez de introducir `'pending'` como un segundo vocabulario paralelo -- un cambio funcional/de nomenclatura fuera del alcance explícito de este Sprint ("Publicación de trabajos", no "rediseño del modelo de estados"). `'live'` ("abierto a ofertas de instaladores") es, semánticamente, el mismo concepto que el "PENDIENTE" del brief. Sin cambio de código: el payload de `onPublish` ya no sobreescribía `estado`, usa el `DEFAULT` de la columna tal cual.
+
+### Corrección tras validación funcional -- Issue 1 (bloqueante)
+
+El usuario reportó que, al iniciar sesión como Coordinador real, el badge "Sucursal activa" mostraba la tienda correcta, pero el campo "Sucursal que publica" de `PublishModal` aparecía vacío, exigiendo selección manual.
+
+**Causa raíz confirmada con datos reales (MCP)**: el coordinador de prueba (`Coordinador Test`) pertenece a la tienda real `"Multimax Paitilla"` (`coordinadores.tienda_id` → `tiendas.nombre`), que no está entre las 9 sucursales legacy hardcodeadas en `SUCURSALES` (`constants/index.ts`, transcritas del HTML original, Sprint 3.4). `PublishModal` recibe el nombre correcto (`sucursal`/`enabledValue`, ambos derivados de `tiendaNombre` -- **misma fuente exacta** que ya usa correctamente el badge del Header, confirmado que no hay ninguna fuente de datos duplicada ni perdida), pero su `<select>` solo renderizaba `<option>` de esas 9 -- un `value` sin `<option>` coincidente aparece vacío en el navegador.
+
+**No es una regresión de este Sprint**: el mismo bug, en el mismo componente, ya estaba documentado como conocido y sin corregir desde el Sprint 5.2.3.5 (Fase 5) -- esa ronda corrigió exactamente este problema en `SucursalSelect` (badge/selector de la vista principal) y dejó anotado explícitamente que `PublishModal` tenía "el mismo bug exacto" pendiente para una ronda futura. El Sprint 7.1 no había tocado esa sección del archivo.
+
+**Corrección**: mismo patrón ya establecido y validado en `sucursal-select.tsx` -- unión (no reemplazo) de `SUCURSALES` con el valor real de `f.sucursal` cuando no está entre las 9 opciones legacy. `SUCURSALES` en sí no se modifica (sigue igual para `SucursalSelect`/`MasterCalendar`).
+
+### Modificado
+
+- `src/components/shared/publish-modal.tsx` -- `isSubmitting`, `onPublish` ahora `void | Promise<void>` y awaited, botón con loading/disabled. Corrección Issue 1: `sucursalOptions` (unión `SUCURSALES` + `f.sucursal` real) reemplaza la iteración directa sobre `SUCURSALES` en el `<Select>` de "Sucursal que publica".
+- `src/layouts/CoordinatorLayout.tsx` -- comentario de documentación del punto de integración Realtime (sin lógica nueva).
+- `src/pages/coordinator/TrabajosPage.tsx` -- `activeJob` agregado como trigger de refetch.
+- `src/components/shared/master-calendar.tsx` -- fuente de datos reemplazada de mock (`TRABAJOS`/`ESTADO`) a real (`trabajosRepository`/`tiendasRepository`/`trabajoEstadoInfo`), con estados de carga/error. Dos campos del mock sin equivalente real, documentados y omitidos: `instalador` (nombre, la fila real solo tiene el uuid `instalador_asignado_id`) y `id` visible (se usa `codigo` real en su lugar).
+
+### Validado, ya existente (sin cambios de código)
+
+- `PublishModal`: campos obligatorios, formatos, mensajes en español (Sprint 5.2.1 Fix).
+- `trabajosRepository.create()` -- patrón Repository → Service (`CoordinatorLayout`) → UI ya respetado, sin acceso directo a Supabase desde componentes.
+- RLS/GRANT de `trabajos` para publicación -- confirmados ya aplicados en Producción (ver arriba).
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio (mismo warning preexistente de tamaño de chunk).
+- `npm run lint` -- código de salida 0 (sin errores; corregido además un warning nuevo propio, directiva `eslint-disable` innecesaria en `master-calendar.tsx`).
+
+### Limitaciones / Sprint posterior recomendado
+
+- Realtime cross-sesión (otros Coordinadores de la misma tienda, Instaladores elegibles) -- punto de integración documentado, no conectado.
+- `master-calendar.tsx` no muestra el instalador asignado (sin nombre denormalizado en el schema real).
+- Aceptación/tracking/finalización del trabajo -- explícitamente fuera de alcance de este Sprint (brief: "NO implementar todavía").
+- **Observación de arquitectura (no bloqueante, reportada por el usuario tras la validación funcional)**: evaluar si el rol Administrador debería poder también publicar trabajos (hoy: Administrador administra, Coordinador publica, Instalador ejecuta) -- posiblemente seleccionando sucursal/coordinador responsable al publicar. Sin implementación en este Sprint, a evaluar en un Sprint futuro.
+
 ## [Fase 6 — Sprint 6.3 — Onboarding del Instalador] — 2026-07-29 — 🟢 Implementado, compilando
 
 Flujo completo de incorporación del instalador tras recibir una invitación, sobre la infraestructura de Auth ya existente (Sprint 4.2.1) -- sin tocar Edge Functions, RLS, esquema de base de datos, ni los módulos de Calendario/Instaladores/Empresas/Coordinadores. Auditoría previa (obligatoria por brief) encontró que buena parte del alcance ya estaba resuelto (login en español, recuperación -- solicitar correo, guards de sesión, logout); el trabajo real quedó acotado a lo que realmente faltaba.

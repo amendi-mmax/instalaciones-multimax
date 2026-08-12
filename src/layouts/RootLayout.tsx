@@ -4,7 +4,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { AdminPanel } from '@/components/shared/admin-panel';
 import { AdminVistaSwitch, type AdminVista } from '@/components/shared/admin-vista-switch';
-import { CountRing } from '@/components/shared/countring';
 import { Footer } from '@/components/shared/footer';
 import { Header } from '@/components/shared/header';
 import { InstallerDashboard } from '@/components/shared/installer-dashboard';
@@ -14,18 +13,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { CoordinatorLayout } from '@/layouts/CoordinatorLayout';
 import { OperationalContextProvider } from '@/providers/OperationalContextProvider';
 import type { ModoVisualizacion } from '@/providers/operational-context.context';
-
-/**
- * Props mock de `CountRing` para la integración temporal del Sprint 3.8 (ver
- * bloque de documentación más abajo). NO son datos reales de una ronda de
- * bid — en el HTML fuente `remaining`/`total` provienen de `jobView` (motor
- * de trabajos, todavía no portado). `COUNTRING_DEMO_TOTAL` reproduce el
- * default real `(j.bidMins || 5) * 60` con `bidMins = 5`; `COUNTRING_DEMO_
- * REMAINING` es un valor fijo intermedio (no crítico, no vencido) solo para
- * poder validar visualmente el anillo sin depender de ningún timer/estado.
- */
-const COUNTRING_DEMO_TOTAL = 300;
-const COUNTRING_DEMO_REMAINING = 172;
 
 /**
  * RootLayout — equivalente de "AppShell" pedido en el listado de Layout de
@@ -255,38 +242,21 @@ const COUNTRING_DEMO_REMAINING = 172;
  * temporal" en docs/sprints/sprint-3.7.md.
  *
  * ---------------------------------------------------------------------
- * TEMPORARY INTEGRATION — Sprint 3.8 (`CountRing`)
+ * RETIRADO — Sprint 3.8 (`CountRing`) — Estabilización del módulo
+ * Instalador (post Sprint 8.2)
  * ---------------------------------------------------------------------
- * `CountRing` reconstruye `function CountRing({ remaining, total, size,
- * color })` (líneas 1437-1491 del HTML fuente) — un anillo SVG de countdown
- * sin ninguna clase CSS propia y sin estado/efectos/timers internos (función
- * pura derivada de sus props). En el HTML fuente, sus dos únicos usos reales
- * (líneas 3276 y 3317) están dentro de `Installer(props)` — pasos "alerta de
- * nueva solicitud" y "tu propuesta" del teléfono del Instalador (`mx-phone`/
- * `mx-alert`/`mx-offer`) — no dentro de `Coordinator`.
- *
- * Ese teléfono todavía no existe en el proyecto: el Sprint 3.2 solo migró
- * `mx-instside` (el panel lateral); el "Phone Placeholder" de
- * `.mx-instwrap` (ver bloque Sprint 3.2.1/3.2.2 arriba) sigue vacío a
- * propósito. Tampoco existe el motor de trabajos (`jobs`/`jobView`) que
- * alimentaría `remaining`/`total` con datos reales.
- *
- * Se consultó al usuario, que autorizó explícitamente esta integración
- * temporal (mismo criterio ya aprobado en los Sprints 3.5/3.6/3.7): montar
- * `CountRing` en `RootLayout.tsx`, sin rutas nuevas, sin cambios a React
- * Router, sin lógica de negocio ni implementación del flujo del Instalador,
- * únicamente para validación visual. Se monta dentro de `role ===
- * 'instalador'` (su rol real en el HTML fuente, a diferencia de `Radar`/
- * `CoordinatorEmptyState`, que sí pertenecen a `role === 'coordinador'`),
- * como hermano de `.mx-instwrap` — no dentro de ese grid, ya que `CountRing`
- * no forma parte de `mx-instside`/`InstallerSidebar` (que no se modifica) ni
- * de su layout de 2 columnas; su posición real está dentro del futuro
- * `mx-phone`, todavía no construido. Props mock `COUNTRING_DEMO_REMAINING`/
- * `COUNTRING_DEMO_TOTAL` definidas arriba (valores fijos, sin timer propio —
- * el timer real pertenece al motor de trabajos, fuera de alcance). Se
- * retirará de aquí y se recolocará dentro del `mx-phone` real en el Sprint
- * que implemente el flujo del Instalador. Ver "Problema encontrado /
- * propuesta de integración temporal" en docs/sprints/sprint-3.8.md.
+ * `CountRing` se había montado aquí (Sprint 3.8) como integración temporal
+ * de validación visual, sin ningún dato real: props fijas
+ * (`COUNTRING_DEMO_REMAINING`/`COUNTRING_DEMO_TOTAL`), sin timer propio, sin
+ * conexión al motor de trabajos (que en este proyecto nunca llegó a
+ * construirse como tal — el flujo real de asignación/aceptación se resolvió
+ * en Sprints 7.1/7.2 mediante `trabajo_instaladores`/`ofertas`/RPC, sin
+ * necesitar un countdown de esta forma). Auditoría de esta ronda confirmó
+ * que ninguna pantalla real dependía de él (único import/uso: este archivo)
+ * — se eliminó por completo: el componente (`components/shared/countring.tsx`),
+ * su import, sus props mock y este mount. `LiveCountdown` (Sprint 3.9,
+ * countdown de texto real de "Despacho en vivo", `Coordinator`) es un
+ * componente distinto, en uso real, y no se modificó.
  *
  * ---------------------------------------------------------------------
  * TEMPORARY INTEGRATION — Sprint 3.9 (`LiveCountdown`)
@@ -639,7 +609,6 @@ export function RootLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [sucursalCoord, setSucursalCoord] = useState('Multiplaza');
-  const [meId, setMeId] = useState('pty');
 
   // Sprint 5.2.3.1 agregó acá un `useEffect` que sincronizaba
   // `sucursalCoord` con `profile.tiendaNombre` para un Coordinador real
@@ -679,10 +648,9 @@ export function RootLayout() {
   // sobre la tienda real del Coordinador -- responsabilidad que nunca le
   // correspondió (la resuelve `profile.service.ts`/`OperationalContext`).
   // Sprint 5.1.1 — solo tiene efecto cuando `profile.rol === 'admin'` (ver
-  // JSDoc "SPRINT 5.1.1" más arriba); inerte para `coordinador`/`instalador`,
-  // mismo criterio ya establecido para `meId` (solo relevante para
-  // `instalador`). Default 'administracion': un admin real sigue viendo su
-  // propia vista real al entrar, sin sorpresas.
+  // JSDoc "SPRINT 5.1.1" más arriba); inerte para `coordinador`/`instalador`.
+  // Default 'administracion': un admin real sigue viendo su propia vista
+  // real al entrar, sin sorpresas.
   const [adminVista, setAdminVista] = useState<AdminVista>('administracion');
 
   useEffect(() => {
@@ -810,9 +778,7 @@ export function RootLayout() {
                     </span>
                   </div>
                 ) : null}
-                <InstallerDashboard meId={meId} onMeIdChange={setMeId} />
-                {/* TEMPORARY INTEGRATION — Sprint 3.8 (CountRing): ver comentario de la función. */}
-                <CountRing remaining={COUNTRING_DEMO_REMAINING} total={COUNTRING_DEMO_TOTAL} />
+                <InstallerDashboard profile={profile} />
               </>
             )}
             {/* Sprint 3.13 (AdminPanel): integración real y directa — ver comentario de la función.

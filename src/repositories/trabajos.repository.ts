@@ -78,10 +78,56 @@ async function getByEstado(estado: string): Promise<ServiceResult<TableRow<'trab
   return toServiceResult(query);
 }
 
+/**
+ * Filtro combinado para el Calendario Maestro (Sprint 8.2, "Master
+ * Calendar (Fase 1)", Ajuste 8.2.6: "no consultar todos los trabajos --
+ * únicamente mes visible + filtros activos"). Reemplaza, para ese
+ * consumidor, el `getAll()` + filtrado 100% en cliente que usaba
+ * `MasterCalendar` desde el Sprint 7.1 -- ahora el mes y cada filtro
+ * activo se aplican del lado del servidor, RLS sigue siendo la única
+ * fuente real de scoping por empresa (sin cambios ahí).
+ *
+ * `yearMonth` filtra por prefijo (`'YYYY-MM'`) sobre `fecha` -- columna
+ * `text` libre, no `date`/`timestamptz` real (ver JSDoc de cabecera de
+ * este archivo y `dashboard.service.ts#hoyComoTexto`, mismo formato
+ * `'YYYY-MM-DD'` ya asumido en todo el proyecto) -- se usa `.like()` en
+ * vez de un rango de fechas real porque no existe una columna de fecha
+ * tipada para comparar con operadores `gte`/`lt`.
+ *
+ * El resto de los filtros son opcionales (`undefined` = no aplicar esa
+ * condición) y se combinan con AND -- exactamente "todos los filtros
+ * deberán poder combinarse" (Sprint 8.2.1).
+ */
+export interface TrabajosCalendarFilter {
+  yearMonth: string;
+  empresaId?: string;
+  tiendaId?: string;
+  coordinadorId?: string;
+  instaladorId?: string;
+  estado?: string;
+  urgente?: boolean;
+}
+
+async function getByMonthAndFilters(
+  filter: TrabajosCalendarFilter,
+): Promise<ServiceResult<TableRow<'trabajos'>[]>> {
+  let query = getClient().from(TABLES.trabajos).select('*').like('fecha', `${filter.yearMonth}%`);
+
+  if (filter.empresaId) query = query.eq('empresa_id', filter.empresaId);
+  if (filter.tiendaId) query = query.eq('tienda_id', filter.tiendaId);
+  if (filter.coordinadorId) query = query.eq('coordinador_id', filter.coordinadorId);
+  if (filter.instaladorId) query = query.eq('instalador_asignado_id', filter.instaladorId);
+  if (filter.estado) query = query.eq('estado', filter.estado);
+  if (filter.urgente !== undefined) query = query.eq('urgente', filter.urgente);
+
+  return toServiceResult(query);
+}
+
 export const trabajosRepository: Repository<'trabajos'> & {
   getByEmpresaId: typeof getByEmpresaId;
   getByTiendaId: typeof getByTiendaId;
   getByEstado: typeof getByEstado;
+  getByMonthAndFilters: typeof getByMonthAndFilters;
 } = {
   getAll,
   getById,
@@ -91,4 +137,5 @@ export const trabajosRepository: Repository<'trabajos'> & {
   getByEmpresaId,
   getByTiendaId,
   getByEstado,
+  getByMonthAndFilters,
 };

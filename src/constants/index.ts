@@ -382,67 +382,16 @@ export const ESTADO: Record<EstadoUiKey, EstadoUiInfo> = {
 };
 
 /**
- * `MISJOBS` — mock estático de "Mis trabajos" del Instalador, portado
- * verbatim de `const MISJOBS` (`Multimax_Despacho_v1.3.html`, líneas
- * 1327-1352) — 4 registros fijos, sin `id` (a diferencia de `TRABAJOS`, que sí
- * tiene `id`; el HTML fuente no le asigna uno a estos). Único consumidor
- * real: `InstallerJobs` (Sprint 3.12), que agrupa por `grupo` ("Próximos"/
- * "Historial") y resuelve cada `estado` contra `ESTADO` de arriba.
- *
- * Se define como constante reutilizable en vez de un literal dentro del
- * componente, por la regla de preparación para Supabase vigente desde el
- * Sprint 3.12: esta colección podrá sustituirse más adelante por datos reales
- * (tabla `trabajos` filtrada por instalador asignado) sin tocar el JSX/
- * estructura/estilos de `InstallerJobs` — solo la fuente de datos.
+ * `MISJOBS`/`MisJobMock` — mock estático de "Mis trabajos" del Instalador
+ * (Sprint 3.12) — ELIMINADO en la Estabilización del módulo Instalador
+ * (post Sprint 8.2): `InstallerJobs` (`components/shared/installer-jobs.tsx`)
+ * consume ahora datos reales (`trabajosParaInstaladorRepository`, vista
+ * `trabajos_para_instalador`, filtrado `gane_yo === true`), sin ningún
+ * consumidor restante de este mock (verificado con `grep` antes de
+ * eliminarlo). `ESTADO`/`EstadoUiKey`/`EstadoUiInfo` (arriba) NO se
+ * eliminan: siguen en uso real por `TrabajoMock`/`TRABAJOS` (mock de
+ * Coordinador/Calendario, fuera del alcance de esta ronda).
  */
-export interface MisJobMock {
-  tipo: string;
-  zona: string;
-  fecha: string;
-  hora: string;
-  precio: number;
-  estado: EstadoUiKey;
-  grupo: 'Próximos' | 'Historial';
-}
-
-export const MISJOBS: readonly MisJobMock[] = [
-  {
-    tipo: 'Instalación A/A 12,000 BTU',
-    zona: 'Paitilla',
-    fecha: 'Mañana',
-    hora: '10:00 a.m.',
-    precio: 120,
-    estado: 'confirmado',
-    grupo: 'Próximos',
-  },
-  {
-    tipo: 'Mantenimiento de Split',
-    zona: 'Costa del Este',
-    fecha: 'Hoy',
-    hora: '2:00 p.m.',
-    precio: 90,
-    estado: 'pendiente',
-    grupo: 'Próximos',
-  },
-  {
-    tipo: 'Instalación A/A 18,000 BTU',
-    zona: 'San Francisco',
-    fecha: 'Ayer',
-    hora: '3:30 p.m.',
-    precio: 160,
-    estado: 'completado',
-    grupo: 'Historial',
-  },
-  {
-    tipo: 'Reparación de condensador',
-    zona: 'Bella Vista',
-    fecha: '19 jun',
-    hora: '9:00 a.m.',
-    precio: 80,
-    estado: 'completado',
-    grupo: 'Historial',
-  },
-] as const;
 
 /**
  * `SUSCOL` — mapeo sucursal→color (`bg`/`fg`), portado verbatim de `const

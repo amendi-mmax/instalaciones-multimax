@@ -150,3 +150,48 @@ export async function callSubmitBid(
   }
   return { ok: true, data };
 }
+
+/**
+ * Invocación tipada de `notificar_instaladores_elegibles` (RPC real de
+ * Producción, Sprint 7.2 -- `supabase/migrations/0006_notificar_instaladores_elegibles.sql`).
+ * Ver `callAsignarInstalador` para la justificación del patrón general.
+ *
+ * `Returns` es `number` (la función real devuelve `integer`, cantidad de
+ * instaladores efectivamente notificados en la invocación) -- `0` es un
+ * resultado VÁLIDO (trabajo publicado sin instaladores elegibles para su
+ * empresa/provincia/zona), no un error; quien llame a este helper decide
+ * qué mostrar en ese caso (ver `CoordinatorLayout.tsx`), este wrapper no
+ * asume nada.
+ */
+export async function callNotificarInstaladoresElegibles(
+  args: Database['public']['Functions']['notificar_instaladores_elegibles']['Args'],
+): Promise<ServiceResult<Database['public']['Functions']['notificar_instaladores_elegibles']['Returns']>> {
+  const { data, error } = await getClient().rpc(RPC_FUNCTIONS.notificarInstaladoresElegibles, args);
+  if (error) {
+    return { ok: false, error: normalizeSupabaseError(error) };
+  }
+  return { ok: true, data };
+}
+
+/**
+ * Invocación tipada de `nombre_empresa_instaladora` (RPC real de
+ * Producción, Sprint 8.4 -- `supabase/migrations/0010_instaladores_
+ * empresa_instaladora.sql`). Ver `callAsignarInstalador` para la
+ * justificación del patrón general.
+ *
+ * `Returns` es `string | null` en tiempo de ejecución -- la función SQL
+ * declara `RETURNS text` pero un `SELECT ... WHERE id = $1` sin
+ * coincidencia devuelve `NULL`, no una fila vacía (mismo comportamiento
+ * que cualquier función `LANGUAGE sql` de una sola sentencia). El tipo
+ * generado (`Returns: string`) no refleja ese caso -- se documenta acá,
+ * no se "corrige" el tipo generado a mano.
+ */
+export async function callNombreEmpresaInstaladora(
+  args: Database['public']['Functions']['nombre_empresa_instaladora']['Args'],
+): Promise<ServiceResult<Database['public']['Functions']['nombre_empresa_instaladora']['Returns'] | null>> {
+  const { data, error } = await getClient().rpc(RPC_FUNCTIONS.nombreEmpresaInstaladora, args);
+  if (error) {
+    return { ok: false, error: normalizeSupabaseError(error) };
+  }
+  return { ok: true, data };
+}

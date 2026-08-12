@@ -1,4 +1,5 @@
 import { ChevronDown, KeyRound, LogOut, Settings, User as UserIcon } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 import { Avatar } from '@/components/ui/avatar';
 import {
@@ -9,6 +10,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useUserContext } from '@/hooks/useUserContext';
+import { ESTADO_LABEL, ROL_LABEL, initialsFrom } from '@/lib/perfil-format';
 import type { Perfil } from '@/types/perfil';
 
 /**
@@ -28,63 +31,65 @@ import type { Perfil } from '@/types/perfil';
  * `<img>` en vez de `Avatar` cuando `avatarUrl` no sea `null`), pero no se
  * implementa ese camino todavía porque no hay ningún valor real que
  * probarlo -- se documenta la intención, no se fabrica el código muerto.
+ *
+ * **Sprint 7.3 (Módulo de Cuenta de Usuario)**: los 3 ítems "Mi perfil"/
+ * "Configuración"/"Cambiar contraseña" -- `disabled` desde su creación en
+ * el Sprint 4.2.1, sin destino real -- ahora navegan a `/perfil`/
+ * `/configuracion`/`/cambiar-contrasena` (`AccountLayout`, nuevo).
+ *
+ * **Sprint 7.3.1 (Refinamiento)**: los datos mostrados (nombre/correo/
+ * rol/estado/empresa/sucursal) ya NO se leen de la prop `profile` -- se
+ * leen exclusivamente de `useUserContext()` (Regla explícita del brief:
+ * "El menú del Header debe obtener la información únicamente desde
+ * UserContext"). La prop `profile` se conserva en la interfaz (`Header.tsx`
+ * sigue pasándola, y `Header.tsx`/`RootLayout.tsx`/`CoordinatorLayout.tsx`
+ * están fuera de alcance de este Sprint -- no se tocan) pero ya no se lee
+ * dentro de este componente -- `UserContext` deriva de exactamente el mismo
+ * `profile` (vía `useAuth()`, ver `UserContext.tsx`), así que el dato
+ * mostrado es idéntico, sin duplicar ninguna consulta.
  */
 export interface HeaderUserMenuProps {
   profile: Perfil;
   onLogout: () => void;
 }
 
-const ROL_LABEL: Record<Perfil['rol'], string> = {
-  admin: 'Admin',
-  coordinador: 'Coordinador',
-  instalador: 'Instalador',
-};
+export function HeaderUserMenu({ onLogout }: HeaderUserMenuProps) {
+  const navigate = useNavigate();
+  const { profile, rol, nombre, email, estado, empresaNombre, tiendaNombre } = useUserContext();
 
-const ESTADO_LABEL: Record<Perfil['estado'], string> = {
-  activo: 'Activo',
-  suspendido: 'Suspendido',
-  inactivo: 'Inactivo',
-};
+  if (!profile || !rol || !nombre || !estado) return null;
 
-function initialsFrom(nombre: string): string {
-  const partes = nombre.trim().split(/\s+/).filter(Boolean);
-  if (partes.length === 0) return '?';
-  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
-  return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
-}
-
-export function HeaderUserMenu({ profile, onLogout }: HeaderUserMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ice">
-        <Avatar initials={initialsFrom(profile.nombre)} size="sm" />
+        <Avatar initials={initialsFrom(nombre)} size="sm" />
         <ChevronDown size={14} className="text-muted" />
       </DropdownMenuTrigger>
       <DropdownMenuPortal>
         <DropdownMenuContent align="end">
           <div className="px-3 py-2">
-            <p className="truncate text-sm font-semibold text-text">{profile.nombre}</p>
-            {profile.correo ? <p className="truncate text-xs text-muted">{profile.correo}</p> : null}
+            <p className="truncate text-sm font-semibold text-text">{nombre}</p>
+            {email ? <p className="truncate text-xs text-muted">{email}</p> : null}
             <p className="mt-1 text-xs text-muted">
-              {ROL_LABEL[profile.rol]} · {ESTADO_LABEL[profile.estado]}
+              {ROL_LABEL[rol]} · {ESTADO_LABEL[estado]}
             </p>
-            {profile.empresaNombre ? (
+            {empresaNombre ? (
               <p className="truncate text-xs text-muted">
-                {profile.empresaNombre}
-                {profile.tiendaNombre ? ` · ${profile.tiendaNombre}` : ''}
+                {empresaNombre}
+                {tiendaNombre ? ` · ${tiendaNombre}` : ''}
               </p>
             ) : null}
           </div>
           <DropdownMenuSeparator />
-          <DropdownMenuItem disabled className="opacity-50" onSelect={(event) => event.preventDefault()}>
+          <DropdownMenuItem onSelect={() => navigate('/perfil')}>
             <UserIcon size={14} />
             Mi perfil
           </DropdownMenuItem>
-          <DropdownMenuItem disabled className="opacity-50" onSelect={(event) => event.preventDefault()}>
+          <DropdownMenuItem onSelect={() => navigate('/configuracion')}>
             <Settings size={14} />
             Configuración
           </DropdownMenuItem>
-          <DropdownMenuItem disabled className="opacity-50" onSelect={(event) => event.preventDefault()}>
+          <DropdownMenuItem onSelect={() => navigate('/cambiar-contrasena')}>
             <KeyRound size={14} />
             Cambiar contraseña
           </DropdownMenuItem>

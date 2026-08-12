@@ -11,7 +11,7 @@
  */
 
 /**
- * Nombres de las 8 tablas reales de Producción (schema `public`), tal como
+ * Nombres de las tablas reales de Producción (schema `public`), tal como
  * fueron auditadas y documentadas en `docs/database/DATABASE_INVENTORY.md`
  * (Sprint 4.0.1 — Database Synchronization Audit) a partir del `pg_dump`
  * real en `supabase/migrations/0001_initial_schema.sql`, que es la baseline
@@ -19,11 +19,15 @@
  * `usuarios`/`sucursales`/`bids`/`zonas_cobertura`/`notificaciones`) en
  * ningún código nuevo -- ver `docs/database/DATABASE_DIFF.md` para el
  * mapeo completo legacy → Producción.
+ *
+ * `empresasInstaladoras` (Sprint 8.3) -- tabla nueva, `supabase/migrations/
+ * 0009_empresas_instaladoras.sql`, verificada vía MCP tras aplicarse.
  */
 export const TABLES = {
   admins: 'admins',
   coordinadores: 'coordinadores',
   empresas: 'empresas',
+  empresasInstaladoras: 'empresas_instaladoras',
   instaladores: 'instaladores',
   tiendas: 'tiendas',
   trabajos: 'trabajos',
@@ -51,6 +55,15 @@ export const VIEWS = {
 export const RPC_FUNCTIONS = {
   asignarInstalador: 'asignar_instalador',
   submitBid: 'submit_bid',
+  notificarInstaladoresElegibles: 'notificar_instaladores_elegibles',
+  /**
+   * Sprint 8.4 -- función `SECURITY DEFINER` de solo lectura (migración
+   * `0010_instaladores_empresa_instaladora.sql`). Permite que un
+   * instalador resuelva el nombre de SU PROPIA empresa instaladora sin
+   * necesitar una policy de `SELECT` sobre `empresas_instaladoras` (RLS
+   * admin-only, Sprint 8.3, sin cambios).
+   */
+  nombreEmpresaInstaladora: 'nombre_empresa_instaladora',
 } as const;
 
 /**

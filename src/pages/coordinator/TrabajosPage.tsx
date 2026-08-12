@@ -55,6 +55,7 @@ export function TrabajosPage() {
     tiendaNombre,
     loading: contextoLoading,
     error: contextoError,
+    activeJob,
   } = useOperationalContext();
   const navigate = useNavigate();
 
@@ -99,7 +100,19 @@ export function TrabajosPage() {
     return () => {
       active = false;
     };
-  }, [tiendaId, contextoLoading, contextoError]);
+    // Sprint 7.1 ("Publicación de trabajos", Objetivo 5 -- "Actualización
+    // inmediata... Vista Coordinador... sin recargar la página") --
+    // `activeJob?.id` en las dependencias: `CoordinatorLayout.tsx` llama a
+    // `setActiveJob(newJob)` justo después de un `INSERT` real exitoso en
+    // `trabajos` (`onPublish`), así que un cambio de `activeJob` es la señal
+    // ya existente de "se publicó un trabajo nuevo" -- se reutiliza tal
+    // cual (mismo criterio ya usado por `DespachoPage.tsx`, Sprint
+    // 5.2.3.3.1, para recargar sus KPIs), sin crear ningún evento/Context
+    // nuevo. No dispara en falso: `activeJob` solo cambia por un publish
+    // real o por el `useEffect` de limpieza al cambiar de tienda (Sprint
+    // 5.2.3), que ya reconsulta esta lista de todas formas (`tiendaId`
+    // también cambió en ese caso).
+  }, [tiendaId, contextoLoading, contextoError, activeJob?.id]);
 
   const lista = trabajos
     ? filtro === 'todos'

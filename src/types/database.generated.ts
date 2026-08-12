@@ -127,6 +127,68 @@ export type Database = {
         }
         Relationships: []
       }
+      empresas_instaladoras: {
+        Row: {
+          activa: boolean
+          ciudad: string | null
+          contacto: string | null
+          created_at: string
+          direccion: string | null
+          email: string | null
+          empresa_id: string
+          id: string
+          logo_url: string | null
+          nombre: string
+          pais: string
+          provincia: string | null
+          razon_social: string | null
+          telefono: string | null
+          updated_at: string
+        }
+        Insert: {
+          activa?: boolean
+          ciudad?: string | null
+          contacto?: string | null
+          created_at?: string
+          direccion?: string | null
+          email?: string | null
+          empresa_id: string
+          id?: string
+          logo_url?: string | null
+          nombre: string
+          pais?: string
+          provincia?: string | null
+          razon_social?: string | null
+          telefono?: string | null
+          updated_at?: string
+        }
+        Update: {
+          activa?: boolean
+          ciudad?: string | null
+          contacto?: string | null
+          created_at?: string
+          direccion?: string | null
+          email?: string | null
+          empresa_id?: string
+          id?: string
+          logo_url?: string | null
+          nombre?: string
+          pais?: string
+          provincia?: string | null
+          razon_social?: string | null
+          telefono?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "empresas_instaladoras_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instaladores: {
         Row: {
           aceptacion: number | null
@@ -136,6 +198,7 @@ export type Database = {
           documentos_ok: boolean
           email: string | null
           empresa_id: string
+          empresa_instaladora_id: string | null
           id: string
           km: number | null
           nombre: string
@@ -154,6 +217,7 @@ export type Database = {
           documentos_ok?: boolean
           email?: string | null
           empresa_id: string
+          empresa_instaladora_id?: string | null
           id: string
           km?: number | null
           nombre: string
@@ -172,6 +236,7 @@ export type Database = {
           documentos_ok?: boolean
           email?: string | null
           empresa_id?: string
+          empresa_instaladora_id?: string | null
           id?: string
           km?: number | null
           nombre?: string
@@ -188,6 +253,13 @@ export type Database = {
             columns: ["empresa_id"]
             isOneToOne: false
             referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instaladores_empresa_instaladora_id_fkey"
+            columns: ["empresa_instaladora_id"]
+            isOneToOne: false
+            referencedRelation: "empresas_instaladoras"
             referencedColumns: ["id"]
           },
         ]
@@ -495,6 +567,18 @@ export type Database = {
       asignar_instalador: {
         Args: { p_instalador_id: string; p_trabajo_id: string }
         Returns: undefined
+      }
+      instalador_fue_notificado: {
+        Args: { p_trabajo_id: string }
+        Returns: boolean
+      }
+      nombre_empresa_instaladora: {
+        Args: { p_empresa_instaladora_id: string }
+        Returns: string
+      }
+      notificar_instaladores_elegibles: {
+        Args: { p_trabajo_id: string }
+        Returns: number
       }
       submit_bid: {
         Args: {
