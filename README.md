@@ -22,7 +22,7 @@ React 18 + TypeScript + Vite, Tailwind CSS, Radix UI (primitivos accesibles), Ta
 
 ## Esquema oficial de base de datos
 
-**Baseline oficial**: `supabase/migrations/0001_initial_schema.sql` — un `pg_dump` real exportado directamente desde el proyecto de Producción (PostgreSQL 17.6). Las 8 tablas reales son `empresas`, `tiendas`, `admins`, `coordinadores`, `instaladores`, `trabajos`, `trabajo_instaladores`, `ofertas` — ver `docs/database/DATABASE_INVENTORY.md` para el inventario completo (columnas, FKs, índices, RLS, funciones).
+**Baseline oficial**: `supabase/migrations/0001_initial_schema.sql` — reconstruida en el Sprint 8.4.1 ("Reconstrucción de Migraciones Supabase") a partir del esquema real de Producción, verificado exhaustivamente vía MCP (no es un `pg_dump` literal — ver `supabase/README.md §11` para la corrección completa de esta afirmación y la trazabilidad de por qué la versión anterior de este archivo no reproducía el esquema real). Las 8 tablas reales son `empresas`, `tiendas`, `admins`, `coordinadores`, `instaladores`, `trabajos`, `trabajo_instaladores`, `ofertas` — ver `docs/database/DATABASE_INVENTORY.md` para el inventario completo (columnas, FKs, índices, RLS, funciones). `supabase/migrations/0001_initial_schema.sql` → `0010_instaladores_empresa_instaladora.sql`, aplicadas en orden sobre un proyecto Supabase nuevo, reproducen ese esquema completo.
 
 Los archivos bajo `supabase/migrations/legacy/` documentan un modelo de datos anterior, ya no vigente — se conservan únicamente como referencia histórica (ver `ARCHITECTURE.md §14.1` y `docs/database/DATABASE_SYNC_PLAN.md` para la trazabilidad completa de por qué existen dos modelos).
 
