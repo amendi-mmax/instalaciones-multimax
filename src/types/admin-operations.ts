@@ -12,6 +12,8 @@ export interface InviteInstaladorPayload {
   telefono?: string | null;
   provincia?: string | null;
   zona?: string | null;
+  /** Sprint 8.4 -- FK real a `empresas_instaladoras` (migración `0010`). */
+  empresa_instaladora_id?: string | null;
 }
 
 /** Mismo shape que `SuspendReactivateInstaladorPayload` en la Edge Function. */

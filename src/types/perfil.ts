@@ -100,4 +100,18 @@ export interface Perfil {
     aceptacion: number | null;
     km: number | null;
   } | null;
+  /**
+   * Sprint 8.4 -- espejo de `instaladores.empresa_instaladora_id` (FK real
+   * a `empresas_instaladoras`, migración `0010_instaladores_empresa_
+   * instaladora.sql`). Solo `instalador` tiene este concepto -- `null` para
+   * `admin`/`coordinador` (no aplica) y también `null` para un instalador
+   * real sin empresa asignada todavía ("Pendiente de asignación" en la UI,
+   * mismo criterio que `documentosOk`). El NOMBRE de la empresa no viaja
+   * acá -- `InstallerProfile` lo resuelve por separado vía
+   * `callNombreEmpresaInstaladora` (RLS de `empresas_instaladoras` es
+   * admin-only, Sprint 8.3, sin cambios) porque `resolveProfile()` no debe
+   * empezar a conocer una tabla ajena a `admins`/`coordinadores`/
+   * `instaladores`.
+   */
+  empresaInstaladoraId: string | null;
 }

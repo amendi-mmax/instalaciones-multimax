@@ -198,6 +198,7 @@ export type Database = {
           documentos_ok: boolean
           email: string | null
           empresa_id: string
+          empresa_instaladora_id: string | null
           id: string
           km: number | null
           nombre: string
@@ -216,6 +217,7 @@ export type Database = {
           documentos_ok?: boolean
           email?: string | null
           empresa_id: string
+          empresa_instaladora_id?: string | null
           id: string
           km?: number | null
           nombre: string
@@ -234,6 +236,7 @@ export type Database = {
           documentos_ok?: boolean
           email?: string | null
           empresa_id?: string
+          empresa_instaladora_id?: string | null
           id?: string
           km?: number | null
           nombre?: string
@@ -250,6 +253,13 @@ export type Database = {
             columns: ["empresa_id"]
             isOneToOne: false
             referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instaladores_empresa_instaladora_id_fkey"
+            columns: ["empresa_instaladora_id"]
+            isOneToOne: false
+            referencedRelation: "empresas_instaladoras"
             referencedColumns: ["id"]
           },
         ]
@@ -561,6 +571,10 @@ export type Database = {
       instalador_fue_notificado: {
         Args: { p_trabajo_id: string }
         Returns: boolean
+      }
+      nombre_empresa_instaladora: {
+        Args: { p_empresa_instaladora_id: string }
+        Returns: string
       }
       notificar_instaladores_elegibles: {
         Args: { p_trabajo_id: string }

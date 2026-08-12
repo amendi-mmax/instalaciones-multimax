@@ -56,6 +56,14 @@ export const RPC_FUNCTIONS = {
   asignarInstalador: 'asignar_instalador',
   submitBid: 'submit_bid',
   notificarInstaladoresElegibles: 'notificar_instaladores_elegibles',
+  /**
+   * Sprint 8.4 -- función `SECURITY DEFINER` de solo lectura (migración
+   * `0010_instaladores_empresa_instaladora.sql`). Permite que un
+   * instalador resuelva el nombre de SU PROPIA empresa instaladora sin
+   * necesitar una policy de `SELECT` sobre `empresas_instaladoras` (RLS
+   * admin-only, Sprint 8.3, sin cambios).
+   */
+  nombreEmpresaInstaladora: 'nombre_empresa_instaladora',
 } as const;
 
 /**

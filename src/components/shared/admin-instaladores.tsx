@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  Building2,
   CheckCircle2,
   Mail,
   MapPin,
@@ -8,45 +9,57 @@ import {
   UserPlus,
   Users,
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { PageContainer, PageHead } from '@/components/shared/page-container';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
+import { Select } from '@/components/ui/select';
 import { Loading, Spinner } from '@/components/ui/spinner';
+import { Toast, ToastViewport, type ToastTone } from '@/components/ui/toast';
 import { ZONAS } from '@/constants';
 import { useOperationalContext } from '@/hooks/useOperationalContext';
-import { instaladoresRepository } from '@/repositories/instaladores.repository';
+import { empresasInstaladorasRepository, instaladoresRepository } from '@/repositories';
 import { adminOperationsService } from '@/services/admin-operations.service';
 import type { TableRow } from '@/services/database.service';
+import type { EmpresaInstaladoraRow } from '@/types/empresa-instaladora';
 
 /**
  * AdminInstaladores — reconstruye `function AdminInstaladores()`
  * (`Multimax_Despacho_v1.3.html`, líneas 3049-3160), la pestaña
  * "Instaladores" dentro de `AdminPanel()` (Sprint 3.13). Mismo markup/CSS
- * que el Sprint 3.13 (`.mx-page`/`.mx-pagehead`/`.mx-admingrid`/
- * `.mx-admintable`/`.mx-adminrow*`/`.mx-invite*`) — este Sprint (6.2) NO
- * rediseña el componente, solo reemplaza su fuente de datos.
+ * base desde el Sprint 6.2 (`.mx-page`/`.mx-pagehead`/`.mx-admingrid`/
+ * `.mx-admintable`/`.mx-adminrow*`/`.mx-invite*`) — este Sprint (8.4) NO
+ * rediseña el componente ni sus estilos, solo conecta "Empresa / taller"
+ * con el catálogo real.
  *
- * **Sprint 6.2 — integración real** (reemplaza el mock `INSTALLERS`/`susp`/
- * `sent` de los Sprints 3.13/6.1): el listado viene de
- * `instaladoresRepository.getByEmpresaId()` (lectura, tabla `instaladores`);
- * invitar/suspender/reactivar invocan `adminOperationsService`, que a su vez
- * llama a la Edge Function `admin-operations` (`service_role`) — nunca al
- * revés, ver "Arquitectura" del plan del Sprint (lectura vía repositorio,
- * escritura vía servicio de Edge Function, sin mezclar responsabilidades).
+ * **Sprint 8.4 — "Registro de Instaladores utilizando Empresas
+ * Instaladoras reales"**: el campo "Empresa / taller" del formulario de
+ * invitación deja de ser un `<input>` de texto libre (nunca se guardaba en
+ * ningún lado -- `form.empresa` solo se usaba para el mensaje de éxito) y
+ * pasa a ser un `Select` (`ui/select.tsx`, ya existente) que consume
+ * `empresasInstaladorasRepository.listar()` (Sprint 8.3), filtrado a
+ * `activa === true` y ordenado por nombre (el repositorio ya ordena por
+ * nombre; el filtro de `activa` se hace acá porque `listar()` no lo hace
+ * -- ver su propio JSDoc, Sprint 8.3, sin modificar). El formulario ahora
+ * guarda únicamente `empresa_instaladora_id` (FK real, migración `0010`),
+ * nunca un nombre en texto plano. El listado resuelve "Empresa
+ * Instaladora" vía el mismo catálogo (mapa `id -> nombre`), nunca texto
+ * hardcodeado.
  *
  * `INSTALLERS`/`InstallerMock` (`@/constants`) NO se tocan en este Sprint:
- * siguen siendo consumidos por `Radar` (Sprint 3.7), sin relación con este
- * componente desde ahora.
+ * siguen siendo consumidos por `Radar`/`AssignedPanel` (Coordinador,
+ * explícitamente restringido este Sprint) -- verificado con `grep` antes
+ * de cerrar el Sprint que ningún dato mock de "empresa instaladora"
+ * permanece dentro de este módulo (Instaladores/Perfil).
  */
 
 type InstaladorRow = TableRow<'instaladores'>;
 
 interface InviteForm {
   nombre: string;
-  empresa: string;
+  empresaInstaladoraId: string;
   zona: string;
   email: string;
   telefono: string;
@@ -54,11 +67,22 @@ interface InviteForm {
 
 const INITIAL_FORM: InviteForm = {
   nombre: '',
-  empresa: '',
+  empresaInstaladoraId: '',
   zona: 'Paitilla',
   email: '',
   telefono: '',
 };
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+interface FormToast {
+  id: number;
+  tone: ToastTone;
+  title: string;
+  description?: string;
+}
+
+let formToastIdSeq = 0;
 
 export function AdminInstaladores() {
   const { empresaId, loading: contextLoading } = useOperationalContext();
@@ -69,8 +93,17 @@ export function AdminInstaladores() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [empresasInstaladoras, setEmpresasInstaladoras] = useState<EmpresaInstaladoraRow[] | null>(null);
+
   const [form, setForm] = useState<InviteForm>(INITIAL_FORM);
   const [sent, setSent] = useState<string | null>(null);
+
+  const [toasts, setToasts] = useState<FormToast[]>([]);
+  const pushToast = (tone: ToastTone, title: string, description?: string) => {
+    const id = (formToastIdSeq += 1);
+    setToasts((prev) => [...prev, { id, tone, title, description }]);
+  };
+  const dismissToast = (id: number) => setToasts((prev) => prev.filter((t) => t.id !== id));
 
   const setField = (key: keyof InviteForm, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -89,6 +122,12 @@ export function AdminInstaladores() {
     setIsLoading(false);
   }, [empresaId]);
 
+  const loadEmpresasInstaladoras = useCallback(async () => {
+    if (!empresaId) return;
+    const result = await empresasInstaladorasRepository.listar(empresaId);
+    setEmpresasInstaladoras(result.ok ? result.data : []);
+  }, [empresaId]);
+
   useEffect(() => {
     if (contextLoading) return;
     if (!empresaId) {
@@ -97,30 +136,65 @@ export function AdminInstaladores() {
       return;
     }
     void loadInstaladores();
-  }, [contextLoading, empresaId, loadInstaladores]);
+    void loadEmpresasInstaladoras();
+  }, [contextLoading, empresaId, loadInstaladores, loadEmpresasInstaladoras]);
+
+  // Parte 3/5 del Sprint 8.4: únicamente empresas activas, ordenadas por
+  // nombre (el repositorio ya ordena -- `listar()`, Sprint 8.3, sin
+  // modificar), y un mapa id -> nombre para resolver el listado de
+  // instaladores sin texto hardcodeado.
+  const empresasActivas = useMemo(
+    () => (empresasInstaladoras ?? []).filter((empresa) => empresa.activa),
+    [empresasInstaladoras],
+  );
+  const nombreEmpresaInstaladora = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const empresa of empresasInstaladoras ?? []) {
+      mapa.set(empresa.id, empresa.nombre);
+    }
+    return mapa;
+  }, [empresasInstaladoras]);
+
+  const sinEmpresasActivas = empresasInstaladoras !== null && empresasActivas.length === 0;
 
   const enviar = async () => {
     const nombre = form.nombre.trim();
     const email = form.email.trim();
+    const telefono = form.telefono.trim();
+
+    // Parte 8: validaciones -- ninguna de las 4 puede quedar vacía/inválida.
+    const problemas: string[] = [];
+    if (!nombre) problemas.push('El nombre del contacto es obligatorio.');
+    if (!EMAIL_PATTERN.test(email)) problemas.push('Indicá un correo electrónico válido.');
+    if (!telefono) problemas.push('El teléfono es obligatorio.');
+    if (!form.empresaInstaladoraId) problemas.push('Seleccioná una empresa instaladora.');
+
+    if (problemas.length > 0) {
+      pushToast('error', 'Revisá el formulario', problemas.join(' '));
+      return;
+    }
 
     setError(null);
     setIsSending(true);
     const result = await adminOperationsService.inviteInstalador({
       nombre,
       email,
-      telefono: form.telefono.trim() || null,
+      telefono,
       provincia: 'Panamá',
       zona: form.zona,
+      empresa_instaladora_id: form.empresaInstaladoraId,
     });
     setIsSending(false);
 
     if (!result.ok) {
       setError(result.error.message);
+      pushToast('error', 'No se pudo enviar la invitación', result.error.message);
       return;
     }
 
-    setSent(nombre || form.empresa.trim() || 'el instalador');
-    setForm(INITIAL_FORM);
+    setSent(nombre);
+    setForm((prev) => ({ ...INITIAL_FORM, zona: prev.zona }));
+    pushToast('success', 'Invitación enviada', `${nombre} recibirá su enlace de acceso por correo.`);
     await loadInstaladores();
   };
 
@@ -166,6 +240,11 @@ export function AdminInstaladores() {
                     ? 'Docs pendientes'
                     : 'Activo';
                 const isRowUpdating = updatingId === installer.id;
+                // Parte 5: nombre resuelto mediante la relación real
+                // (mapa id -> nombre del catálogo), nunca texto plano.
+                const empresaInstaladoraNombre = installer.empresa_instaladora_id
+                  ? (nombreEmpresaInstaladora.get(installer.empresa_instaladora_id) ?? 'Pendiente de asignación')
+                  : 'Pendiente de asignación';
 
                 return (
                   <div key={installer.id} className="mx-adminrow">
@@ -175,6 +254,10 @@ export function AdminInstaladores() {
                         <Badge tone={tone}>{label}</Badge>
                       </div>
                       <div className="mx-adminrow-meta">
+                        <span>
+                          <Building2 size={11} />
+                          {empresaInstaladoraNombre}
+                        </span>
                         <span>
                           <MapPin size={11} />
                           {installer.zona ?? 'Sin zona'}
@@ -231,12 +314,30 @@ export function AdminInstaladores() {
           </label>
           <label>
             Empresa / taller
-            <input
-              value={form.empresa}
-              placeholder="Ej. Instalaciones PTY"
-              disabled={isSending}
-              onChange={(e) => setField('empresa', e.target.value)}
-            />
+            {empresasInstaladoras === null ? (
+              <Select disabled value="">
+                <option value="">Cargando empresas…</option>
+              </Select>
+            ) : sinEmpresasActivas ? (
+              <div className="mx-invite-note">
+                <AlertTriangle size={13} />
+                No existen empresas instaladoras registradas. Debe crear una empresa antes de registrar
+                instaladores.
+              </div>
+            ) : (
+              <Select
+                value={form.empresaInstaladoraId}
+                disabled={isSending}
+                onChange={(e) => setField('empresaInstaladoraId', e.target.value)}
+              >
+                <option value="">Seleccioná una empresa…</option>
+                {empresasActivas.map((empresa) => (
+                  <option key={empresa.id} value={empresa.id}>
+                    {empresa.nombre}
+                  </option>
+                ))}
+              </Select>
+            )}
           </label>
           <label>
             Zona principal
@@ -274,7 +375,7 @@ export function AdminInstaladores() {
           <Button
             variant="ice"
             style={{ width: '100%' }}
-            disabled={isSending || !form.nombre.trim() || !form.email.trim()}
+            disabled={isSending || sinEmpresasActivas || empresasInstaladoras === null}
             onClick={() => void enviar()}
           >
             {isSending ? <Spinner size={16} /> : <Mail size={16} />}
@@ -286,6 +387,17 @@ export function AdminInstaladores() {
           </div>
         </Card>
       </div>
+      <ToastViewport>
+        {toasts.map((toast) => (
+          <Toast
+            key={toast.id}
+            tone={toast.tone}
+            toastTitle={toast.title}
+            description={toast.description}
+            onClose={() => dismissToast(toast.id)}
+          />
+        ))}
+      </ToastViewport>
     </PageContainer>
   );
 }

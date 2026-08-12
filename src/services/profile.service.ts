@@ -117,6 +117,7 @@ export async function resolveProfile(
         zona: null,
         creadoEn: row.created_at,
         instaladorInfo: null,
+        empresaInstaladoraId: null,
       },
     };
   }
@@ -149,6 +150,7 @@ export async function resolveProfile(
         zona: null,
         creadoEn: row.created_at,
         instaladorInfo: null,
+        empresaInstaladoraId: null,
       },
     };
   }
@@ -183,6 +185,8 @@ export async function resolveProfile(
           aceptacion: row.aceptacion,
           km: row.km,
         },
+        // Sprint 8.4 -- ya viaja en `row` (select('*') sin cambios, columna nueva).
+        empresaInstaladoraId: row.empresa_instaladora_id,
       },
     };
   }

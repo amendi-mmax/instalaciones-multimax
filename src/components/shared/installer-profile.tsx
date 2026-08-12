@@ -1,7 +1,9 @@
 import { Building2, Calendar, Mail, MapPin, Phone, ShieldAlert, ShieldCheck, Store } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { formatFecha } from '@/lib/perfil-format';
+import { callNombreEmpresaInstaladora } from '@/services/database.service';
 import type { Perfil } from '@/types/perfil';
 
 /**
@@ -26,24 +28,17 @@ import type { Perfil } from '@/types/perfil';
  * - **Sucursal**: solo `coordinadores` tiene `tienda_id` en el schema real
  *   — un instalador no está ligado a una tienda específica. Se muestra "No
  *   disponible" (mismo texto que `ProfilePage.tsx` usa para el mismo caso).
- * - **Empresa instaladora** (corrección posterior a la primera entrega de
- *   la estabilización, pedida explícitamente por el usuario): `profile.
- *   empresaNombre` resuelve al *tenant* real (`empresas`, p. ej.
- *   "Multimax") vía `empresa_id` — NO es la empresa instaladora
- *   (subcontratista) que el negocio necesita. El Sprint 8.3 creó el
- *   catálogo (`empresas_instaladoras`, `AdminEmpresasInstaladoras`) pero
- *   TODAVÍA no existe la relación `instaladores -> empresas_instaladoras`
- *   (`empresa_id`/`empresa_instaladora_id`, tabla `instaladores` sin
- *   cambios en este Sprint) ni el registro de instaladores que la
- *   completaría -- eso es explícitamente el Sprint 8.4, fuera de alcance.
- *   Preparación mínima (Sprint 8.3, sección 7 del brief, "que
- *   automáticamente muestre el nombre de la empresa" una vez exista la
- *   relación): `empresaInstaladoraNombre` de abajo es el ÚNICO lugar que
- *   decide qué mostrar en esa fila -- hoy siempre `null` (la relación no
- *   existe todavía en `Perfil`), así que cae en el fallback "Pendiente de
- *   asignación"; el Sprint 8.4 solo necesita reemplazar ese `null` por el
- *   campo real una vez lo agregue a `Perfil`/`profile.service.ts`, sin
- *   tocar el JSX de abajo.
+ * - **Empresa instaladora** (Sprint 8.4, "Registro de Instaladores
+ *   utilizando Empresas Instaladoras reales"): `profile.empresaInstaladoraId`
+ *   (FK real, migración `0010_instaladores_empresa_instaladora.sql`) es
+ *   solo un `id` -- el NOMBRE se resuelve acá mismo, vía
+ *   `callNombreEmpresaInstaladora()` (RPC `SECURITY DEFINER`, la misma
+ *   migración), porque `empresas_instaladoras` tiene RLS admin-only
+ *   (Sprint 8.3, sin cambios en este Sprint -- "NO modificar RLS" es
+ *   regla explícita del brief) y un instalador autenticado no puede
+ *   hacer `SELECT` directo sobre esa tabla. Si `empresaInstaladoraId` es
+ *   `null` (instalador sin empresa asignada todavía) se muestra
+ *   "Pendiente de asignación" sin llamar al RPC.
  * - **Avatar**: ninguna de las 3 tablas de perfil tiene columna
  *   `avatar`/`avatar_url` (confirmado desde Sprint 4.2.1) — se conserva el
  *   avatar de iniciales ya existente (`mx-profava`), que no es un dato mock,
@@ -67,8 +62,9 @@ import type { Perfil } from '@/types/perfil';
  * en "Modo Instalador" (`profile.instaladorInfo === null`, no tiene fila
  * propia en `instaladores`), las 4 métricas se muestran como `—`.
  *
- * Sin estado propio, sin efectos: función pura derivada de `profile`, igual
- * que en el HTML fuente (antes derivada de `meInfo`).
+ * Único estado/efecto propio de este componente (el resto sigue siendo
+ * derivación pura de `profile`): la resolución del nombre de la empresa
+ * instaladora, ver JSDoc de cabecera.
  */
 export interface InstallerProfileProps {
   profile: Perfil;
@@ -78,13 +74,7 @@ function iniciales(nombre: string): string {
   return nombre ? nombre[0] : 'M';
 }
 
-/**
- * Punto único de preparación para el Sprint 8.4 (ver JSDoc de cabecera).
- * `empresaInstaladoraNombre` es `string | null` -- hoy siempre `null`
- * porque `Perfil` todavía no expone esa relación; cuando el Sprint 8.4 la
- * agregue, basta con pasar el valor real como argumento acá, sin tocar el
- * resto de este archivo.
- */
+/** Único lugar que decide qué mostrar en "Empresa instaladora". */
 function resolveEmpresaInstaladoraLabel(empresaInstaladoraNombre: string | null): string {
   return empresaInstaladoraNombre ?? 'Pendiente de asignación';
 }
@@ -95,8 +85,25 @@ export function InstallerProfile({ profile }: InstallerProfileProps) {
   const cumplimiento = info?.cumplimiento ?? null;
   const aceptacion = info?.aceptacion ?? null;
   const km = info?.km ?? null;
-  // Sprint 8.4: sustituir `null` por el campo real una vez `Perfil` lo exponga.
-  const empresaInstaladoraNombre: string | null = null;
+
+  const [empresaInstaladoraNombre, setEmpresaInstaladoraNombre] = useState<string | null>(null);
+
+  useEffect(() => {
+    const id = profile.empresaInstaladoraId;
+    if (!id) {
+      setEmpresaInstaladoraNombre(null);
+      return;
+    }
+    let active = true;
+    callNombreEmpresaInstaladora({ p_empresa_instaladora_id: id }).then((result) => {
+      if (!active) return;
+      setEmpresaInstaladoraNombre(result.ok ? (result.data ?? null) : null);
+    });
+    return () => {
+      active = false;
+    };
+  }, [profile.empresaInstaladoraId]);
+
   const empresaInstaladoraLabel = resolveEmpresaInstaladoraLabel(empresaInstaladoraNombre);
 
   return (

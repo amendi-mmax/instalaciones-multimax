@@ -2,6 +2,39 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Fase 8 — Sprint 8.4 — Registro de Instaladores utilizando Empresas Instaladoras reales] — 2026-08-11 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
+
+Conecta el módulo de Instaladores con el catálogo real creado en el Sprint 8.3 -- elimina por completo el uso de "empresa" como texto libre/no persistido en el registro de instaladores. Ningún archivo restringido tocado (Dashboard/Calendar/Solicitudes/Mis Trabajos/Publicaciones/Roles/Auth/Sidebar/CRUD de Empresas Instaladoras) -- verificado con `git status`.
+
+**Gate de migración + Edge Function (aprobado explícitamente antes de ejecutarse)**: el catálogo `empresas_instaladoras` (Sprint 8.3) no tenía ninguna relación real desde `instaladores` -- sin una columna nueva, "guardar únicamente `empresa_id`" (Parte 4 del brief) no tenía dónde persistirse. Se creó `supabase/migrations/0010_instaladores_empresa_instaladora.sql` (aplicada vía MCP): `instaladores.empresa_instaladora_id` (uuid, nullable, FK a `empresas_instaladoras`, sin `ON DELETE CASCADE` -- mismo criterio que las demás FKs `empresa_id` reales) + índice. **Cero cambios a RLS existente** (regla explícita del brief) -- verificado con `pg_policies` antes y después: las 3 policies de `empresas_instaladoras` del Sprint 8.3 quedaron idénticas.
+
+**Tensión resuelta -- "el Perfil debe mostrar el nombre real" vs. "NO modificar RLS"**: `empresas_instaladoras` es admin-only (Sprint 8.3) -- un instalador no puede leer directamente el nombre de su propia empresa. En vez de agregar una policy nueva, la misma migración crea `nombre_empresa_instaladora(uuid)`, función `SECURITY DEFINER` de solo lectura (mismo patrón ya probado en este proyecto: `instalador_fue_notificado()`, migración `0002`) que responde exclusivamente "¿cuál es el nombre de la empresa con este id?", sin exponer ninguna otra columna ni permitir listar. `GRANT EXECUTE` a `authenticated`.
+
+**Edge Function `admin-operations`** (obtenida la versión desplegada antes de modificar, comparada con el código local -- coincidían exactamente): `invite_instalador` ahora acepta `empresa_instaladora_id` (opcional) y lo persiste en el INSERT a `instaladores`. Redesplegada (versión 6) tras el cambio -- sin tocar `verifyCaller()`/`suspend_instalador`/`reactivate_instalador`.
+
+**Parte 1/9 (auditoría de mocks)**: sin hallazgos nuevos dentro del módulo Instalador -- ya se había limpiado por completo en la ronda de Estabilización posterior al Sprint 8.2. `INSTALLERS`/`InstallerMock` (`constants/index.ts`, incluye `'Instalaciones PTY'`/`'ClimaTech Panamá'`) se conservan intactos porque siguen en uso real por `Radar`/`AssignedPanel` (Coordinador) y por el mock `TRABAJOS` del Calendario -- ambos explícitamente restringidos este Sprint ("NO modificar Coordinador"/"NO modificar Calendar"), documentado en vez de romper esa restricción. Los nombres "Doctor Tec"/"Global Cool"/"Air Pro"/"Sky PTY" del brief no existen en ningún archivo del proyecto (verificado con `grep`).
+
+**Parte 2/3/4 (formulario "Invitar instalador")**: "Empresa / taller" (`admin-instaladores.tsx`) dejó de ser un `<input>` de texto libre (que además nunca se guardaba en ningún lado -- `form.empresa` solo alimentaba el mensaje de éxito) y pasa a ser un `Select` (`ui/select.tsx`, componente reutilizable existente) poblado con `empresasInstaladorasRepository.listar(empresaId)` (Sprint 8.3, sin modificar), filtrado a `activa === true` en el propio componente y ordenado por nombre (el repositorio ya ordena así). El formulario guarda únicamente `empresa_instaladora_id`.
+
+**Parte 5 (listado)**: cada fila de `AdminInstaladores` resuelve "Empresa Instaladora" mediante un mapa `id -> nombre` construido del mismo catálogo -- nunca texto hardcodeado; "Pendiente de asignación" cuando `empresa_instaladora_id` es `null`.
+
+**Parte 6 (Perfil)**: `InstallerProfile` resuelve el nombre real vía `callNombreEmpresaInstaladora()` (nuevo, `database.service.ts`, mismo patrón que `callAsignarInstalador`/`callSubmitBid`) cuando `profile.empresaInstaladoraId` no es `null`; "Pendiente de asignación" en caso contrario -- reemplaza el `null` fijo que la Estabilización posterior al Sprint 8.2 había dejado preparado explícitamente para este momento.
+
+**Parte 7**: sin empresas activas, `AdminInstaladores` muestra "No existen empresas instaladoras registradas. Debe crear una empresa antes de registrar instaladores." y deshabilita "Enviar invitación".
+
+**Parte 8 (validaciones)**: nombre/correo (formato válido)/teléfono/empresa, ninguno puede quedar vacío -- mensajes vía Toast local (mismo patrón `pushToast`/`dismissToast` ya usado por `AdminEmpresasInstaladoras`, Sprint 8.3), sin tocar el mensaje de éxito/error de servidor ya existente (`mx-invite-ok`/`<p>`, mismo layout/estilos de siempre).
+
+**`Perfil`/`profile.service.ts`**: `empresaInstaladoraId: string | null` agregado -- para `instalador`, viaja en la misma fila ya consultada (`select('*')`, sin query adicional); `null` para `admin`/`coordinador`. El nombre deliberadamente no vive en `Perfil` (ver función `SECURITY DEFINER` arriba).
+
+### Validaciones ejecutadas
+
+- `npm run typecheck` -- limpio.
+- `npm run build` -- limpio (1865 módulos).
+- `npm run lint` -- código de salida 0, mismos 3 warnings preexistentes, sin advertencias nuevas.
+- `git status` -- limpio tras los cambios, ningún archivo fuera del alcance declarado.
+
+Sin Sprint 8.5, sin autenticación nueva, sin cambios a Coordinador/Dashboard/Empresas/Calendar/Solicitudes/Mis Trabajos. **Detenido para revisión del usuario.**
+
 ## [Fase 8 — Sprint 8.3 — Administración de Empresas Instaladoras] — 2026-08-11 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
 
 CRUD completo de "Empresas Instaladoras" sobre Supabase -- catálogo oficial que usará el Sprint 8.4 (registro de instaladores + relación real). Este Sprint NO implementa ese registro ni toca la tabla `instaladores`. Ningún archivo restringido tocado (Dashboard Ejecutivo/Master Calendar/Publicación de Trabajos/Solicitudes/Mis Trabajos/`ResponsesPanel`/Sidebar/`Radar`/Auth/Roles/Permisos) -- verificado con `git status`. `Perfil` (`installer-profile.tsx`) recibió únicamente la preparación mínima autorizada explícitamente por el brief (sección 7).

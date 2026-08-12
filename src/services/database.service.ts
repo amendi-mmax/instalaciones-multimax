@@ -172,3 +172,26 @@ export async function callNotificarInstaladoresElegibles(
   }
   return { ok: true, data };
 }
+
+/**
+ * Invocación tipada de `nombre_empresa_instaladora` (RPC real de
+ * Producción, Sprint 8.4 -- `supabase/migrations/0010_instaladores_
+ * empresa_instaladora.sql`). Ver `callAsignarInstalador` para la
+ * justificación del patrón general.
+ *
+ * `Returns` es `string | null` en tiempo de ejecución -- la función SQL
+ * declara `RETURNS text` pero un `SELECT ... WHERE id = $1` sin
+ * coincidencia devuelve `NULL`, no una fila vacía (mismo comportamiento
+ * que cualquier función `LANGUAGE sql` de una sola sentencia). El tipo
+ * generado (`Returns: string`) no refleja ese caso -- se documenta acá,
+ * no se "corrige" el tipo generado a mano.
+ */
+export async function callNombreEmpresaInstaladora(
+  args: Database['public']['Functions']['nombre_empresa_instaladora']['Args'],
+): Promise<ServiceResult<Database['public']['Functions']['nombre_empresa_instaladora']['Returns'] | null>> {
+  const { data, error } = await getClient().rpc(RPC_FUNCTIONS.nombreEmpresaInstaladora, args);
+  if (error) {
+    return { ok: false, error: normalizeSupabaseError(error) };
+  }
+  return { ok: true, data };
+}

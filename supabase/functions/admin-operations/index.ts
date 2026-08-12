@@ -91,6 +91,16 @@ interface InviteInstaladorPayload {
   telefono?: string | null;
   provincia?: string | null;
   zona?: string | null;
+  /**
+   * Sprint 8.4 -- `instaladores.empresa_instaladora_id` (migración
+   * `0010_instaladores_empresa_instaladora.sql`), FK real a
+   * `empresas_instaladoras` (Sprint 8.3). Opcional/`null`: un instalador
+   * puede quedar sin empresa asignada ("Pendiente de asignación" en la UI)
+   * -- no se valida su existencia acá, la FK real de la base de datos ya
+   * lo garantiza (un id inexistente hace fallar el INSERT con `23503`,
+   * traducido por `normalizeSupabaseError` del lado del cliente).
+   */
+  empresa_instaladora_id?: string | null;
 }
 
 interface SuspendReactivateInstaladorPayload {
@@ -251,6 +261,9 @@ async function verifyCaller(
  * 2) crear la fila de `instaladores` con ESE `id`.
  * Si el paso 2 falla, se intenta revertir el paso 1 (borrar el usuario de
  * Auth recién creado) para no dejar una cuenta fantasma sin perfil.
+ *
+ * Sprint 8.4 -- agrega `empresa_instaladora_id` al INSERT (ver JSDoc de
+ * `InviteInstaladorPayload`). Sin ningún otro cambio de flujo/orden.
  */
 async function inviteInstalador(
   serviceRoleClient: ReturnType<typeof createClient>,
@@ -309,6 +322,7 @@ async function inviteInstalador(
     .insert({
       id: newUserId,
       empresa_id: admin.empresa_id,
+      empresa_instaladora_id: payload.empresa_instaladora_id ?? null,
       nombre,
       email,
       telefono: payload.telefono ?? null,
