@@ -8,9 +8,20 @@ import { defineConfig } from 'vite';
 // en vez de path.resolve(__dirname, ...) -- __dirname no existe en módulos ESM nativos.
 export default defineConfig({
   plugins: [react()],
+
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
+  },
+
+  preview: {
+    host: '0.0.0.0',
+    port: 4173,
+    allowedHosts: [
+      'instalaciones.multimax.net',
+      'localhost',
+      '127.0.0.1',
+    ],
   },
 });
