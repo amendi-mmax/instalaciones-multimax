@@ -54,8 +54,12 @@ handymax-despacho/
 ├── tailwind.config.ts
 ├── tsconfig.json
 ├── supabase/
+│   ├── README.md                            # flujo oficial de migraciones/seed (§9.8, Sprint 4.0.1 2ª ronda)
+│   ├── seed.sql                             # datos iniciales (empresa Multimax + 9 sucursales) — §9.8
 │   └── migrations/
-│       └── 0001_initial_schema.sql        # copia literal de handymax_supabase_schema_v3.sql, sin modificar
+│       ├── 0001_initial_schema.sql          # schema base (originalmente copia literal de handymax_supabase_schema_v3.sql;
+│       │                                     # limpiado de datos/queries de verificación en Sprint 4.0.1 2ª ronda, §9.8 — ya no es una copia sin modificar)
+│       └── 0002_auth_roles_rls.sql          # Fase 4, Sprint 4.0.1 1ª ronda — ENUMs, funciones, RLS ampliada (§9.7)
 └── src/
     ├── main.tsx
     ├── App.tsx                             # <QueryClientProvider><AuthProvider><RouterProvider/></AuthProvider></QueryClientProvider>
@@ -217,7 +221,7 @@ Extraído por lectura completa del script de `Multimax_Despacho_v1.3.html` (lín
 | Prototipo (función) | Nuevo componente/archivo | Notas de migración |
 |---|---|---|
 | `mkIcon`/`ICONS` | `lucide-react` | Mapeo 1:1 por nombre visual (ver §7.2). Mismo `size`, `strokeWidth=2`, `strokeLinecap/Linejoin=round`. |
-| `Pill` | `components/shared/Pill.tsx` | Igual, tipado con `tone: 'muted'|'ice'|'amber'|'green'|'red'|'violet'`. |
+| `Pill` | `components/ui/badge.tsx` (`Badge`) | Fusionado con Badge en Fase 3 — ver §13.1. Igual, tipado con `tone: 'muted'|'ice'|'amber'|'green'|'red'|'violet'`. |
 | `StatTile` | `components/shared/StatTile.tsx` | Igual. |
 | `CountRing` | `components/shared/CountRing.tsx` | Igual; `remaining`/`total` ahora derivan de `bid_cierra_at` real, no de simulación. |
 | `Radar` | `features/despacho/components/RadarPanel.tsx` | Misma geometría SVG (`hashAngle`, círculos concéntricos, sweep). `instState` ahora viene de: (a) `eligibleIds` por query, (b) `bids` por Realtime, (c) presence/broadcast para "abrió"/"respondiendo" — ver §9.3. |
@@ -244,6 +248,8 @@ Extraído por lectura completa del script de `Multimax_Despacho_v1.3.html` (lín
 
 ## 5. Hooks necesarios (custom hooks)
 
+> **⚠ Escrito contra el modelo legacy, superado por §14 (Sprint 4.1.1) y `docs/frontend/FRONTEND_SYNC_PLAN.md`.** Nombres como `bids`, `usuarios.rol`, RPC `seleccionar_instalador` no existen en Producción (ver `docs/database/DATABASE_DIFF.md`). Los hooks base reales (sin lógica de negocio todavía) están en `src/hooks/` -- ver §14.2.
+
 Todos con TanStack Query (`useQuery`/`useMutation`) sobre la capa `services/`. Ninguno usa `any`.
 
 - `useSession()` — sesión de Supabase Auth + fila `usuarios` asociada + `rol`. Fuente única de verdad para navegación por rol.
@@ -269,6 +275,8 @@ Todos con TanStack Query (`useQuery`/`useMutation`) sobre la capa `services/`. N
 
 ## 6. Servicios (`src/services`)
 
+> **⚠ Escrito contra el modelo legacy, superado por §14 (Sprint 4.1.1).** Los servicios base reales (genéricos, sin lógica de negocio) son `src/services/supabase.service.ts`/`auth.service.ts`/`database.service.ts` -- ver §14.2. Los servicios de dominio listados abajo (`trabajos.service.ts`, `bids.service.ts`, etc.) quedan para un Sprint funcional futuro, construidos sobre `database.service.ts`/`repositories/`, con nombres/tablas actualizados al modelo real.
+
 Cada servicio expone funciones puras `async` tipadas que reciben/retornan tipos de `types/domain.ts` (no `types/database.ts` crudo) — la conversión ocurre en `lib/mappers.ts` dentro del propio servicio, así los hooks/components nunca ven `snake_case`.
 
 - `trabajos.service.ts`: `listActivos()`, `listHistorial()`, `getById()`, `getPorMes()`, `publicar(form)`, `marcarCompletado(id)`, `cancelar(id)`. Siempre consulta `trabajos_vista`, nunca `trabajos` directamente para lecturas visibles a instaladores (ver riesgo crítico §11.2).
@@ -286,7 +294,9 @@ Cada servicio expone funciones puras `async` tipadas que reciben/retornan tipos 
 
 ### 7.1 Contextos
 
-- `AuthContext` — únicamente este. Expone `{ session, usuario, rol, sucursalId, isMaster, loading }`. No se necesita un contexto de "trabajo activo" ni de "tema" (el diseño es fijo, sin modo claro/oscuro).
+> **⚠ SUPERADO — ver §14.9 (Sprint 4.2.1).** El `AuthContext` legacy descrito abajo (`{ session, usuario, rol, sucursalId, isMaster, loading }`) fue **eliminado** en Sprint 4.2.1 ("Sistema de Autenticación"): el `AuthProvider`/`useAuth` de `src/providers/`/`src/hooks/` (mencionados en la nota original de Sprint 4.1.1 como "genéricos, sin resolver rol todavía") se completaron con resolución de perfil/rol real y son ahora el único contexto de autenticación de la aplicación. Esta subsección queda como registro histórico de la Fase 3, no como el estado actual.
+
+- `AuthContext` (legacy, retirado en Sprint 4.2.1) — únicamente este. Expone `{ session, usuario, rol, sucursalId, isMaster, loading }`. No se necesita un contexto de "trabajo activo" ni de "tema" (el diseño es fijo, sin modo claro/oscuro).
 
 ### 7.2 Mapeo de íconos (`ICONS`/`mkIcon` → lucide-react)
 
@@ -493,6 +503,8 @@ Nota: no existe en el schema un tipo para el estado "efímero" de radar (idle/no
 
 ## 8. Rutas
 
+> **⚠ PARCIALMENTE SUPERADO — ver §14.9 (Sprint 4.2.1).** La tabla de abajo es la planificación original de Fase 2 (todas las rutas por rol, incluidas las que todavía no existen -- `/despacho`, `/trabajos`, etc., fuera de alcance de Sprint 4.2.1). La única parte de esta tabla ya implementada de verdad es `/login` (ahora real, protegida por `PublicRoute`/`AuthLayout`) y la ruta raíz `/` (ahora protegida por `ProtectedRoute`) -- ver `src/routes/AppRouter.tsx` y §14.9 para el árbol de rutas real actual.
+
 ```
 /login                          LoginPage (público)
 
@@ -544,12 +556,16 @@ Los estados intermedios del radar (`notified` → `opened` → `responding`) no 
 
 ### 9.4 Auth
 
+> **⚠ SUPERADO — ver §14.9 (Sprint 4.2.1).** Esta subsección (magic link, invitación por Edge Function, vínculo `usuarios.auth_id`) describe una propuesta de la Fase 2, sobre el modelo de datos LEGACY (`usuarios` unificado) que el usuario descartó explícitamente en Sprint 4.0.1 (`§9.9`) a favor del modelo real de Producción (`admins`/`coordinadores`/`instaladores`, cada uno con `id = auth.users.id` directamente, sin `auth_id`). El flujo real implementado en Sprint 4.2.1 es email + contraseña (`supabase.auth.signInWithPassword`), sin magic link ni Edge Function de invitación. Queda como registro histórico, no como el diseño vigente.
+
 - **Coordinador/Admin**: `supabase.auth.signInWithOtp({ email })` (magic link), UI en `LoginForm.tsx`.
 - **Instalador**: nunca se autoregistra. El admin lo invita desde `InviteInstaladorForm` → una **Edge Function** (`invite-instalador`) que corre en el servidor con `service_role` (nunca en el cliente) y llama a `supabase.auth.admin.inviteUserByEmail(email, { data: { rol: 'instalador', ... } })`.
 - **Vínculo `usuarios.auth_id`** (decisión arquitectónica nueva, no cubierta explícitamente por el PDF ni el SQL — documentada aquí por regla del proyecto): el admin crea la fila en `usuarios` (con `auth_id = NULL`) antes o al momento de invitar. Cuando la persona invitada completa el login por primera vez, se necesita enlazar su `auth.users.id` recién creado con esa fila. Se propone un trigger `AFTER INSERT ON auth.users` que ejecute una función `SECURITY DEFINER` que busque en `usuarios` por `email = NEW.email AND auth_id IS NULL` y setee `auth_id = NEW.id`. Es aditivo (no modifica columnas ni políticas existentes) pero es nueva superficie de la base de datos — **se reporta aquí para aprobación antes de implementarla en la fase correspondiente**, tal como piden las instrucciones del proyecto para decisiones arquitectónicas.
 - **Sesión del cliente**: `supabase.auth.onAuthStateChange` alimenta `AuthContext`; al iniciar sesión se hace `SELECT * FROM usuarios WHERE auth_id = auth.uid()` para obtener rol/sucursal/perfil.
 
 ### 9.5 RLS y la operación de "seleccionar instalador"
+
+> **⚠ SUPERADO — ver §14.9 (Sprint 4.2.1) y §9.9.** Esta propuesta opera sobre `bids`/`trabajos.phase` (modelo legacy). El modelo real de Producción ya tiene, desde Sprint 4.0.1, un RPC real equivalente (`asignar_instalador`, ver `docs/database/DATABASE_INVENTORY.md §5`) que opera sobre `trabajos`/`trabajo_instaladores`/`ofertas` -- no sobre `bids`. Esta subsección queda como registro histórico de una propuesta previa a la confirmación del modelo oficial, no como trabajo pendiente de implementar tal cual.
 
 El schema define políticas de UPDATE separadas para `trabajos` y `bids`, pero seleccionar un ganador requiere dos escrituras coordinadas (marcar el bid ganador como `seleccionado` + actualizar `trabajos.phase`/`assigned_bid_id`), y en el prototipo real también hace falta marcar los demás bids `pendiente` de ese trabajo como `rechazado` (para que "lost" sea representable). Ejecutar esto como dos `UPDATE` sueltos desde el cliente (como sugiere el PDF) deja una ventana de inconsistencia si el segundo falla. Se propone (nueva decisión arquitectónica, pendiente de aprobación, no implementada aún):
 
@@ -569,9 +585,52 @@ $$ language plpgsql security definer;
 
 Se ejecuta como `security definer` para poder tocar `bids` de otros instaladores en la misma transacción, pero se invoca solo vía `supabase.rpc('seleccionar_instalador', ...)` y debe re-validar dentro de la función que quien llama es el coordinador dueño de la sucursal del trabajo (usando `get_my_rol()`/`get_my_sucursal_id()`, ya existentes en el schema) antes de escribir, para no debilitar RLS.
 
+> **Actualización (Fase 4, Sprint 4.0.1):** `bids.estado` dejó de ser `text` con CHECK y ahora es el ENUM `oferta_estado` (`pendiente`/`seleccionado`/`rechazado`/`expirado`) — mismos valores en español que ya usaba el CHECK original, más `expirado` como valor nuevo. Esta propuesta de RPC sigue siendo válida sin cambios: los literales `'seleccionado'`/`'rechazado'`/`'pendiente'` de arriba siguen resolviendo correctamente contra la columna, ahora tipada como ENUM. El RPC en sí **sigue sin implementarse** — solo se preparó la infraestructura de tipos que lo respalda. Ver `PHASE_4.md` para el detalle completo de esa migración.
+
 ### 9.6 RLS — columnas del cliente (riesgo crítico, ver §11.2)
 
 Todo el código de la aplicación debe leer trabajos **siempre** desde `trabajos_vista`, nunca desde `trabajos`, para cualquier usuario que no sea coordinador/admin. `trabajos.service.ts` centraliza esto para que sea imposible que un componente "se equivoque" y consulte la tabla base.
+
+### 9.7 Fase 4, Sprint 4.0.1 — Infraestructura de roles/ENUMs/RLS (implementado)
+
+Primer Sprint de Fase 4 (backend), ejecutado íntegramente vía `supabase/migrations/0002_auth_roles_rls.sql`. Resumen (detalle completo, incluyendo desviaciones respecto al brief original y validación real contra PostgreSQL 16, en `PHASE_4.md`):
+
+- **4 ENUMs nuevos**: `user_role` (sobre `usuarios.rol`), `trabajo_estado` (sobre `trabajos.phase`), `oferta_estado` (sobre `bids.estado`, ver nota en §9.5), `trabajo_instalador_estado` (sobre la tabla nueva `trabajo_instaladores.estado`) — todos reemplazan columnas `text` + CHECK preexistentes, sin pérdida de datos.
+- **Tabla nueva `trabajo_instaladores`**: registra, por instalador individual, el estado de notificación/oferta sobre un trabajo (`notificado`/`abierto`/`oferta_enviada`/`rechazado`/`expirado`) — no existía ninguna estructura equivalente en 0001.
+- **5 índices nuevos** (`idx_trabajos_coordinador`, `idx_trabajos_assigned_bid`, `idx_trabajoinst_trabajo`, `idx_trabajoinst_instalador`, `idx_usuarios_empresa`), más 4 ya existentes re-declarados de forma idempotente.
+- **6 funciones `SECURITY DEFINER` nuevas** (`current_user_role()`, `current_profile()`, `current_empresa()`, `is_admin()`, `is_coordinator()`, `is_installer()`), pensadas explícitamente como building blocks para las políticas RLS futuras y para el frontend de Fase 4 en adelante. Las 3 funciones ya existentes de 0001 (`get_my_rol()`, `get_my_sucursal_id()`, `get_my_usuario_id()`) se conservan intactas.
+- **7 políticas RLS nuevas**, cerrando 3 vacíos reales detectados en 0001: `empresas`/`sucursales` no tenían política de escritura para admin (solo lectura pública de filas activas); `trabajos` no tenía política de INSERT/DELETE para admin (solo SELECT+UPDATE); ningún usuario podía actualizar su propia fila en `usuarios` (solo admin podía). Más las políticas de la tabla nueva `trabajo_instaladores`.
+- **Riesgo abierto, no resuelto en este Sprint**: la política nueva de auto-actualización de perfil es a nivel de fila, no de columna — un usuario podría en teoría editar columnas sensibles de su propia fila (`rol`, `empresa_id`, `activo`, `suspendido`, calificaciones). Ver §11.10.
+- Validado con una instancia real de PostgreSQL 16 (no con los scripts `npm run lint/typecheck/build/dev`, que no aplican a este Sprint de backend puro): aplicación limpia de `0001` + `0002`, más una segunda ejecución de `0002` para confirmar idempotencia total (0 errores en las 3 corridas).
+- Ningún componente React/Vite/Tailwind/contexto/hook/ruta fue modificado.
+
+### 9.8 Database Infrastructure — flujo oficial de migraciones (Sprint 4.0.1, segunda ronda: "Database Infrastructure Baseline")
+
+Segundo Sprint dentro de "4.0.1" (el brief de esta ronda reutiliza el mismo número de Sprint que la ronda anterior — §9.7 — con un objetivo distinto: "Database Infrastructure Baseline"; se reporta la coincidencia de numeración como una posible confusión a aclarar con el usuario, sin renumerar nada por cuenta propia). Objetivo: reorganizar `supabase/` para seguir el flujo oficial de migraciones de Supabase (estructura separada de datos), sin tocar ni el diseño del schema ni ningún dato existente. Resumen (detalle completo en `PHASE_4.md` y `supabase/README.md`):
+
+- **`supabase/migrations/0001_initial_schema.sql` limpiado de datos**: se removieron el `INSERT INTO empresas` y el bloque `DO $$ ... INSERT INTO sucursales ...`, así como las queries de verificación (`SELECT`) que tenía al final. El archivo ahora contiene **únicamente** estructura (`CREATE TABLE`/`ALTER TABLE`/índices/funciones/vista/RLS) — cero `INSERT`/`UPDATE`/`DELETE`/`TRUNCATE`/`SELECT` de nivel superior (los `SELECT` que quedan están dentro de cuerpos de función, políticas y la vista `trabajos_vista`, que sí están permitidos). Ningún `CREATE`/`ALTER` de estructura se tocó — mismas tablas, mismas columnas, mismos tipos, mismas relaciones, mismos constraints que antes de este Sprint.
+- **`supabase/seed.sql` (nuevo)**: contiene, sin ningún cambio de contenido, los mismos `INSERT`/bloque `DO $$` removidos de `0001` — la empresa Multimax y sus 9 sucursales.
+- **`supabase/README.md` (nuevo)**: documenta el flujo operativo completo — cómo aplicar migraciones (método manual actual vía Dashboard, y el flujo objetivo con Supabase CLI, todavía no instalada/vinculada en este repositorio), cómo y cuándo ejecutar `seed.sql`, cómo crear una migración nueva (incluye los 3 hallazgos reales de PostgreSQL del §9.7 anterior, reformulados como buenas prácticas reutilizables), y el flujo Git (manual, a cargo del usuario, consistente con la regla permanente del proyecto).
+- **Riesgo real detectado durante la validación** (no introducido por este Sprint, solo hecho evidente al probar dos veces contra una base real): el `INSERT` de `sucursales` en el seed no es realmente idempotente — `sucursales` no tiene ningún `UNIQUE` constraint más allá de `id` autogenerado, así que su `ON CONFLICT DO NOTHING` no tiene columna de conflicto real y **ejecutar el seed dos veces duplica las 9 sucursales**. Documentado en `supabase/seed.sql` y `supabase/README.md §4`; no se agregó un `UNIQUE` constraint nuevo sin aprobación (fuera de alcance: "no modificar columnas/relaciones" de este Sprint).
+- **Invariante documental rota, deliberadamente, por instrucción explícita**: desde la Fase 2, `PROJECT_STATUS.md`/`TODO.md`/este mismo archivo (línea del árbol en §3) documentaban `0001_initial_schema.sql` como "copia literal de `handymax_supabase_schema_v3.sql`, sin modificar, verificada con `diff`". Ese ya no es el caso — el archivo fue editado en este Sprint (y también en el anterior, §9.7). La línea del árbol en §3 se corrigió; `PROJECT_STATUS.md` se actualizó con una nota; `TODO.md`/`MIGRATION_STATUS.md` **no se tocaron** (fuera de la lista de archivos permitidos en el brief de este Sprint) y quedan con la afirmación desactualizada, reportado para decisión futura del usuario.
+- Validado igual que en §9.7: instancia real de PostgreSQL 16, aplicación limpia de `0001` (ya limpio) + `seed.sql` + `0002`, más una segunda ejecución de `seed.sql` (que sí reveló el problema de duplicados de arriba) para confirmar/descartar idempotencia.
+- Ningún componente React/Vite/Tailwind/contexto/hook/ruta fue modificado; ningún dato existente en el diseño del schema (tablas/columnas/tipos/relaciones/FKs) fue rediseñado — solo se reorganizó dónde vive cada sentencia SQL dentro de los archivos del proyecto.
+
+### 9.9 Modelo de datos oficial — confirmado por el usuario (Sprint 4.0.1, tercera ronda: "Reconstrucción del baseline de Supabase")
+
+> **⚠ Superado por §14 (Sprint 4.1.1).** La confirmación de abajo se basaba en la mejor evidencia disponible en ese momento (dos fuentes SQL, ambas legacy). Una ronda posterior del mismo Sprint 4.0.1 recibió el `pg_dump` real de Producción, que reveló que el modelo vigente es otro. Se conserva este texto por trazabilidad histórica -- ver §14.1 y `docs/database/DATABASE_SYNC_PLAN.md` para la decisión vigente.
+
+**Declaración formal, por instrucción explícita del usuario:** el modelo de datos oficial y definitivo del proyecto es el que ya existe en `supabase/migrations/0001_initial_schema.sql`, con las 8 tablas `empresas`, `sucursales`, `usuarios`, `zonas_cobertura`, `trabajos`, `bids`, `notificaciones`, `trabajo_instaladores` (esta última agregada en `0002_auth_roles_rls.sql`, §9.7). Cualquier brief futuro que asuma tablas separadas `admins`/`coordinadores`/`instaladores`, `tiendas` u `ofertas` debe leerse como una asunción incorrecta a corregir contra este documento, no como una instrucción de rediseño a ejecutar.
+
+Un tercer brief bajo el mismo número "Sprint 4.0.1" ("Reconstrucción del baseline de Supabase") pidió, con lenguaje absoluto ("prohibido cambiar nombres de tablas", "no debes crear una arquitectura distinta"), reconstruir `0001_initial_schema.sql` para que coincidiera EXACTAMENTE con un modelo alternativo (`empresas`/`tiendas`/`admins`/`coordinadores`/`instaladores`/`trabajos`/`trabajo_instaladores`/`ofertas`). Antes de tocar cualquier archivo, se verificó ese modelo alternativo contra las dos únicas fuentes SQL reales del proyecto (el archivo originalmente subido `handymax_supabase_schema_v3.sql` y `0001_initial_schema.sql` actual) — ambas coinciden entre sí (`diff` estructural sin diferencias, más allá de los `INSERT`/`SELECT` ya movidos en §9.8) y ninguna define `tiendas`/`admins`/`coordinadores`/`instaladores`/`ofertas`. Se reportó la discrepancia sin implementarla (siguiendo la propia "regla final" de ese brief: detenerse y reportar en vez de corregir por cuenta propia) y se preguntó al usuario, quien confirmó por escrito que el modelo real (`usuarios`/`sucursales`/`bids`/etc.) es el oficial. Ver `PHASE_4.md` → "Sprint 4.0.1 (tercera ronda)" para la trazabilidad completa de este intercambio.
+
+**Validación estructural completa realizada en esta ronda** (tabla por tabla, columna por columna, tipo por tipo, FK por FK, PK por PK, índices, vistas, triggers, funciones, políticas — contra una base PostgreSQL 16 real, aplicando `0001` + `seed.sql` + `0002` desde cero): confirma que las 8 tablas, sus columnas/tipos, las 15 FKs, las 8 PKs, los 28 índices, la vista `trabajos_vista`, los 4 triggers, las 9 funciones propias y las 30 políticas RLS existen exactamente como están documentadas en §9.7/§9.8 — 0 errores, 0 diferencias. Detalle completo (con cada tabla de comparación) en `PHASE_4.md`.
+
+**Tensión detectada y reportada, no resuelta unilateralmente**: este tercer brief también exige que `0002_auth_roles_rls.sql` sea "únicamente incremental" y prohíbe expresamente que modifique columnas/tablas existentes — pero `0002` (de la primera ronda, ya aprobada en su momento) sí hace `ALTER COLUMN ... TYPE` sobre 3 columnas existentes (`usuarios.rol`, `trabajos.phase`, `bids.estado`) y crea la tabla nueva `trabajo_instaladores`. Dado que el usuario, en esta misma ronda, instruyó explícitamente "mantener la compatibilidad con el esquema existente" — se interpreta que el `esquema existente` ya incluye esas conversiones de `0002` — se decidió **no revertir ni dividir `0002`**, dejándolo como está (ya validado, ya aprobado en principio). Se reporta esta tensión explícitamente para que el usuario confirme si esa lectura es correcta o si prefiere una acción distinta.
+
+**`supabase/config.toml` (nuevo en esta ronda)**: se completó la estructura de `supabase/` pedida (`config.toml`, `README.md`, `seed.sql`, `migrations/0001_...`, `migrations/0002_...`, sin archivos adicionales). El archivo se escribió a mano siguiendo la convención estándar de `supabase init` (la CLI real no está instalada/vinculada en este entorno) — ver `supabase/README.md` para el detalle y la recomendación de regenerarlo/compararlo con un `supabase init` real cuando el usuario tenga la CLI disponible.
+
+**Confirmación de cierre**: ningún componente React/Vite/Tailwind/TS/Auth fue modificado; ninguna tabla/columna/tipo/relación/FK del modelo oficial fue renombrada, eliminada, ni rediseñada en esta ronda. El repositorio queda preparado, sobre este modelo confirmado, para iniciar el Sprint 4.1 (Autenticación).
 
 ---
 
@@ -627,6 +686,7 @@ Todo el código de la aplicación debe leer trabajos **siempre** desde `trabajos
 7. **Falta de `assigned_at` en `trabajos`**: el prototipo guarda `assignedAt` para el timeline; el schema solo tiene `updated_at` (que cambia en cualquier UPDATE, no solo al asignar). Se puede vivir sin él usando `updated_at` en el momento en que `phase` pasa a `assigned` (dado que el RPC de §9.5 es la única vía de escritura para ese cambio), pero es frágil a futuro. Se reporta como posible mejora de schema, no se implementa sin aprobación.
 8. **Rotación de `service_role` pendiente** (ver PROJECT_STATUS.md) — bloquea cualquier trabajo real de Auth/Edge Functions hasta que el usuario la rote.
 9. **Rol de UI "master"/multi-sucursal vs. RLS actual**: las políticas de `trabajos`/`bids` para coordinador siempre filtran por `sucursal_id = get_my_sucursal_id()`. Si se confirma que existen coordinadores "master" que deben ver todas las sucursales, **las políticas RLS actuales se lo impedirían** — esto sería un cambio real de políticas (no solo de frontend) y debe decidirse explícitamente con el usuario antes de tocarlo, dado que las instrucciones piden no rediseñar RLS sin reportarlo primero.
+10. **Política de auto-actualización de perfil sin restricción por columna** (nuevo, Fase 4 — Sprint 4.0.1, ver `PHASE_4.md §7`): la política `"Usuario actualiza su propio perfil (Sprint 4.0.1)"` sobre `usuarios` es a nivel de fila (`auth_id = auth.uid()`), no de columna. Un usuario autenticado podría, en teoría, hacer `UPDATE` sobre su propia fila cambiando no solo datos de contacto sino también `rol`, `empresa_id`, `sucursal_id`, `activo`, `suspendido`, `rating`, `cumplimiento`, `aceptacion` — un riesgo de escalación de privilegios. Corregirlo requiere lógica adicional (un trigger que rechace cambios a columnas específicas, o GRANT/REVOKE por columna), deliberadamente no implementada este Sprint por ser una decisión de producto/negocio ("qué campos puede editar un usuario sobre sí mismo"), no infraestructura pura. **Pendiente de decisión del usuario.**
 
 ---
 
@@ -643,3 +703,322 @@ Todo el código de la aplicación debe leer trabajos **siempre** desde `trabajos
 9. **Fase 9**: Pulido, manejo de errores/loading states, y despliegue.
 
 Cada fase debe dejar el proyecto compilando (`npm install && npm run dev` sin errores) antes de pasar a la siguiente, y debe detenerse para aprobación explícita del usuario.
+
+> **Nota (Fase 2):** el orden de fases de arriba es el original de Fase 1. Desde Fase 2, por pedido del usuario, el orden vigente es otro (Scaffold → Layout general → Coordinator → Installer → Admin → Supabase → Realtime → eliminación de mocks → pruebas finales) — ver `PROJECT_STATUS.md`/`TODO.md` para la numeración autoritativa. Este documento no se reescribió en ese momento porque el cambio fue de secuencia, no de arquitectura (decisión ya registrada en `CHANGELOG.md`, `[Fase 2]`).
+
+---
+
+## 13. Adenda — Fase 3 (Layout general y componentes compartidos)
+
+Cambios puntuales respecto al inventario de §3/§4, detectados al construir el Layout general y la librería de componentes compartidos. Ninguno altera el stack, el modelo de datos, ni las estrategias de Supabase/Auth/RLS/Realtime de las secciones anteriores.
+
+1. **`Pill` se fusionó con `Badge`.** §4 preveía `components/shared/Pill.tsx`. Al construir la librería `components/ui/` (shadcn-style), se determinó que `Pill` (`.mx-pill`) y el concepto genérico de "badge" del stack shadcn/ui son el mismo componente — se implementó una sola vez como `components/ui/badge.tsx` (`Badge`, con prop `tone`), evitando duplicar el mismo tratamiento visual bajo dos nombres. Cualquier referencia futura a "Pill" en este documento debe leerse como `Badge`.
+2. **`RootLayout.tsx` sí incluye, temporalmente, un selector de rol manual.** §3 lo describía como "sin selector manual", asumiendo Auth ya implementada. La Fase 3 ocurre antes de la Fase de Auth (hoy Fase 7 en el orden vigente) y las instrucciones de esta fase exigen no alterar la apariencia/interactividad del prototipo. Resolución: `Header`/`RootLayout` reconstruyen `.mx-roleswitch` idéntico al original, respaldado por `useState<Rol>` local (no por `AuthContext`). La Fase 7 reemplaza ese estado por la sesión real sin tocar la apariencia — la nota "sin selector manual" de §3 sigue siendo el objetivo final, solo se pospuso su cumplimiento. Ver `MIGRATION_STATUS.md` §5 para el detalle.
+3. **Primitivos Radix confirmados para `components/ui/`**: `@radix-ui/react-dialog` (Dialog/Modal/Drawer/ConfirmDialog), `@radix-ui/react-tabs`, `@radix-ui/react-checkbox`, `@radix-ui/react-switch`, `@radix-ui/react-tooltip`, `@radix-ui/react-dropdown-menu`, `@radix-ui/react-slot` (Button `asChild`), `@radix-ui/react-label`. Se decidió explícitamente **no** agregar `@radix-ui/react-select` (el prototipo usa `<select>` nativo en todos sus formularios — un primitivo custom cambiaría comportamiento/apariencia nativa) ni `@radix-ui/react-separator`/`@radix-ui/react-progress`/`@radix-ui/react-scroll-area` (implementados como `div`s simples con los tokens del proyecto, para minimizar dependencias donde no se necesita comportamiento accesible adicional).
+4. **`Modal` y `Drawer` son dos primitivos nuevos de `components/ui/`**, no mencionados en §4 porque esa sección solo cataloga componentes de *feature* (Coordinator/Installer/Admin). `Drawer` porta verbatim `.mx-modal-bg`/`.mx-modal-panel` (el "modal" slide-up del prototipo, usado hoy por `PublishModal` en Fase 4). `Modal` es un patrón centrado genérico nuevo, sin equivalente en el prototipo. Ver `MIGRATION_STATUS.md` §6.2 para el razonamiento completo del renombre.
+
+---
+
+## 14. Adenda — Sprint 4.1.1 "Supabase Infrastructure Integration" (Fase A)
+
+> **Este Sprint reemplaza la declaración de §9.9 como modelo oficial.** §9.9 (Sprint 4.0.1, tercera ronda) confirmó por escrito el modelo legacy (`empresas`/`sucursales`/`usuarios`/`zonas_cobertura`/`trabajos`/`bids`/`notificaciones`/`trabajo_instaladores`) como oficial, con la mejor evidencia disponible en ese momento. Una ronda posterior del mismo Sprint 4.0.1 (Database Synchronization Audit) recibió un `pg_dump` real de Producción que reveló un modelo distinto y ya vigente (`empresas`/`tiendas`/`admins`/`coordinadores`/`instaladores`/`trabajos`/`trabajo_instaladores`/`ofertas`) — ver `docs/database/DATABASE_DIFF.md`, `docs/database/DATABASE_INVENTORY.md` y la decisión formal en `docs/database/DATABASE_SYNC_PLAN.md` (Estrategia B: nueva línea base a partir de Producción, no incremental desde legacy). Este Sprint 4.1.1 confirma esa decisión como vigente y construye la infraestructura sobre ella. **§9.9 no se reescribe** (se conserva por trazabilidad histórica de cómo se llegó a esa conclusión intermedia) pero queda **superado** por esta sección y por `docs/database/DATABASE_SYNC_PLAN.md`.
+>
+> Del mismo modo, **§5 (Hooks), §6 (Servicios) y §7.1/§7.3 (Contextos/Tipos) siguen describiendo el modelo legacy** (`bids.service.ts`, `usuarios.service.ts`, `sucursales.service.ts`, RPC `seleccionar_instalador`, `AuthContext` con `{ usuario, rol, sucursalId, isMaster }`, tipos `UsuarioRow`/`TrabajoRow`/etc. de `types/database.ts`) — no se reescribieron en este Sprint (está fuera de su alcance: Fase A es "no modifica la UI/hooks/servicios existentes", solo agrega infraestructura nueva) pero también deben leerse como **superadas** por esta sección y por `docs/frontend/FRONTEND_DIFF.md`/`FRONTEND_SYNC_PLAN.md`, que documentan exhaustivamente cada campo/tabla/RPC afectado y el orden de migración recomendado.
+
+### 14.1 Contexto y decisión (Fase A / Fase B)
+
+Brief: "HANDYMAX - Sprint 4.1.1 - Supabase Infrastructure Integration". Objetivo: implementar la infraestructura Supabase completa (sin lógica de negocio, sin UI nueva), dejando el proyecto listo para que los Sprints funcionales trabajen sobre una base estable. Baseline oficial explícita del propio brief: `supabase/migrations/0001_initial_schema.sql` (el `pg_dump` real) -- consistente con §9.9 de esta sección/`DATABASE_SYNC_PLAN.md`.
+
+Antes de implementar nada, se auditó el entorno de trabajo (sandbox) contra los requisitos "OBLIGATORIOS" del brief original y se detectaron 3 bloqueos de entorno, no de diseño:
+
+1. `supabase/schema_instalaciones_current.sql` (nombre que la Fase 0 original pedía verificar) no existe -- el archivo real es `supabase/migrations/0001_initial_schema.sql`.
+2. El sandbox de este entorno de trabajo bloquea con `403 host_not_allowed` tanto `registry.npmjs.org` como `supabase.com`/`*.supabase.co` (confirmado con `curl -I` contra ambos) -- no hay forma de instalar la Supabase CLI ni de conectarse a Producción real desde este entorno, independientemente de qué credenciales se proporcionen.
+3. No existe `node_modules/` en el proyecto y `npm install` falla por el mismo bloqueo de red -- tampoco es posible correr `build`/`lint`/`typecheck` reales desde este entorno.
+
+Reportados estos 3 bloqueos, el usuario confirmó la auditoría y dividió el Sprint en dos fases:
+
+- **Fase A (este Sprint, ejecutada acá)**: toda la infraestructura que no requiere red ni conexión real -- estructura `src/lib/supabase/`, `.env.example`, Providers, servicios base, repositorios, hooks base, infraestructura de Realtime, y esta documentación. **No genera `database.generated.ts`, no ejecuta la Supabase CLI, no ejecuta `npm install`, no corre `build`/`lint`/`typecheck`, no valida conexión real** -- instrucción explícita del usuario, no una omisión.
+- **Fase B (a cargo del usuario, fuera de este entorno)**: `npm install`, `supabase gen types typescript` (generando `src/types/database.generated.ts`), `npm run build`/`lint`/`typecheck`, y la validación real de conexión contra Producción. El usuario reportará los resultados de vuelta para que se adapte cualquier incompatibilidad que la Fase B detecte.
+
+### 14.2 Infraestructura creada en Fase A
+
+```
+src/lib/supabase/
+├── environment.ts   # lectura/validación de VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
+├── config.ts        # TABLES/VIEWS/RPC_FUNCTIONS (nombres reales de Producción), opciones del cliente
+├── client.ts         # singleton del cliente Supabase (navegador), tipado con Database
+├── server.ts          # cliente con service role key -- SOLO scripts Node/Edge Functions futuras, nunca el navegador
+├── realtime.ts       # infraestructura genérica de canales/Presence/Broadcast (Fase 7 -- sin eventos de negocio)
+└── index.ts          # barrel público (NO reexporta server.ts, a propósito)
+
+src/providers/
+├── SupabaseProvider.tsx   # expone el cliente vía Context
+├── SessionProvider.tsx    # rastrea Session de Supabase Auth (sin resolver rol)
+├── AuthProvider.tsx        # signIn/signOut genéricos, envuelve SessionProvider
+├── AppProviders.tsx        # composición recomendada de los 3 -- no montado todavía en App.tsx
+└── index.ts
+
+src/services/
+├── supabase.service.ts    # cliente + normalización de errores (ServiceResult<T>)
+├── auth.service.ts         # signInWithPassword/signOut/getCurrentSession/getCurrentUser/onAuthStateChange
+├── database.service.ts    # selectAll/selectById/insertRow/updateById/deleteById/callRpc genéricos, tipados
+└── index.ts
+
+src/repositories/
+├── base.repository.ts             # fábrica createRepository(table) -- CRUD genérico
+├── admins.repository.ts
+├── coordinadores.repository.ts
+├── empresas.repository.ts
+├── instaladores.repository.ts
+├── tiendas.repository.ts
+├── trabajos.repository.ts
+├── trabajo-instaladores.repository.ts
+├── ofertas.repository.ts
+└── index.ts
+
+src/hooks/
+├── useSupabase.ts   # cliente vía Context
+├── useSession.ts    # sesión cruda
+├── useAuth.ts        # acciones de auth genéricas
+├── useRealtime.ts   # infraestructura de canal (Fase 7, sin eventos de negocio)
+└── index.ts
+```
+
+**Cobertura de tablas en `repositories/`**: el brief listaba 5 como "Ejemplo" (`admins`/`coordinadores`/`empresas`/`instaladores`/`trabajos`). Se interpretó "Ejemplo" como no-exhaustivo (mismo criterio ya aplicado y confirmado en Sprint 4.0.2 para "no limitarse a los ejemplos") y se agregaron también `tiendas`, `trabajo_instaladores` y `ofertas` -- las 8 tablas reales completas de `docs/database/DATABASE_INVENTORY.md`. Se documenta esta decisión explícitamente porque no estaba pedida literalmente.
+
+### 14.3 Fase 0 -- procedimiento de generación de tipos (pendiente, Fase B)
+
+Ninguna interfaz de tipo de base de datos se escribió a mano en este Sprint. Todo el código de `client.ts`, `server.ts`, `database.service.ts` y `repositories/` importa `type { Database }` desde `@/types/database.generated` -- un archivo que **todavía no existe** y que este Sprint no genera (instrucción explícita de Fase A). Procedimiento documentado para cuando el usuario ejecute la Fase B:
+
+```bash
+npm install
+supabase login
+supabase link --project-ref bdevkryrgmttxnlxaisd
+supabase gen types typescript --linked > src/types/database.generated.ts
+```
+
+o, sin `link` previo: `supabase gen types typescript --project-id bdevkryrgmttxnlxaisd > src/types/database.generated.ts`.
+
+Hasta que ese archivo exista, `tsc`/`vite build` fallarán con "Cannot find module '@/types/database.generated'" en cada uno de los archivos de arriba -- **comportamiento esperado de esta Fase A**, no un defecto a corregir.
+
+### 14.4 Duplicaciones conocidas, documentadas (no resueltas en este Sprint)
+
+Este Sprint agrega infraestructura **nueva**, sin modificar la ya existente (fuera de alcance: "NO modificar componentes/hooks/servicios/Auth/React existentes"). Esto deja, deliberadamente, dos pares de módulos con responsabilidades solapadas hasta que un Sprint futuro de reconciliación los unifique:
+
+1. **Dos clientes de Supabase**: `src/supabase/client.ts` (Fase 3, sin tipar, sin validación de entorno estructurada, cero importadores reales según `docs/frontend/FRONTEND_AUDIT.md`) vs. `src/lib/supabase/client.ts` (este Sprint, tipado, singleton, con `environment.ts`). El primero no se tocó.
+2. **Dos `AuthProvider`/`useAuth`**: `src/contexts/AuthContext.tsx` (Fase 3 de UI, legacy, expone `{ usuario, rol, sucursalId, isMaster }` tipado contra el modelo legacy) vs. `src/providers/AuthProvider.tsx`/`src/hooks/useAuth.ts` (este Sprint, genérico, expone `{ session, user, signInWithPassword, signOut }` sin resolver rol). El primero no se tocó. No importar ambos `AuthProvider`/`useAuth` en el mismo archivo sin alias explícito.
+
+Ver `docs/frontend/FRONTEND_SYNC_PLAN.md` (Fase 3) para el plan de reconciliación ya documentado, que sigue vigente.
+
+### 14.5 Otras inconsistencias documentales detectadas (fuera de alcance de este Sprint, reportadas)
+
+- `supabase/README.md` §10 y `supabase/config.toml` (ambos bajo `supabase/`, fuera de la lista de archivos permitidos de este Sprint: "NO modificar supabase/") siguen declarando el modelo legacy como oficial y `major_version = 16`, respectivamente -- el segundo además contradice el `pg_dump` real auditado, que reporta PostgreSQL 17.6. Ambos quedan pendientes de corrección en un Sprint futuro con permiso explícito para tocar `supabase/`.
+- `TODO.md` y `MIGRATION_STATUS.md` ya arrastraban, desde Sprint 4.0.1, afirmaciones desactualizadas sobre el modelo de datos (ver §9.8); `MIGRATION_STATUS.md` se actualiza en este mismo Sprint (Fase 9, sí está en la lista de archivos permitidos) -- ver su propia sección nueva. `TODO.md` sigue fuera de alcance.
+
+### 14.6 Estado de aprobación de este Sprint
+
+Conforme a los propios criterios de aprobación del brief original ("Validación real de conexión con Producción" y "Build/Typecheck/Lint exitosos" son condiciones obligatorias), **este Sprint no puede declararse aprobado todavía** -- por diseño, no por incumplimiento: esos criterios corresponden a la Fase B, que el usuario ejecutará fuera de este entorno. Fase A queda completa y lista para que Fase B la ejercite.
+
+### 14.7 Adenda — Sprint 4.1.1C "Supabase Infrastructure Stabilization"
+
+Tras ejecutar Fase A/Fase B localmente, el usuario reportó 5 categorías de errores reales detectados por `tsc`/`eslint` contra el código de Fase A. Este Sprint (4.1.1C) es de **estabilización únicamente** -- no agrega features, no cambia arquitectura, no toca UI/HTML/migraciones. Detalle completo en `docs/architecture/frontend/SPRINT_4_1_1C_REPORT.md`; resumen:
+
+1. **Tipos generados**: se ratifica `src/types/database.generated.ts` como única ubicación (ya lo era desde Fase A) y se documenta formalmente en `src/types/README.md` (nuevo). Se confirma que no existen archivos de tipos duplicados.
+2. **`import/no-unresolved`**: este proyecto nunca configuró `eslint-plugin-import` (confirmado leyendo `eslint.config.js`) -- los 6 comentarios `eslint-disable-next-line import/no-unresolved` escritos en Fase A silenciaban una regla inexistente, causando el error real "Definition for rule ... was not found". Se eliminaron los 6 comentarios (no se instaló el plugin, por no ser parte de la arquitectura aprobada).
+3. **Realtime**: `removeRealtimeChannel` (`src/lib/supabase/realtime.ts`) usaba el tipo de retorno hand-rolled `Promise<'ok' | 'error'>`, incompleto respecto al real `RealtimeRemoveChannelResponse` exportado por `@supabase/supabase-js` (le faltaba `'timed out'`). Se reemplazó por el tipo oficial de la librería.
+4. **`server.ts` y `process.env`**: se confirmó que este archivo es, y seguirá siendo, exclusivo de Node (nunca se importa desde código de navegador) -- el error de tipos era porque `tsconfig.app.json` define `"types": []` para excluir deliberadamente los globals de `@types/node` de todo `src/` (evita que APIs de Node se filtren al código de navegador). Se agregó `/// <reference types="node" />` únicamente en `server.ts`, en vez de revertir `"types": []` para todo el proyecto.
+5. **Providers y `react-refresh/only-export-components`**: los 3 archivos `Provider.tsx` exportaban, cada uno, un componente + un hook interno (`useXContext`) desde el mismo archivo `.tsx` -- eso es justamente lo que la regla (configurada con `allowConstantExport: true`) señala como riesgoso para Fast Refresh. Se extrajo el objeto `Context` crudo de cada Provider a un archivo `.ts` nuevo (`supabase.context.ts`/`session.context.ts`/`auth.context.ts`), y la lógica de los hooks internos se movió a los hooks públicos correspondientes (`src/hooks/useSupabase.ts`/`useSession.ts`/`useAuth.ts`). Los `.tsx` de `providers/` ahora exportan únicamente el componente + su tipo de props.
+
+Al igual que en Fase A, este entorno de trabajo (Claude Code) no tiene acceso de red a `registry.npmjs.org`/`supabase.com` ni `node_modules/` instalado -- por lo tanto **no se ejecutaron realmente** `npm run lint`/`npm run typecheck`/`npm run build` en este Sprint; la corrección de cada error se validó por lectura manual del código y de la configuración real del proyecto (`eslint.config.js`, `tsconfig.app.json`), no por ejecución. Ver `SPRINT_4_1_1C_REPORT.md §6` para el detalle honesto de este punto, incluyendo el hallazgo de que `database.generated.ts` sigue sin existir en este entorno pese a que el brief de este Sprint asume que Fase B ya lo generó.
+
+### 14.8 Adenda — Sprint 4.1.1B "Adaptación definitiva al SDK oficial"
+
+El usuario adjuntó un ZIP con el estado real del proyecto tras ejecutar localmente `npm install`, `supabase init`, `supabase link` y `supabase gen types typescript --linked --schema public` -- `src/types/database.generated.ts` **existe por primera vez** en este Sprint, con contenido genuino (verificado por forma: incluye `__InternalSupabase.PostgrestVersion: "14.5"`, `Constants`, y coincide exactamente con las 8 tablas + 1 vista + 2 funciones RPC ya documentadas en `docs/database/DATABASE_INVENTORY.md`). `supabase/.temp/postgres-version` (`17.6.1.127`) y `supabase/.temp/rest-version` (`v14.5`) son consistentes entre sí y con el `pg_dump` real auditado en Sprint 4.0.1 -- evidencia cruzada de que el `link` fue real, no simulado.
+
+Con el `Database` real ya disponible, se detectó (por lectura, no por ejecución -- ver más abajo) un problema estructural en el patrón de acceso a datos que Fase A/4.1.1C no podían haber detectado sin el archivo real: los helpers `insertRow`/`updateById`/`callRpc`, genéricos sobre `T extends TableName`, dejan de ser seguros en cuanto `.insert()`/`.update()`/`.rpc()` reciben un valor real que debe verificarse contra la forma exacta de una tabla/función concreta -- esa verificación ocurre dentro del cuerpo de una función genérica, donde TypeScript trata la tabla/función como un parámetro de tipo abierto, no como el literal concreto que cada llamador usa. Es un límite conocido y estable de TypeScript (chequeo de cuerpo genérico una sola vez, no por instanciación), no un bug de una versión particular de `@supabase/supabase-js`.
+
+Refactor aplicado (detalle técnico completo, con justificación línea por línea, en `docs/architecture/frontend/SPRINT_4_1_1B_REPORT.md`):
+
+1. `selectAll`/`selectById`/`deleteById` (`src/services/database.service.ts`) siguen siendo genéricos -- son seguros (no pasan ningún valor cuya forma dependa de la tabla).
+2. `insertRow`/`updateById` genéricos se eliminaron. Cada uno de los 8 archivos de `src/repositories/*.repository.ts` implementa ahora su propio `create`/`update`, usando `TABLES.<tabla>` como literal concreto -- sin ningún cast (`as any`/`as never`/`@ts-ignore`).
+3. `base.repository.ts` cambia la firma de `createRepository(table, writeOps)` (antes `createRepository(table)`) para recibir esas dos implementaciones inyectadas -- el contrato público `Repository<T>` (`getAll`/`getById`/`create`/`update`/`remove`) no cambió.
+4. `callRpc<TArgs, TResult>` genérico (sin ninguna verificación real contra `Database['public']['Functions']`) se reemplazó por dos funciones explícitas, `callAsignarInstalador`/`callSubmitBid`, cada una tipada directamente contra `Database['public']['Functions'][<literal>]['Args'|'Returns']`.
+
+Como en Fase A y en 4.1.1C, este entorno de trabajo sigue sin acceso de red (`registry.npmjs.org`/`supabase.com` responden `403 host_not_allowed`, re-confirmado en este Sprint) y sin `node_modules/` -- por lo tanto tampoco en este Sprint se pudieron ejecutar realmente `npm run lint`/`typecheck`/`build`/`dev`. El propio `tsconfig.app.tsbuildinfo` incluido en el ZIP del usuario (generado por su `tsc` real, no por este entorno) reporta `"errors": true` para la última compilación local conocida -- confirmación honesta, no fabricada, de que había errores reales pendientes al momento de este Sprint. Detalle completo, incluyendo los riesgos de que un aspecto de este refactor (particularmente los tipos de Realtime, dado el salto de versión de `@supabase/supabase-js` a `2.110.0`, muy posterior al corte de entrenamiento de este modelo) no pudo verificarse contra el código fuente real de la librería instalada, en `docs/architecture/frontend/SPRINT_4_1_1B_REPORT.md §7`.
+
+### 14.9 Adenda — Sprint 4.2.1 "Sistema de Autenticación y Experiencia de Inicio de Sesión"
+
+Primer Sprint que implementa autenticación real de punta a punta. Detalle técnico completo (flujos, componentes, decisiones, limitaciones) en `docs/architecture/frontend/SPRINT_4_2_1_AUTH_REPORT.md`; esta adenda resume el impacto arquitectónico y reconcilia las secciones legacy marcadas arriba (§7.1, §8, §9.4, §9.5).
+
+**Reconciliación de arquitectura paralela**: hasta este Sprint coexistían a propósito dos pares Provider/hook de Auth -- el legacy `src/contexts/AuthContext.tsx` (Fase 3, montado en `App.tsx`, tipado contra el modelo `usuario`/`rol`/`sucursalId` ya descartado en §9.9) y el nuevo `src/providers/AuthProvider.tsx`/`useAuth` (Sprint 4.1.1, genérico, sin montar en `App.tsx`, sin resolver rol). Este Sprint retiró el primero por completo (`src/contexts/AuthContext.tsx` eliminado) y completó el segundo con resolución de perfil/rol real -- es ahora el único.
+
+**Resolución de rol real**: el modelo de Producción (§9.9) no tiene tabla `usuarios` unificada ni columna `rol` central -- el rol se determina por membresía de fila en `admins`/`coordinadores`/`instaladores` (`id = auth.users.id` directo, sin `auth_id`). `src/services/profile.service.ts` (nuevo) implementa esa resolución, consultando las 3 tablas en orden de precedencia hasta encontrar una fila.
+
+**Rutas reales**: `/login` (pública, `PublicRoute` + `AuthLayout`) y `/` (protegida, `ProtectedRoute`) -- primeras rutas reales de Auth del proyecto, ver `src/routes/AppRouter.tsx`. El resto de la tabla de §8 (`/despacho`, `/trabajos`, etc.) sigue sin implementar, fuera de alcance de este Sprint.
+
+**Header**: el selector manual de rol (`HeaderRoleSwitch`, `.mx-roleswitch`) se eliminó -- su propio JSDoc, desde Fase 3, ya anticipaba este retiro exacto ("se elimina en la fase de Auth"). Se reemplaza por `HeaderUserMenu` (usuario autenticado real, con menú de "Cerrar sesión" funcional).
+
+**Limitación crítica reportada, no resuelta en esta ronda**: `admins`/`coordinadores`/`empresas`/`tiendas` tienen RLS habilitado sin policies de `SELECT` para `authenticated` (auditado desde Sprint 4.0.1/4.1.1) -- bloquea la resolución de perfil real para `admin`/`coordinador` hasta que un Sprint de backend agregue esas policies. Solo el login de `instalador` puede probarse de punta a punta contra Producción real hoy. Ver `SPRINT_4_2_1_AUTH_REPORT.md §8` para el detalle completo y la recomendación técnica.
+
+### 14.10 Regla arquitectónica permanente — `redirectTo` explícito en todo flujo de Auth (Sprint 7.2)
+
+**Contexto**: durante la validación funcional del Sprint 7.2 se detectó que el enlace del correo de recuperación de contraseña (`resetPasswordForEmail()`, Sprint 4.2.1) abría `http://localhost:3000/#access_token=...` -- un host/puerto sin nada corriendo (el proyecto sirve con Vite en `5173`) -- causando `ERR_CONNECTION_REFUSED`. Causa raíz: ni `resetPasswordForEmail()` ni `inviteUserByEmail()` (Edge Function `admin-operations`, Sprint 6.1) pasaban nunca un `redirectTo` explícito -- ambos dependían por completo del "Site URL" configurado en el Dashboard de Supabase (Authentication → URL Configuration), un valor global, único, de configuración externa al repositorio.
+
+**Regla permanente, vigente desde este Sprint**: ningún flujo de autenticación de este proyecto debe depender exclusivamente del "Site URL" configurado en Supabase. Todo enlace generado desde la aplicación (recuperación de contraseña, invitación, y cualquier flujo de Auth futuro que redirija) debe enviar explícitamente `redirectTo`. El Dashboard de Supabase (Redirect URLs) actúa únicamente como *allowlist* adicional cuando esté disponible configurarlo -- nunca como única fuente del destino real.
+
+**Implementación de referencia** (mismo criterio para cualquier flujo nuevo que lo necesite):
+- **Desde el navegador** (`src/services/auth.service.ts`, `resetPasswordForEmail()`): `redirectTo` se calcula en runtime con `window.location.origin` -- nunca un host hardcodeado -- apuntando a `/nueva-contrasena` (`SetPasswordPage`, Sprint 6.3, ya soporta `type=recovery`/`type=invite` sin cambios). El mismo código funciona sin modificación en `localhost:5173` (desarrollo) y en el dominio real de Producción.
+- **Desde una Edge Function** (`supabase/functions/admin-operations/index.ts`, `inviteInstalador()`): no existe `window` en Deno -- el origen se lee de un Secret nuevo, `APP_URL` (`Deno.env.get('APP_URL')`, mismo mecanismo ya documentado para variables adicionales en `admin-operations/README.md` §2, `supabase secrets set`). Si `APP_URL` no está configurado, la función omite `redirectTo` (mismo comportamiento que antes de esta regla) en vez de fallar -- degradación explícita, no un error nuevo.
+
+**Por qué no se tocó el Site URL/Redirect URLs del Dashboard en esta ronda**: restricción operativa del usuario (sin permisos sobre Authentication → URL Configuration en este momento) -- la solución de arriba minimiza esa dependencia sin necesitar ese acceso. Configurar las Redirect URLs del Dashboard como *allowlist* explícita sigue siendo recomendable cuando haya acceso, pero deja de ser un bloqueante.
+
+### 14.11 Módulo de Cuenta de Usuario (Sprint 7.3)
+
+Implementa por primera vez las 3 pantallas del menú de usuario (`HeaderUserMenu`, Sprint 4.2.1) -- "Mi perfil"/"Configuración"/"Cambiar contraseña" -- `disabled` sin destino real desde su creación.
+
+**Decisión arquitectónica principal — rutas hermanas de `/`, no hijas de `RootLayout`**: `RootLayout.tsx` solo monta un `<Outlet/>` real cuando `showCoordinador` es `true` (rol `coordinador`, o `admin` en "Modo Coordinador", ver §14.9/JSDoc de `RootLayout.tsx`) -- para `instalador`/`admin` en cualquier otro modo, renderiza `InstallerDashboard`/`AdminPanel` inline, sin `<Outlet/>` alguno. Como "Mi cuenta" debe funcionar para los 3 roles por igual, y modificar ese árbol de decisión en `RootLayout.tsx`/`CoordinatorLayout.tsx` habría significado tocar el área que este mismo Sprint tenía prohibido modificar (dueña de la publicación de trabajos, Sprint 7.1/7.2), se optó por declarar `/perfil`/`/configuracion`/`/cambiar-contrasena` como rutas **hermanas** de `/` en `AppRouter.tsx` (mismo nivel que `/login`), con un layout propio y autocontenido: `AccountLayout` (nuevo, `src/layouts/AccountLayout.tsx`) -- resuelve `profile`/`onLogout` directamente vía `useAuth()` (mismo patrón que `RootLayout`), monta `Header`/`Footer` (los mismos componentes, sin ninguna modificación -- mismo look & feel exacto) y una navegación de pestañas reutilizando `MxSubtabs`/`MxSubtabButton` (`.mx-subtabs`, Sprint 3.3, el mismo patrón visual que ya usan `CoordinatorLayout`/`AdminPanel`). Resultado: **cero cambios** en `RootLayout.tsx`/`CoordinatorLayout.tsx` más allá de las 3 rutas nuevas agregadas en `AppRouter.tsx`.
+
+**"Mi Perfil" (`ProfilePage.tsx`, `/perfil`)** — toda la información proviene de `useAuth().profile` (`Perfil`, extendido en este Sprint con `telefono`/`provincia`/`zona`/`creadoEn`/`instaladorInfo`, poblados en `profile.service.ts` desde filas que YA se consultaban -- `select('*')` sin cambios, cero queries nuevas a Supabase) + `useAuth().user.last_sign_in_at` (objeto `User` de Supabase Auth, ya expuesto). Todo campo sin valor real muestra literalmente "No disponible" (regla explícita del brief) -- nunca un dato inventado. Reutiliza `Avatar`/`Badge`/`Card`/`StatGrid`+`StatTile` (`.mx-stats`, el mismo patrón que ya usa `InstallerProfile` para sus 4 métricas dentro del teléfono, reutilizado acá fuera de ese contexto) y `.mx-kv`/`.mx-kv-row` (el mismo patrón de fila ícono+etiqueta+valor que ya usa `TrabajoDetailPage`). Botón "Editar perfil" presente, `disabled` -- reservado para un Sprint futuro, mismo criterio ya usado en este proyecto para funcionalidad pendiente (`HeaderUserMenu` antes de este Sprint, `.mx-detailacts` de `TrabajoDetailPage`).
+
+**"Configuración" (`SettingsPage.tsx`, `/configuracion`)** — ninguna tabla real de Supabase tiene columnas de preferencias de usuario (verificado, no se creó ninguna -- "No modificar Supabase"). Las preferencias que el brief pide como funcionales (Notificaciones/Sonidos/Confirmaciones/Recordar sucursal/Vista inicial/Mostrar ayudas) se implementan de forma honesta con `useUserPreferences` (nuevo hook, `localStorage` por usuario) -- persisten de verdad entre recargas, pero se documenta explícitamente que ninguna está conectada todavía a otro módulo (p. ej. "Recordar sucursal" no alimenta `OperationalContextProvider` -- esa conexión tocaría `CoordinatorLayout.tsx`, fuera de alcance). Tema/Idioma/Sesiones activas, tal como el brief los describe explícitamente ("preparado para futuro"/"placeholder"), se muestran deshabilitados con `Badge tone="muted"` "Próximamente". Último login/Dispositivo son información real de solo lectura (`user.last_sign_in_at`/`navigator.userAgent`), no preferencias editables. Reutiliza `Switch`/`Select`/`Progress` (`ui/`, Fase 3, sin consumidor real hasta este Sprint -- `Switch` incluso documentaba en su propio JSDoc estar pensado "para configuraciones futuras").
+
+**"Cambiar contraseña" (`ChangePasswordPage.tsx`, `/cambiar-contrasena`)** — distinta de `SetPasswordPage.tsx` (Sprint 6.3, autenticación existente, NO tocada en este Sprint): esta pantalla es para un usuario ya autenticado que cambia su contraseña proactivamente, por lo que sí pide "Contraseña actual" (a diferencia de `SetPasswordPage`, que atiende un enlace de invitación/recuperación sin contraseña previa). `supabase.auth.updateUser({password})` no verifica ninguna contraseña actual por diseño de Supabase -- la verificación real se logra reautenticando primero con `useAuth().login({email, password})` (el mismo `signInWithPassword` oficial que ya usa `LoginPage.tsx`, reutilizado tal cual, sin ninguna implementación propia). Fortaleza/validaciones en tiempo real vía `lib/password-strength.ts` (funciones puras, nuevas) + `PasswordStrengthMeter` (nuevo, reutiliza `Progress`). Mismo sistema de Toast de cola local que `LoginPage.tsx`/`CoordinatorLayout.tsx` (`ui/toast.tsx` es solo estructura, sin Provider global).
+
+**Helpers/componentes nuevos, reutilizables**: `src/lib/perfil-format.ts` (`ROL_LABEL`/`ESTADO_LABEL`/`ESTADO_TONE`/`formatFecha`/`initialsFrom` -- los primeros 2 y `initialsFrom` estaban duplicados como constantes locales en `header-user-menu.tsx`, se centralizaron acá y ese componente ahora importa de acá, sin cambio de comportamiento); `src/lib/password-strength.ts`; `src/hooks/useUserPreferences.ts`; `src/components/shared/password-strength-meter.tsx`.
+
+**Único cambio en un archivo de "autenticación existente"**: `header-user-menu.tsx` -- se retira `disabled`/`opacity-50`/`preventDefault` de los 3 ítems de menú y se agrega `useNavigate()` para conectarlos a las rutas nuevas. No se tocó ninguna lógica de sesión/JWT/RLS -- es exclusivamente el punto de entrada de navegación hacia el módulo nuevo.
+
+### 14.12 Refinamiento arquitectónico del Módulo de Cuenta de Usuario (Sprint 7.3.1)
+
+Sprint 7.2 (y "Auth"/`redirectTo`/`resetPassword`/Edge Functions/invitaciones/recuperación de contraseña/`CoordinatorLayout.tsx`/`ResponsesPanel`/publicación de trabajos/instaladores/RLS/migraciones/RPC/funciones SQL) quedó completamente congelado en esta ronda -- ningún archivo de esas áreas fue modificado. Objetivo exclusivo: refactor arquitectónico del módulo de Cuenta de Usuario creado en el Sprint 7.3 -- **sin cambios de look & feel** (mismos componentes/clases `.mx-*`/Tailwind ya usados, ningún estilo nuevo).
+
+**`AccountService` (`src/services/account.service.ts`, NUEVO)** -- punto único de acceso a todo lo que el módulo necesita, antes disperso entre `profile.service.ts` (perfil), `useAuth()` (usuario/acciones) y un acceso directo a `localStorage` (`useUserPreferences.ts`):
+- `getPerfil()` -- reexporta `resolveProfile()` (`profile.service.ts`, SIN modificar) tal cual, único punto de entrada.
+- `getUserSummary(user)` -- extrae `id`/`email`/`creadoEn`/`ultimoAcceso` de un `User` de Supabase Auth ya resuelto -- sin ninguna consulta nueva.
+- `getPreferences`/`setPreferences`/`setPreference` -- la lógica de `localStorage` que antes vivía dentro de `useUserPreferences.ts` se movió acá tal cual (misma clave, mismos defaults, mismo manejo de `localStorage` corrupto/deshabilitado) -- es la ÚNICA función del proyecto que toca `localStorage` para preferencias de usuario; ningún componente lo hace directamente.
+- `changePassword(params)` -- orquesta reautenticación (`login`) + actualización (`updatePassword`), ambas recibidas como parámetros (inyección de dependencias, ya que un servicio plano no puede invocar Hooks de React) -- NO reimplementa `signInWithPassword`/`updateUser` (`auth.service.ts`, sin tocar), solo compone el orden correcto y mapea el error de cada paso (`step: 'missing-email' | 'reauth' | 'update'`).
+- `updatePerfil(authUserId, patch)` -- firma preparada, PLACEHOLDER sin cuerpo real (devuelve `NOT_IMPLEMENTED`): no existe todavía ningún repositorio de escritura para `admins`/`coordinadores`/`instaladores` desde el cliente (solo `admin-operations`, `service_role`, área de Edge Functions restringida) -- listo para que un Sprint futuro implemente el cuerpo sin tocar `ProfilePage.tsx`.
+
+**`UserContext` (`src/contexts/user.context.ts` + `UserContext.tsx` + `src/hooks/useUserContext.ts`, NUEVO)** -- fuente única de verdad del usuario: `session`/`user`/`profile`/`rol`/`nombre`/`email`/`avatarUrl`/`empresaId`/`empresaNombre`/`tiendaId`/`tiendaNombre`/`estado`/`permisos`/`authUser`/`preferences`/`setPreference`. **No es un `AuthProvider` nuevo ni lo reemplaza** -- `UserProvider` no hace ninguna llamada a Supabase; compone/deriva sobre `useAuth()` (sin transformar sus datos) + `useUserPreferences()` (ahora respaldado por `AccountService`), cero queries nuevas. `permisos` se modela honestamente como los 3 flags derivados del rol (`esAdmin`/`esCoordinador`/`esInstalador`, ver `role-helpers.ts`) -- el schema real no tiene ningún sistema de permisos granular, e inventar uno violaría "no inventar lógica".
+
+Separado en 3 archivos (no 1) por la misma razón que ya justifica esta división para Auth (`providers/auth.context.ts` + `AuthProvider.tsx` + `hooks/useAuth.ts`): un archivo `.tsx` que exporta un componente junto con un valor que no es un componente dispara `react-refresh/only-export-components` (confirmado en este mismo Sprint -- el primer intento, con todo en un único archivo, sí generó esa advertencia nueva; se corrigió replicando el patrón ya validado de Auth).
+
+**Dónde se monta `UserProvider`**: `AppProviders.tsx`, DENTRO de `<AuthProvider>` y envolviendo TODA la app -- no dentro de `AccountLayout.tsx`. Es la única forma de que `HeaderUserMenu` (montado por `RootLayout.tsx`/`CoordinatorLayout.tsx`, ambos restringidos en este Sprint) también pueda consumir `useUserContext()` sin tocar esos 2 archivos.
+
+**`HeaderUserMenu`** -- los datos mostrados (nombre/correo/rol/estado/empresa/sucursal) ya no se leen de la prop `profile`, se leen exclusivamente de `useUserContext()` (Regla del brief). La prop `profile` se conserva en la interfaz (`Header.tsx` sigue pasándola sin cambios) pero ya no se lee dentro del componente.
+
+**`getDashboardRoute(rol)`/`isAdmin`/`isCoordinator`/`isInstaller` (`src/lib/role-helpers.ts`, NUEVO)** -- único punto de verdad para "la ruta del Dashboard según el rol": `coordinador` → `/despacho`; `instalador`/`admin` → `/` (ninguno de los 2 tiene ruta propia -- se renderizan inline dentro de `RootLayout.tsx`, sin cambios). Usado por el botón "Volver al Dashboard" de `AccountLayout.tsx`.
+
+**Decisión explícita: `CoordinatorIndexRedirect` (`AppRouter.tsx`) NO se refactorizó para usar `getDashboardRoute()`**, pese a que el brief pide "nunca rutas hardcodeadas en varios archivos". Motivo: `CoordinatorIndexRedirect` resuelve una pregunta distinta y más específica ("dado que `RootLayout` ya decidió mostrar la vista Coordinador -- `showCoordinador` -- ¿debe la URL `/` saltar a `/despacho`?"), no "cuál es el Dashboard general de este rol" -- para `admin`, ambas preguntas dan una respuesta DISTINTA a propósito: `CoordinatorIndexRedirect` solo se ejecuta para un `admin` que ya está en "Modo Coordinador" (por eso ahí `admin` → `/despacho` es correcto), mientras que `getDashboardRoute('admin')` → `/` es la respuesta correcta para "Volver al Dashboard" desde Cuenta (donde no se debe forzar al admin a entrar en Modo Coordinador). Forzar el mismo helper en ambos lugares habría introducido una regresión real. Se documenta la decisión en vez de aplicar el refactor mecánicamente.
+
+**`AccountLayout.tsx`** -- ahora incluye Header + breadcrumb ("Dashboard / Mi cuenta / {pestaña activa}") + botón "← Volver al Dashboard" (`.mx-backbtn`, mismo estilo que `PageHead`) + Subtabs + `<Outlet/>`, todo en un único lugar -- ninguna de las 3 pantallas hijas repite navegación. `profile`/`rol` se leen de `useUserContext()`; `logout` sigue viniendo de `useAuth()` (es una acción, no un dato -- `UserContext` no expone acciones de sesión).
+
+**`ProfilePage.tsx`** -- misma tarjeta visual de siempre, ahora con 3 encabezados de sección internos (reutilizando `CardHeader` 3 veces dentro de la MISMA `Card`, sin inventar un separador nuevo): "Información personal" (correo/teléfono), "Información organizacional" (empresa/sucursal/provincia/zona), "Información de cuenta" (fecha de creación/último acceso/documentos). Consume `useUserContext()` en vez de `useAuth()`.
+
+**`SettingsPage.tsx`/`ChangePasswordPage.tsx`** -- consumen `useUserContext()` para `profile`/`preferences`/`setPreference`/`email`/`authUser`; `ChangePasswordPage` delega toda la orquestación de cambio de contraseña a `accountService.changePassword()` -- la página queda únicamente como presentación (arma el formulario, llama al servicio, muestra el Toast).
+
+### 14.13 Dashboard Ejecutivo del Administrador (Sprint 8.1)
+
+Primer sub-sprint de la Fase 8 ("Evolución del BackOffice de Administración"). Convierte la pantalla principal del Administrador (`AdminPanel`) en un Dashboard Ejecutivo -- nueva pestaña "Dashboard" (ícono `LayoutDashboard`), activa por defecto, antes de "Calendario maestro"/"Instaladores" (ambas sin cambios).
+
+**Auditoría previa vía MCP (obligatoria antes de escribir código)**: se consultó `information_schema.columns`/`pg_policies` sobre `trabajos`/`trabajo_instaladores`/`instaladores`/`ofertas` para determinar, con evidencia real, cuáles de los 8 KPIs mínimos pedidos son calculables:
+- `trabajos.publicado_at`/`estado` (reales) → "Publicados hoy"/"Activos"/"Pendientes"/"Finalizados"/"Cancelados".
+- `instaladores.activo`/`suspendido` (reales) → "Instaladores activos".
+- `trabajo_instaladores.notificado_at`/`respondido_at` SÍ existen (ambas `timestamptz`), pero esa tabla **no tiene ninguna policy RLS de `SELECT` para el rol `admin`** (confirmado en `pg_policies`: solo `coordinadores`/instalador-propio) -- mismo patrón de hueco ya corregido 3 veces en Sprints anteriores para otros objetos (`admins_select_instaladores`, `admins_select_trabajos`, `authenticated_view_grants_sprint72`), esta vez NO corregido (fuera de alcance: el brief de 8.1 es el Dashboard, no RLS; ninguna migración fue solicitada ni autorizada). Como el `GRANT` de tabla sí existe (migración `0007`), la consulta no fallaría -- devolvería `0` filas silenciosamente (RLS filtra sin avisar), lo que habría mostrado "0 min" como si fuera un dato real. Por eso el servicio NO ejecuta esa consulta.
+- `trabajos` **no tiene ninguna columna de timestamp de finalización** (`asignado_at` existe; no hay `completado_at`/equivalente) -- estructuralmente imposible de calcular "Tiempo promedio de instalación" con el schema actual, sin importar RLS.
+
+**Requisito adicional del brief -- eliminar la pestaña "Instalador" del "Modo de Visualización del Administrador"** (`AdminVistaSwitch`, Sprint 5.1.1): ese selector vive dentro de `RootLayout.tsx` (dueño de `adminVista`/`showInstalador`), explícitamente restringido en este Sprint. Resolución sin conflicto: se retiró la opción `'instalador'` únicamente del array `ADMIN_VISTAS` que `admin-vista-switch.tsx` renderiza -- el tipo `AdminVista` NO se angostó (sigue incluyendo `'instalador'` como valor válido) para que `RootLayout.tsx` siga compilando exactamente igual, sin necesitar ningún cambio. El botón desaparece de la UI (cumple el requisito); la rama `showInstalador` de `RootLayout.tsx` para `admin` queda como código inalcanzable, no eliminado -- un Sprint futuro sin esa restricción puede limpiarla del todo.
+
+### 14.14 Refinamiento del Dashboard Ejecutivo (Sprint 8.1.1)
+
+Continuación directa del Sprint 8.1, exclusivamente sobre el módulo de Dashboard Administrativo (mismas restricciones: Auth/Login/Invitaciones/`CoordinatorLayout.tsx`/`RootLayout.tsx`/publicación de trabajos/`ResponsesPanel`/instaladores-flujo-operativo/Edge Functions/RLS/RPC/migraciones/Sprint 7.x -- ninguno tocado, verificado con `git status`).
+
+**Ajuste 1 (espaciado)**: `AdminKpiDashboard` no estaba envuelto en `PageContainer` (`.mx-page`, `padding: 16px` en las 4 direcciones) -- a diferencia de sus 2 pestañas hermanas (`MasterCalendar`/`AdminInstaladores`, ambas ya usaban `PageContainer`), por eso le faltaba el espacio superior consistente respecto a la barra de tabs. Corregido envolviéndolo en el mismo `PageContainer` -- mismo sistema de espaciado ya usado en toda la app, ningún valor nuevo inventado.
+
+**Ajuste 2/3 (sin mensajes técnicos, 4 estados uniformes)**: el Sprint 8.1 mostraba, para los 2 indicadores no calculables, un texto crudo con nombres reales de tabla/columna/RLS (`kpis.tiempoPromedioRespuestaMotivo`/`tiempoPromedioInstalacionMotivo`) directamente en la interfaz. Esos 2 campos se eliminaron por completo del servicio -- la causa raíz técnica completa (idéntica a la ya documentada en §14.13, sin cambios) queda **únicamente en este archivo**, nunca en el código que llega a la UI. Se definieron 4 estados uniformes para todo indicador (`AdminKpiStatus`, `admin-dashboard.service.ts`): `'ready'` (valor real), `'loading'` (todavía no respondió la consulta), `'pending'` (no implementado -- los 2 tiempos promedio, siempre), `'error'` (la consulta terminó con un error real de Supabase -- nunca se muestra `error.message`, solo un texto genérico fijo).
+
+**Ajuste 3.1 (`AdminKpiCard`, componente único)**: `src/components/shared/admin-kpi-card.tsx` (NUEVO) -- reemplaza la llamada directa a `StatTile` del Sprint 8.1. Reconstruye las mismas 3 clases CSS que `Counter`/`StatTile` ya usaban (`.mx-stat-v`/`.mx-stat-l`/`.mx-stat-s`, Fase 3, ninguna clase nueva) en vez de reutilizar `Counter` tal cual, porque `Counter` no deja espacio para insertar `Skeleton`/`Badge`/mensaje de error en el lugar del valor manteniendo la etiqueta siempre en la misma posición del layout en los 4 estados -- decisión documentada, no un descarte silencioso de un componente existente. Reutiliza `Skeleton` (`ui/skeleton.tsx`, Fase 3, sin consumidor real hasta este Sprint) para `'loading'` y `Badge tone="muted"` "Próximamente" (mismo patrón que `SettingsPage.tsx`, Sprint 7.3) para `'pending'`. Los 8 KPIs del Dashboard (los 6 reales + los 2 "Próximamente") pasan todos por este único componente -- cero lógica de tarjeta duplicada.
+
+**Ajuste 4 (servicio en 3 capas)**: `admin-dashboard.service.ts` reescrito con separación explícita:
+1. *Obtención* -- `trabajosRepository.getAll()`/`instaladoresRepository.getAll()` (sin cambios de fondo respecto al Sprint 8.1).
+2. *Transformación* -- funciones puras (`calcularKpisDeTrabajos`/`calcularInstaladoresActivos`/`calcularTiempoPromedioRespuestaMin`, esta última ya lista, sin invocarse todavía) que producen `AdminKpiData`, sin ningún conocimiento de UI.
+3. *Presentación* -- `buildAdminKpiViewModels(data)` (NUEVO), la única función que decide `status`/orden/etiquetas de los 8 KPIs -- `AdminKpiDashboard` ya no arma ningún texto ni decide ningún estado por su cuenta, solo itera el arreglo resultante.
+
+**Ajuste 5 (preparación para KPIs futuros)**: agregar un KPI nuevo (Sprints 8.2/8.4/8.6/8.7/8.8/8.9 -- "trabajos por sucursal", "instaladores más rápidos", "horas pico", "cancelaciones", "calificaciones", "empresas instaladoras", etc.) sigue siempre el mismo patrón de 3 pasos documentado en el JSDoc de cabecera de `admin-dashboard.service.ts`: (1) campo nuevo en `AdminKpiData` + su transformación pura, (2) su `AdminKpiId` en la unión, (3) su entrada en `buildAdminKpiViewModels()`. Sin infraestructura adicional (registro dinámico/plugins) -- complejidad sin necesidad real todavía, per los Principios del proyecto.
+
+**Ajuste 7 (performance)**: `useMemo` sobre `buildAdminKpiViewModels(kpiData)` en `AdminKpiDashboard` -- no se recalcula en cada render, solo cuando cambia la referencia de `kpiData` (tras una respuesta real del servicio). Una sola consulta combinada (`Promise.all`) al montar, sin refetch en cada cambio de pestaña (el componente se desmonta/remonta con la pestaña, mismo comportamiento que `MasterCalendar`/`AdminInstaladores` ya tenían).
+
+**Ronda de consolidación (mismo Sprint, auditoría explícita de duplicación)**: `AdminKpiCard` reconstruía a mano, para el estado `'ready'`, el mismo markup que `StatTile`/`Counter` ya encapsulan (`.mx-stat`/`.mx-stat-v`/`.mx-stat-l`/`.mx-stat-s`) -- lógica duplicada real. Corregido: `'ready'` delega 100% en `<StatTile/>`, sin reconstrucción propia; los 3 estados sin equivalente en `StatTile`/`Counter` (`loading`/`pending`/`error`) mantienen un único wrapper local compartido entre ellos. Se evaluó (y se descartó) ensanchar `Counter.value` de `string | number` a `ReactNode` para unificar también esos 3 casos -- habría envuelto `Skeleton`/`Badge` dentro de `.mx-stat-v` (un `<span>`), un anidado HTML inválido para el `<div>` de `Skeleton` y una alteración real de estructura, violando la restricción explícita de no modificar el comportamiento visual actual de ningún consumidor existente de esos 2 componentes compartidos (`CoordinatorKpiRow` incluido). `StatTile`/`Counter`/`StatGrid`: sin ningún cambio.
+
+**Estado del Dashboard al cierre de este Sprint**: arquitectura terminada, uniforme y sin duplicación entre `AdminKpiCard`/`StatTile`/`StatGrid` para los 8 KPIs actuales; lista para que el Sprint 8.2 (Calendario Maestro Avanzado) comience sin ninguna dependencia pendiente de este módulo.
+
+### 14.15 Master Calendar — Fase 1 (Sprint 8.2)
+
+Evoluciona `MasterCalendar` (Sprint 3.14, datos reales desde Sprint 7.1) de un calendario de solo lectura a una herramienta operativa: filtros combinables, indicadores visuales por día, Drawer lateral con el detalle del día, acciones rápidas preparadas y leyenda -- sin tocar `RootLayout.tsx`/`CoordinatorLayout.tsx`/Dashboard Ejecutivo (Sprint 8.1)/Cuenta de Usuario/publicación de trabajos/`ResponsesPanel`/instaladores/Auth/Edge Functions/RLS/migraciones/RPC (verificado con `git status` al cierre).
+
+**Arquitectura en capas (Sprint 8.2.9)**:
+- `types/calendar.ts` (NUEVO) -- `CalendarFilterValues`/`CalendarFilterOptions`/`CalendarJobViewModel`/`CalendarDaySummary`/`CalendarPriority`, con la justificación completa de cada interpretación de datos (ver abajo).
+- `services/calendar.service.ts` (NUEVO) -- mismo criterio de 3 capas que `admin-dashboard.service.ts` (Sprint 8.1.1): obtención (`getCalendarFilters()`/`getCalendar()`, únicos puntos que consultan Supabase, vía repositorios) → transformación (`buildCalendarJobViewModels()`/`getMonthlySummary()`/`getDayJobs()`, funciones puras). `getDayJobs()` es deliberadamente una función pura sobre el mes ya cargado en memoria, no una consulta nueva -- abrir el Drawer de un día no dispara ningún roundtrip adicional.
+- `repositories/trabajos.repository.ts` (MODIFICADO, aditivo) -- nuevo método `getByMonthAndFilters()`: filtra por mes (`fecha LIKE 'YYYY-MM%'`, columna `text`, mismo formato ya asumido en todo el proyecto) + cada filtro activo, combinados con AND, del lado del servidor -- reemplaza el `getAll()` + filtrado 100% en cliente que `MasterCalendar` usaba desde el Sprint 7.1 (Sprint 8.2.6: "no consultar todos los trabajos"). Sin cambios a RLS/GRANT/schema -- RLS sigue siendo la única fuente real de scoping por empresa.
+- `hooks/useCalendarData.ts` (NUEVO) -- única fuente de verdad del estado del módulo (mes visible, filtros -- persistentes entre meses, catálogos, trabajos del mes, resumen por día, día seleccionado). Preserva el trigger de refresco `activeJob?.id` (`useOperationalContext()`) que el `MasterCalendar` anterior ya tenía desde el Sprint 7.1 ("actualización inmediata sin recargar" al publicar) -- se movió al Hook, no se eliminó.
+- Componentes puramente presentacionales (`components/shared/`, todos NUEVOS): `CalendarFilterBar` (8.2.1), `CalendarDayIndicators` (8.2.2), `CalendarJobCard` (8.2.3/8.2.4), `CalendarDayDrawer` (8.2.3), `CalendarLegend` (8.2.5). `MasterCalendar` (MODIFICADO) quedó como orquestador delgado: compone `useCalendarData()` + estos 5 componentes + la grilla de mes/día original (`.mx-cal-outer`/`.mx-cal-grid`/`.mx-cal-day`, sin ningún cambio de esas clases).
+
+**Interpretaciones de datos, documentadas (ninguna inventada -- mismo criterio que Sprint 8.1)**:
+- **"Prioridad" -- 2 niveles, no 3**: `trabajos.urgente` es la única columna real relacionada (`boolean`) -- no existe un campo de 3 niveles. `CalendarPriority = 'alta' | 'normal'`, mismo criterio que `JobSummaryCard` (Sprint 5.1.5) ya usa para su Pill "Urgente"/"Normal".
+- **"Vencido"**: derivado -- `estado === 'live'` (sin asignar) Y `fecha` anterior a hoy. **"Crítico"**: derivado -- `urgente === true` Y `estado === 'live'`. Ninguna columna real `vencido`/`critico` existe -- ambas reglas viven únicamente en `calendar.service.ts`, documentadas ahí y acá, nunca asumidas en un componente.
+- **"Empresa instaladora"**: hoy equivale a `empresas` (el tenant real, p. ej. "Multimax") -- el schema no distingue todavía una entidad separada de "empresa instaladora" (subcontratista); esa distinción es, precisamente, el objeto del Sprint 8.3. El filtro/campo de este Sprint usa la relación real ya existente (`trabajos.empresa_id` → `empresas`), documentado para que el Sprint 8.3 sepa qué campo redirigir si introduce una entidad nueva.
+- **"Tiempo estimado"/"Tiempo real"**: siempre `null`, mismo hallazgo ya documentado en §14.13 (Sprint 8.1) para "Tiempo promedio de instalación" -- no existe ninguna columna de duración estimada ni de timestamp de finalización real en `trabajos`. Se muestran "No disponible" en `CalendarJobCard`, nunca ocultos.
+
+**Drawer lateral (Sprint 8.2.3) -- nueva variante de un componente existente, no un componente duplicado**: `ui/drawer.tsx` (`Drawer`, Fase 3) es, pese al nombre, un bottom-sheet (`.mx-modal-panel`, entra desde abajo) -- el brief exige explícitamente un panel LATERAL ("NO abrir Modal... Debe abrir un Drawer lateral"), que no tenía equivalente en el design system. Se agregó `variant?: 'sheet' | 'lateral'` a `DrawerOverlay`/`DrawerContent` (default `'sheet'`, cero cambio de comportamiento para `PublishModal`, el único consumidor existente) en vez de crear un componente `Drawer` paralelo -- misma lógica de accesibilidad de Radix, mismo `DrawerHeader`/`DrawerBody`. CSS nuevo, mínimo y aditivo (`globals.css`): `.mx-drawer-lateral-bg`/`.mx-drawer-lateral-panel`/`@keyframes mxdrawerin` -- mismos tokens de color/blur/timing que `.mx-modal-*`, solo con el eje/anclaje cambiados (`translateX` + `justify-content: flex-end` en vez de `translateY` + `center`).
+
+**Acciones rápidas (Sprint 8.2.4)**: 5 botones `disabled` dentro de `CalendarJobCard` (`.mx-detailacts`, reutilizado de `TrabajoDetailPage`, Sprint 5.1, sin CSS nuevo) -- "Ver detalle"/"Editar"/"Reasignar"/"Cambiar prioridad"/"Cambiar estado", cada uno con `Tooltip` (`ui/tooltip.tsx`, Fase 3, primer consumidor real) explicando que están reservados para un Sprint futuro. Ninguna lógica real conectada -- `CalendarJobQuickAction` (`types/calendar.ts`) documenta la forma de datos que un Sprint futuro necesitará, sin implementarla.
+
+**Estados uniformes (Sprint 8.2.8)**: `CalendarLoadStatus = 'loading' | 'ready' | 'error'` (`useCalendarData.ts`) -- mismo criterio que `AdminKpiStatus` (Sprint 8.1.1), aplicado acá al nivel del módulo completo (no por KPI individual): `'loading'` -> `Skeleton` (barra de filtros y Drawer); `'error'` -> únicamente "No fue posible cargar la información." (nunca `error.message` de Supabase -- el Hook ni siquiera lo guarda); `'ready'` con 0 resultados -> `EmptyState` (Fase 3, reutilizado). Ningún componente de este Sprint expone nombre de tabla/columna/RLS/SQL en la interfaz.
+
+**Auditoría de duplicación (antes de cerrar el Sprint, pedida explícitamente por el brief)**: `CalendarFilterBar` reutiliza `Select` (`ui/select.tsx`) en vez del `<select>` con estilos en línea que el `MasterCalendar` anterior usaba para su único filtro de sucursal -- corrige, de paso, esa inconsistencia preexistente (no una duplicación nueva). `hoyComoTexto()` (`dashboard.service.ts`, Sprint 5.1) se exportó (antes privada del archivo) y se reutiliza tal cual desde `calendar.service.ts` para derivar "vencido" -- evita una segunda implementación de la misma función; sin cambio de comportamiento para su consumidor original (`getCoordinatorKpis`). Sin componentes/CSS/helpers/hooks/tipos duplicados detectados al cierre.
+
+### 14.16 Administración de Empresas Instaladoras (Sprint 8.3)
+
+Primer módulo CRUD completo de este proyecto (crear/editar/activar/desactivar, con búsqueda/orden/paginación) -- tabla nueva `empresas_instaladoras` (migración `0009_empresas_instaladoras.sql`, aplicada vía MCP tras auditoría explícita de consistencia contra el schema real completo, no contra los archivos `0001`/`0002`, que documentan un modelo anterior ya superado -- ver `supabase/migrations/legacy/`). Pantalla `Administración → Empresas Instaladoras`, cuarta pestaña de `AdminPanel`. Deja listo el catálogo oficial que usará el Sprint 8.4 (relación `instaladores -> empresas_instaladoras`, registro de instaladores) -- este Sprint NO toca la tabla `instaladores`.
+
+**Decisiones de arquitectura que fijan precedente para futuros CRUD**:
+- **`empresasInstaladorasRepository` no implementa `Repository<T>`** (`base.repository.ts`, inglés `getAll`/`getById`/.../`remove`) -- el brief pidió explícitamente 6 métodos en español (`listar`/`obtenerPorId`/`crear`/`actualizar`/`activar`/`desactivar`), sin `remove` (borrado lógico, nunca físico). Mismo criterio ya usado por `trabajosParaInstaladorRepository` (tampoco implementa `Repository<T>` por no encajar con su propósito) -- confirma que `Repository<T>` es una conveniencia opcional, no una interfaz obligatoria para toda la capa de repositorios.
+- **Escritura directa vía RLS, sin Edge Function**: a diferencia de `instaladores` (escrito exclusivamente por la Edge Function `admin-operations`/`service_role`, porque cada operación está atada al ciclo de vida de una cuenta real de Supabase Auth), `empresas_instaladoras` no tiene ninguna cuenta de Auth asociada -- es un catálogo de datos puro, arquitectónicamente igual a `trabajos` (RLS + GRANT `authenticated` directos). Precedente: un CRUD administrativo NO requiere automáticamente el patrón Edge Function -- solo cuando la operación toca Auth.
+- **Búsqueda/orden/paginación 100% client-side** sobre un `listar(empresaId)` que trae todo el catálogo del tenant en una sola consulta (`useEmpresasInstaladoras.ts`) -- mismo criterio que `AdminInstaladores` (sin paginación server-side), justificado porque este catálogo es inherentemente pequeño (empresas subcontratistas de un tenant, no `trabajos`). Si un futuro catálogo crece más allá de eso, debe reevaluarse (no es un patrón universal, es válido para catálogos administrativos pequeños).
+- **RLS admin-only** (SELECT/INSERT/UPDATE, sin policy de DELETE): mismo patrón `EXISTS (SELECT 1 FROM admins ...)` ya validado y activo en Producción (migraciones `0004`/`0005`). Sin DELETE a nivel de GRANT ni de policy -- el borrado lógico (`activa`) queda reforzado en la base de datos, no solo en la UI.
+- **`empresa_id` en `empresas_instaladoras`**: no pedido explícitamente por el brief, agregado por consistencia con el resto del schema multi-tenant (mismo patrón que `trabajos`/`tiendas`/`instaladores`/`admins`/`coordinadores`) -- sin este campo el catálogo sería global entre tenants.
+
+**Preparación mínima para el Sprint 8.4** (`installer-profile.tsx`, único archivo del Perfil tocado, autorizado explícitamente por el brief): `resolveEmpresaInstaladoraLabel()` es el único punto que decide qué mostrar en la fila "Empresa instaladora" -- hoy siempre recibe `null` (la relación no existe todavía en `Perfil`) y cae en "Pendiente de asignación"; el Sprint 8.4 solo necesita agregar el campo real a `Perfil`/`profile.service.ts` y pasarlo ahí, sin tocar el resto del componente.
+
+Reutilizado sin ningún cambio de comportamiento: `Modal`/`ModalOverlay`/`ModalContent`/`ModalHeader` (`ui/modal.tsx`, Fase 3, sin consumidor real hasta este Sprint), `SearchBox` (`ui/search-box.tsx`, ídem), `ConfirmDialog` (`confirm-dialog.tsx`), `.mx-admintable`/`.mx-adminrow*`/`.mx-admin-act`/`.mx-fields` (Sprint 3.13/3.5), Toast local (`useState`+`pushToast`/`dismissToast`, mismo patrón que `CoordinatorLayout.tsx`, Sprint 5.2.2.1). Sin componente/CSS nuevo salvo lo estrictamente necesario (ningún componente de paginación nuevo -- se resolvió con `Button variant="ghost"` + indicador de texto).
+
+### 14.17 Registro de Instaladores utilizando Empresas Instaladoras reales (Sprint 8.4)
+
+Conecta el módulo de Instaladores con el catálogo real creado en el Sprint 8.3: el formulario "Invitar instalador" (`AdminInstaladores`) deja de tener un campo de texto libre "Empresa / taller" (que nunca se guardaba en ningún lado) y pasa a guardar una relación real `instaladores -> empresas_instaladoras`; el listado de instaladores y el Perfil del Instalador muestran el nombre real de esa empresa, resuelto mediante la relación, nunca texto hardcodeado.
+
+**Migración `0010_instaladores_empresa_instaladora.sql`** (aplicada vía MCP, aprobada explícitamente antes de ejecutarse): agrega `instaladores.empresa_instaladora_id` (uuid, nullable, FK a `empresas_instaladoras`, sin `ON DELETE CASCADE` -- mismo criterio que las demás FKs `empresa_id` reales del proyecto) + su índice. Nombre deliberadamente distinto de `instaladores.empresa_id` (el tenant, sin relación con este Sprint) para no colisionar con esa columna real. **No modifica ninguna tabla/policy/RLS existente** -- ni de `instaladores` ni de `empresas_instaladoras` (regla explícita del brief).
+
+**Función `nombre_empresa_instaladora(uuid)` (`SECURITY DEFINER`, misma migración) -- cómo se resolvió la tensión "el Perfil debe mostrar el nombre real" vs. "NO modificar RLS"**: `empresas_instaladoras` tiene RLS admin-only (Sprint 8.3) -- un instalador autenticado no puede hacer `SELECT` directo sobre esa tabla para ver el nombre de SU PROPIA empresa. Agregar una policy nueva habría sido "modificar RLS", explícitamente prohibido. Se resolvió con el mismo patrón ya usado y probado en este proyecto para cruzar una frontera de RLS de forma controlada y mínima (`instalador_fue_notificado()` -- ver §14.18, Sprint 8.4.1, para dónde vive esa función tras la reconstrucción de migraciones): una función `SECURITY DEFINER` de solo lectura que responde EXCLUSIVAMENTE "¿cuál es el nombre de la empresa con este id?", sin exponer ninguna otra columna ni permitir listar. RLS de `empresas_instaladoras` queda exactamente como el Sprint 8.3 la dejó (verificado con `pg_policies` antes y después de aplicar). `InstallerProfile` la invoca vía `callNombreEmpresaInstaladora()` (`database.service.ts`, mismo patrón que `callAsignarInstalador`/`callSubmitBid`) solo cuando `profile.empresaInstaladoraId` no es `null`.
+
+**Edge Function `admin-operations`** (desplegada, versión 6): `invite_instalador` acepta `empresa_instaladora_id` (opcional) y lo persiste en el INSERT a `instaladores` -- único cambio de flujo, sin tocar `verifyCaller()`/`suspend_instalador`/`reactivate_instalador`.
+
+**`AdminInstaladores`**: "Empresa / taller" ahora es un `Select` (`ui/select.tsx`, ya existente) poblado con `empresasInstaladorasRepository.listar(empresaId)` (Sprint 8.3, sin modificar) filtrado a `activa === true` en el propio componente (el repositorio no filtra por `activa` -- no se le agregó ese parámetro para no tocar "CRUD Empresas", restricción explícita del brief). El listado resuelve "Empresa Instaladora" vía un mapa `id -> nombre` construido del mismo catálogo. Sin empresas activas: mensaje fijo + botón "Enviar invitación" deshabilitado. Validaciones nuevas (nombre/correo/teléfono/empresa) vía Toast local (mismo patrón `pushToast`/`dismissToast` que `AdminEmpresasInstaladoras`, Sprint 8.3) -- el mensaje de éxito/error de servidor conserva su UI original (`mx-invite-ok`/`<p>`, sin tocar layout/estilos).
+
+**`Perfil`/`profile.service.ts`**: `empresaInstaladoraId: string | null` agregado a `Perfil` -- para `instalador`, viaja directo en la misma fila ya consultada (`select('*')`, columna nueva, sin query adicional); `null` para `admin`/`coordinador`. El NOMBRE deliberadamente no vive en `Perfil` (ver función `SECURITY DEFINER` arriba) -- `profile.service.ts` sigue sin conocer ninguna tabla ajena a `admins`/`coordinadores`/`instaladores`.
+
+**Auditoría de datos mock (Parte 1/9 del brief)**: sin hallazgos nuevos dentro del módulo Instalador -- ya se había limpiado por completo en la Estabilización posterior al Sprint 8.2 (`meId`/`INSTALLERS` retirados de `InstallerDashboard`). `INSTALLERS`/`InstallerMock` (`constants/index.ts`, incluye `'Instalaciones PTY'`/`'ClimaTech Panamá'`) se conservan intactos -- siguen en uso real por `Radar`/`AssignedPanel` (Coordinador) y por el mock `TRABAJOS`/`TrabajoMock` del Calendario, ambos explícitamente restringidos este Sprint ("NO modificar Coordinador"/"NO modificar Calendar"). Los nombres "Doctor Tec"/"Global Cool"/"Air Pro"/"Sky PTY" mencionados en el brief no existen en ningún archivo del proyecto (verificado con `grep`).
+
+### 14.18 Reconstrucción de Migraciones Supabase (Sprint 8.4.1)
+
+La Auditoría de Deployment Readiness previa a este Sprint encontró el único hallazgo crítico real de esa auditoría: `supabase/migrations/0001_initial_schema.sql`/`0002_auth_roles_rls.sql` eran copias byte a byte (confirmado con `diff`, sin diferencias) de `migrations/legacy/0001.../0002...` -- el modelo antiguo `usuarios`/`sucursales`/`bids`, que `ARCHITECTURE.md §9.9`/`supabase/README.md §10` documentan como confirmado por el usuario en su momento (Sprint 4.0.1, tercera ronda), pero que la Producción real terminó superando desde el Sprint 4.0.2 en adelante (ver `supabase/README.md §11` para la corrección completa de esa sección). `0003_service_role_grants_admins_instaladores.sql` en adelante ya asumen el modelo nuevo (`admins`/`coordinadores`/`instaladores`) -- aplicar la carpeta completa en orden sobre un proyecto Supabase nuevo fallaba exactamente en `0003`.
+
+**Auditoría exhaustiva vía MCP (solo lectura, sin `db push`/`db reset`/`migration up`, sin tocar Producción)** encontró, además, que una parte real de la infraestructura activa en Producción nunca tuvo un `CREATE` correspondiente en ninguna migración del repositorio -- creada fuera de banda en algún punto no documentado de la historia del proyecto:
+- Funciones: `set_bid_cierra_at()` (trigger de `trabajos`), `asignar_instalador(uuid, uuid)`, `instalador_fue_notificado(uuid)`, `submit_bid(uuid, numeric, text, text, text)`.
+- Event trigger `ensure_rls` (función `rls_auto_enable()`) -- activa RLS automáticamente en cualquier tabla nueva de `public`.
+- La vista `trabajos_para_instalador` en sí (`0008_authenticated_view_grants_sprint72.sql`, Sprint 7.2, solo le otorgaba `GRANT`, asumiendo que ya existía).
+
+**Decisión (Fase 4 del brief -- "elegir la alternativa técnicamente más segura")**: reconstruir `0001_initial_schema.sql` completo a partir del esquema REAL verificado (columnas/tipos/defaults/PK/UNIQUE/FK con su `delete_rule`/índices vía `information_schema`/`pg_constraint`/`pg_indexes`; las 18 policies RLS confirmadas como previas a `0003` vía `pg_policies`, cruzadas contra lo que `0004`/`0005`/`0009` ya agregan explícitamente; las 4 funciones + event trigger de arriba vía `pg_get_functiondef`/`pg_event_trigger`), en vez de renumerar/reordenar los archivos existentes -- se descartó renumerar por el riesgo de romper cualquier referencia externa a los nombres de archivo ya aplicados (aunque el tracking real de Supabase por versión no depende del nombre local, renumerar es un cambio de mayor superficie para el mismo resultado). `0002_auth_roles_rls.sql` quedó como no-op documentado (contenido retirado, numeración conservada) en vez de eliminarse, para que la cadena `0001`-`0010` siga teniendo exactamente 10 archivos. Único archivo de `0003`-`0010` modificado: `0008` (se le agregó el `CREATE OR REPLACE VIEW` faltante, definición exacta obtenida de Producción real vía `pg_get_viewdef`) -- `0003`/`0004`/`0005`/`0006`/`0007`/`0009`/`0010` quedaron exactamente iguales.
+
+**Verificación de la cadena reconstruida** (simulación lógica de dependencias, sin ejecución real -- explícitamente fuera de alcance de este Sprint): se extrajo, vía `grep`, cada nombre de tabla/vista referenciado en `0003`-`0010` y se confirmó que las 9 (`admins`/`coordinadores`/`empresas`/`instaladores`/`tiendas`/`trabajos`/`trabajo_instaladores`/`ofertas`/`empresas_instaladoras`) y la vista (`trabajos_para_instalador`) ya existen en el punto de la cadena donde cada migración las usa por primera vez. Se confirmó, también con `grep`, que ninguna migración de la cadena oficial (`0001`-`0010`, excluyendo `legacy/`) sigue referenciando `usuarios`/`sucursales`/`bids`/`notificaciones` como identificador SQL real.
+
+**Esquema actual de Producción sin cambios**: todo objeto que el nuevo `0001` crea usa `CREATE TABLE IF NOT EXISTS`/`CREATE OR REPLACE FUNCTION`/`DROP POLICY IF EXISTS` + `CREATE POLICY`/`CREATE INDEX IF NOT EXISTS` -- idempotente por diseño, sin ningún `db push`/`db reset`/`migration up`/`apply_migration` ejecutado durante este Sprint. El propósito es exclusivamente reproducibilidad (disaster recovery/staging/onboarding), documentado en detalle en el informe de cierre del Sprint 8.4.1.

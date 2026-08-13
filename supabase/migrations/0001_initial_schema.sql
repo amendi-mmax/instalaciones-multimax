@@ -1,571 +1,595 @@
 -- ============================================================
--- HANDYMAX · Supabase Schema v3
--- Multimax Despacho — plataforma de despacho de instaladores
+-- HANDYMAX · Multimax Despacho
+-- Esquema inicial REAL — reconstrucción (Sprint 8.4.1)
 -- ============================================================
--- Ejecutar en: Supabase Dashboard → SQL Editor
+-- Ejecutar en: Supabase Dashboard → SQL Editor (o `supabase db push`)
 -- Proyecto: bdevkryrgmttxnlxaisd
--- Nota: ejecutar en orden, de arriba a abajo.
+-- Es la PRIMERA migración de la cadena (0001 → 0010). Reemplaza por
+-- completo el `0001_initial_schema.sql` anterior (modelo `usuarios`/
+-- `sucursales`/`bids`, hoy conservado tal cual en
+-- `supabase/migrations/legacy/0001_initial_schema_legacy.sql` -- ESE
+-- modelo nunca fue el que se ejecutó contra Producción real).
+--
+-- ────────────────────────────────────────────────────────────
+-- POR QUÉ EXISTE ESTA VERSIÓN (Sprint 8.4.1 — "Reconstrucción de
+-- Migraciones Supabase")
+-- ────────────────────────────────────────────────────────────
+-- Auditoría de Deployment Readiness (previa a este Sprint) detectó que
+-- `0001_initial_schema.sql`/`0002_auth_roles_rls.sql`, tal como estaban
+-- escritas, eran copias byte a byte de `legacy/0001.../legacy/0002...`
+-- (esquema `usuarios`/`sucursales`/`bids`, con ENUMs) -- mientras que
+-- `0003_service_role_grants_admins_instaladores.sql` en adelante ya
+-- asumen el esquema REAL (`admins`/`coordinadores`/`instaladores`/
+-- `tiendas`/`trabajos`.`estado` como `text`, sin ENUMs). Aplicar la
+-- carpeta completa en orden sobre un proyecto nuevo fallaba exactamente
+-- en `0003` ("relation public.admins does not exist").
+--
+-- Este archivo se reescribió a partir del esquema REAL de Producción,
+-- verificado exhaustivamente vía MCP (no asumido) inmediatamente antes
+-- de escribirse: columnas/tipos/nullability/defaults de las 8 tablas
+-- reales (`information_schema.columns`), PK/UNIQUE
+-- (`information_schema.table_constraints`), FKs y su `delete_rule`
+-- (`pg_constraint`/`information_schema.referential_constraints`),
+-- índices (`pg_indexes`), las 18 policies RLS que ya existían ANTES de
+-- la migración `0003` (`pg_policies`, excluidas explícitamente las que
+-- `0004`/`0005`/`0009` agregan más adelante en la cadena -- esas
+-- migraciones NO se tocaron), y la definición exacta de las 4 funciones
+-- que resultaron estar activas en Producción real sin ningún `CREATE
+-- FUNCTION` correspondiente en ninguna migración del repositorio
+-- (`pg_get_functiondef`): `set_bid_cierra_at()`, `asignar_instalador()`,
+-- `instalador_fue_notificado()`, `submit_bid()` -- más el event trigger
+-- `rls_auto_enable`/`ensure_rls` (`pg_event_trigger`), tampoco presente
+-- en ninguna migración.
+--
+-- ────────────────────────────────────────────────────────────
+-- GARANTÍA EXPLÍCITA: el esquema actual de Producción NO cambia
+-- ────────────────────────────────────────────────────────────
+-- Este archivo NO se aplicó contra Producción durante el Sprint 8.4.1
+-- (auditoría de solo archivos, sin `db push`/`db reset`/`migration up`,
+-- sin aplicar nada vía MCP). Todo objeto que crea (`CREATE TABLE IF NOT
+-- EXISTS`, `CREATE POLICY` precedida de `DROP POLICY IF EXISTS`,
+-- `CREATE OR REPLACE FUNCTION`, `CREATE INDEX IF NOT EXISTS`) es
+-- idempotente por diseño -- si en algún momento se ejecuta contra la
+-- base real (que YA tiene estos objetos, creados fuera de banda), no
+-- modifica ni un solo dato ni redefine nada distinto de lo que ya existe
+-- hoy: es literalmente el mismo esquema, ahora expresado como SQL
+-- versionado. Su propósito es exclusivamente reproducibilidad
+-- (staging/disaster-recovery/onboarding), no un cambio de modelo.
+--
+-- ────────────────────────────────────────────────────────────
+-- QUÉ SIGUE IGUAL, SIN NINGÚN CAMBIO
+-- ────────────────────────────────────────────────────────────
+-- `0003` a `0010` NO se modificaron (ver Sprint 8.4.1, Fase 3/4) --
+-- siguen siendo exactamente los mismos archivos, aplicables en el mismo
+-- orden, sobre este `0001` reconstruido. `0002_auth_roles_rls.sql` pasó
+-- a ser un archivo vacío/no-op documentado (su contenido real -- ENUMs,
+-- tabla `trabajo_instaladores` del modelo `usuarios` -- ya no aplica; lo
+-- que sí era necesario de su intención original ya vive acá, en el
+-- modelo correcto) -- se conserva el archivo (no se elimina, no se
+-- renumeran `0003`+) para no alterar la numeración que cualquier entorno
+-- ya sincronizado pueda estar usando como referencia.
 -- ============================================================
 
 
--- ────────────────────────────────────────────────────────────
+-- ============================================================
 -- 0. EXTENSIONES
--- ────────────────────────────────────────────────────────────
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- ============================================================
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 
--- ────────────────────────────────────────────────────────────
--- 1. EMPRESAS (multi-tenant)
--- Permite licenciar la plataforma a otros retailers en el futuro.
--- Multimax = empresa_id que se asigna al hacer el primer INSERT.
--- ────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS empresas (
-    id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-    nombre      text        NOT NULL,
-    slug        text        NOT NULL UNIQUE,   -- ej: 'multimax', 'do-it-center'
-    activa      boolean     NOT NULL DEFAULT true,
-    created_at  timestamptz NOT NULL DEFAULT now()
+-- ============================================================
+-- 1. TABLAS (orden por dependencia de FK)
+-- ============================================================
+
+-- ---- 1.1 empresas (tenant) ----
+CREATE TABLE IF NOT EXISTS public.empresas (
+    id                      uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    nombre                  text        NOT NULL,
+    slug                    text        NOT NULL UNIQUE,
+    color_primario          text        DEFAULT '#E4221E',
+    contacto_visible_horas  integer     NOT NULL DEFAULT 48,
+    activa                  boolean     NOT NULL DEFAULT true,
+    created_at              timestamptz NOT NULL DEFAULT now()
 );
 
--- Insertar Multimax como empresa base
-INSERT INTO empresas (nombre, slug)
-VALUES ('Multimax', 'multimax')
-ON CONFLICT (slug) DO NOTHING;
-
-
--- ────────────────────────────────────────────────────────────
--- 2. SUCURSALES
--- Las 9 sucursales actuales de Multimax.
--- ────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS sucursales (
+-- ---- 1.2 tiendas ----
+CREATE TABLE IF NOT EXISTS public.tiendas (
     id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-    empresa_id  uuid        NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
-    nombre      text        NOT NULL,           -- ej: 'Multiplaza', 'Albrook'
-    provincia   text,
+    empresa_id  uuid        NOT NULL REFERENCES public.empresas(id),
+    nombre      text        NOT NULL UNIQUE,
     direccion   text,
+    provincia   text,
+    zona        text,
     activa      boolean     NOT NULL DEFAULT true,
     created_at  timestamptz NOT NULL DEFAULT now()
 );
 
--- Insertar las 9 sucursales de Multimax
-DO $$
-DECLARE
-    mx_id uuid;
-BEGIN
-    SELECT id INTO mx_id FROM empresas WHERE slug = 'multimax';
+-- ---- 1.3 admins (id = auth.users.id) ----
+CREATE TABLE IF NOT EXISTS public.admins (
+    id          uuid        PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    empresa_id  uuid        NOT NULL REFERENCES public.empresas(id),
+    nombre      text        NOT NULL,
+    activo      boolean     NOT NULL DEFAULT true,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    email       text,
+    telefono    text
+);
 
-    INSERT INTO sucursales (empresa_id, nombre, provincia) VALUES
-        (mx_id, 'Tumba Muerto',  'Panamá'),
-        (mx_id, 'Multiplaza',    'Panamá'),
-        (mx_id, 'Albrook',       'Panamá'),
-        (mx_id, 'Metromall',     'Panamá'),
-        (mx_id, 'Los Andes',     'Panamá'),
-        (mx_id, 'Westland',      'Panamá'),
-        (mx_id, 'Costa Verde',   'Panamá'),
-        (mx_id, 'Chiriquí',      'Chiriquí'),
-        (mx_id, 'Paso Canoas',   'Chiriquí')
-    ON CONFLICT DO NOTHING;
+-- ---- 1.4 coordinadores (id = auth.users.id) ----
+CREATE TABLE IF NOT EXISTS public.coordinadores (
+    id          uuid        PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    empresa_id  uuid        NOT NULL REFERENCES public.empresas(id),
+    tienda_id   uuid        NOT NULL REFERENCES public.tiendas(id),
+    nombre      text        NOT NULL,
+    rol         text        NOT NULL DEFAULT 'coordinador',
+    activo      boolean     NOT NULL DEFAULT true,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+-- ---- 1.5 instaladores (id = auth.users.id) ----
+-- `empresa_instaladora_id` NO se agrega acá -- la relación real la
+-- introduce la migración `0010_instaladores_empresa_instaladora.sql`
+-- (Sprint 8.4), que sigue aplicándose sin cambios después de este 0001.
+CREATE TABLE IF NOT EXISTS public.instaladores (
+    id                  uuid        PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    empresa_id          uuid        NOT NULL REFERENCES public.empresas(id),
+    nombre              text        NOT NULL,
+    telefono            text,
+    email               text,
+    provincia           text,
+    zona                text,
+    rating              numeric     NOT NULL DEFAULT 5.0,
+    km                  numeric     DEFAULT 0,
+    cumplimiento        numeric     DEFAULT 100,
+    aceptacion          numeric     DEFAULT 100,
+    prom_respuesta_seg  integer,
+    documentos_ok       boolean     NOT NULL DEFAULT true,
+    suspendido          boolean     NOT NULL DEFAULT false,
+    activo              boolean     NOT NULL DEFAULT true,
+    created_at          timestamptz NOT NULL DEFAULT now()
+);
+
+-- ---- 1.6 trabajos ----
+CREATE TABLE IF NOT EXISTS public.trabajos (
+    id                      uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id              uuid        NOT NULL REFERENCES public.empresas(id),
+    tienda_id               uuid        NOT NULL REFERENCES public.tiendas(id),
+    coordinador_id          uuid        NOT NULL REFERENCES public.coordinadores(id),
+    codigo                  text        NOT NULL,
+    tipo                    text        NOT NULL,
+    provincia               text        NOT NULL,
+    zona                    text        NOT NULL,
+    tipo_inmueble           text,
+    calle                   text,
+    fecha                   text        NOT NULL,
+    hora                    text        NOT NULL,
+    equipo                  text,
+    requisitos              text,
+    extra                   text,
+    precio_sugerido         numeric,
+    urgente                 boolean     NOT NULL DEFAULT false,
+    bid_minutos             integer     NOT NULL DEFAULT 5,
+    estado                  text        NOT NULL DEFAULT 'live',
+    publicado_at            timestamptz NOT NULL DEFAULT now(),
+    bid_cierra_at           timestamptz,
+    instalador_asignado_id  uuid        REFERENCES public.instaladores(id),
+    asignado_at             timestamptz,
+    contacto_visible_hasta  timestamptz,
+    cliente_nombre          text,
+    cliente_telefono        text,
+    direccion_exacta        text,
+    created_at              timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT trabajos_empresa_id_codigo_key UNIQUE (empresa_id, codigo)
+);
+-- `estado` es `text` libre (sin CHECK/ENUM) -- confirmado contra Producción
+-- real (`information_schema.columns`); valor real observado hasta la fecha:
+-- 'live' (los demás -- 'assigned'/'completed'/'cancelled' -- son inferidos
+-- del código del frontend, `trabajoEstadoInfo()`, nunca vistos aún en datos
+-- reales -- no se fuerza ningún CHECK para no bloquear un valor legítimo
+-- todavía no observado).
+
+-- ---- 1.7 trabajo_instaladores ----
+CREATE TABLE IF NOT EXISTS public.trabajo_instaladores (
+    id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    trabajo_id      uuid        NOT NULL REFERENCES public.trabajos(id) ON DELETE CASCADE,
+    instalador_id   uuid        NOT NULL REFERENCES public.instaladores(id),
+    estado          text        NOT NULL DEFAULT 'notificado',
+    notificado_at   timestamptz NOT NULL DEFAULT now(),
+    abierto_at      timestamptz,
+    respondido_at   timestamptz,
+
+    CONSTRAINT trabajo_instaladores_trabajo_id_instalador_id_key UNIQUE (trabajo_id, instalador_id)
+);
+
+-- ---- 1.8 ofertas ----
+CREATE TABLE IF NOT EXISTS public.ofertas (
+    id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    trabajo_id      uuid        NOT NULL REFERENCES public.trabajos(id) ON DELETE CASCADE,
+    instalador_id   uuid        NOT NULL REFERENCES public.instaladores(id),
+    precio          numeric     NOT NULL,
+    dia             text        NOT NULL,
+    hora            text        NOT NULL,
+    comentario      text,
+    enviado_at      timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT ofertas_trabajo_id_instalador_id_key UNIQUE (trabajo_id, instalador_id)
+);
+
+
+-- ============================================================
+-- 2. ÍNDICES
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_trabajos_empresa          ON public.trabajos(empresa_id);
+CREATE INDEX IF NOT EXISTS idx_trabajos_tienda            ON public.trabajos(tienda_id);
+CREATE INDEX IF NOT EXISTS idx_trabajos_estado             ON public.trabajos(estado);
+CREATE INDEX IF NOT EXISTS idx_ti_trabajo                  ON public.trabajo_instaladores(trabajo_id);
+CREATE INDEX IF NOT EXISTS idx_ti_instalador                ON public.trabajo_instaladores(instalador_id);
+CREATE INDEX IF NOT EXISTS idx_ofertas_trabajo              ON public.ofertas(trabajo_id);
+
+
+-- ============================================================
+-- 3. FUNCIONES
+-- ============================================================
+-- Las 4 funciones de abajo estaban activas en Producción real sin ningún
+-- `CREATE FUNCTION` en ninguna migración del repositorio (verificado con
+-- `pg_get_functiondef` antes de escribir este archivo) -- se documentan
+-- acá, en el punto de la cadena donde realmente pertenecen (antes de
+-- cualquier Sprint que las dé por sentado).
+
+-- `set_bid_cierra_at()` -- trigger BEFORE INSERT en `trabajos`.
+CREATE OR REPLACE FUNCTION public.set_bid_cierra_at()
+RETURNS trigger AS $$
+begin
+  new.bid_cierra_at := new.publicado_at + (new.bid_minutos * interval '1 minute');
+  return new;
+end;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trg_set_bid_cierra_at
+    BEFORE INSERT ON public.trabajos
+    FOR EACH ROW EXECUTE FUNCTION public.set_bid_cierra_at();
+
+-- `instalador_fue_notificado(uuid)` -- SECURITY DEFINER, usada por la
+-- policy de SELECT de `trabajos` para instaladores (sección 5). Rompe,
+-- a propósito, la recursión que produciría una subconsulta directa a
+-- `trabajo_instaladores` dentro de la policy de `trabajos` combinada con
+-- las policies de `trabajo_instaladores` que a su vez consultan `trabajos`.
+CREATE OR REPLACE FUNCTION public.instalador_fue_notificado(p_trabajo_id uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM trabajo_instaladores ti
+        WHERE ti.trabajo_id = p_trabajo_id
+        AND ti.instalador_id = auth.uid()
+    );
+$$;
+
+-- `asignar_instalador(uuid, uuid)` -- asigna un instalador a un trabajo:
+-- actualiza `trabajos` (estado/instalador_asignado_id/asignado_at/
+-- contacto_visible_hasta según `empresas.contacto_visible_horas`) y
+-- resuelve el estado del resto de los `trabajo_instaladores` de ese
+-- trabajo ('confirmado' para el ganador, 'perdido' para el resto que ya
+-- había respondido/sido seleccionado).
+CREATE OR REPLACE FUNCTION public.asignar_instalador(p_trabajo_id uuid, p_instalador_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+declare
+  v_horas integer;
+begin
+  select e.contacto_visible_horas into v_horas
+  from trabajos t join empresas e on e.id = t.empresa_id
+  where t.id = p_trabajo_id;
+
+  update trabajos
+  set estado = 'assigned',
+      instalador_asignado_id = p_instalador_id,
+      asignado_at = now(),
+      contacto_visible_hasta = now() + (coalesce(v_horas, 48) * interval '1 hour')
+  where id = p_trabajo_id;
+
+  update trabajo_instaladores
+  set estado = case when instalador_id = p_instalador_id then 'confirmado' else 'perdido' end
+  where trabajo_id = p_trabajo_id
+    and estado in ('respondido', 'seleccionado');
+end;
+$$;
+
+-- `submit_bid(uuid, numeric, text, text, text)` -- crea la oferta del
+-- instalador (idempotente vía `ON CONFLICT (trabajo_id, instalador_id) DO
+-- NOTHING`, misma constraint real que `ofertas`) y marca su
+-- `trabajo_instaladores.estado = 'respondido'`.
+CREATE OR REPLACE FUNCTION public.submit_bid(
+    p_trabajo_id uuid, p_precio numeric, p_dia text, p_hora text, p_comentario text
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+begin
+  insert into ofertas (trabajo_id, instalador_id, precio, dia, hora, comentario)
+  values (p_trabajo_id, auth.uid(), p_precio, p_dia, p_hora, p_comentario)
+  on conflict (trabajo_id, instalador_id) do nothing;
+
+  update trabajo_instaladores
+  set estado = 'respondido', respondido_at = now()
+  where trabajo_id = p_trabajo_id and instalador_id = auth.uid();
+end;
+$$;
+
+-- `notificar_instaladores_elegibles(uuid)` -- NO se recrea acá: ya está
+-- correctamente definida en `0006_notificar_instaladores_elegibles.sql`
+-- (Sprint 7.2), que sigue aplicándose sin cambios después de este 0001.
+-- `set_updated_at()`/`nombre_empresa_instaladora(uuid)` -- NO se recrean
+-- acá: pertenecen a `0009`/`0010` (Sprint 8.3/8.4), que también siguen
+-- aplicándose sin cambios.
+
+
+-- ============================================================
+-- 4. ROW LEVEL SECURITY — ACTIVACIÓN
+-- ============================================================
+-- Producción real tiene, además, un event trigger (`ensure_rls`, función
+-- `rls_auto_enable()`) que activa RLS automáticamente en cualquier tabla
+-- nueva de `public` -- verificado vía `pg_event_trigger` antes de escribir
+-- este archivo, sin ningún `CREATE EVENT TRIGGER` en ninguna migración
+-- existente. Se documenta y se crea acá (sección 4.1) porque es
+-- infraestructura real del proyecto, no una tabla nueva -- pero además se
+-- declara `ENABLE ROW LEVEL SECURITY` explícito por tabla (4.2) para que
+-- este archivo sea reproducible incluso en un proyecto Postgres/Supabase
+-- sin ese event trigger ya configurado (los permisos para `CREATE EVENT
+-- TRIGGER` pueden no estar disponibles en todos los entornos -- el `ALTER
+-- TABLE ... ENABLE ROW LEVEL SECURITY` explícito no depende de eso).
+
+-- 4.1 Event trigger real (auto-activa RLS en tablas nuevas de `public`).
+CREATE OR REPLACE FUNCTION public.rls_auto_enable()
+RETURNS event_trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'pg_catalog'
+AS $$
+DECLARE
+  cmd record;
+BEGIN
+  FOR cmd IN
+    SELECT *
+    FROM pg_event_trigger_ddl_commands()
+    WHERE command_tag IN ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
+      AND object_type IN ('table','partitioned table')
+  LOOP
+     IF cmd.schema_name IS NOT NULL AND cmd.schema_name IN ('public') AND cmd.schema_name NOT IN ('pg_catalog','information_schema') AND cmd.schema_name NOT LIKE 'pg_toast%' AND cmd.schema_name NOT LIKE 'pg_temp%' THEN
+      BEGIN
+        EXECUTE format('alter table if exists %s enable row level security', cmd.object_identity);
+        RAISE LOG 'rls_auto_enable: enabled RLS on %', cmd.object_identity;
+      EXCEPTION
+        WHEN OTHERS THEN
+          RAISE LOG 'rls_auto_enable: failed to enable RLS on %', cmd.object_identity;
+      END;
+     ELSE
+        RAISE LOG 'rls_auto_enable: skip % (either system schema or not in enforced list: %.)', cmd.object_identity, cmd.schema_name;
+     END IF;
+  END LOOP;
+END;
+$$;
+
+DO $$ BEGIN
+    CREATE EVENT TRIGGER ensure_rls ON ddl_command_end
+        WHEN TAG IN ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
+        EXECUTE FUNCTION public.rls_auto_enable();
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+    -- `CREATE EVENT TRIGGER` no admite `IF NOT EXISTS` -- mismo patrón
+    -- `DO $$ ... EXCEPTION WHEN duplicate_object` ya usado en este
+    -- proyecto para `CREATE TYPE` (ver `legacy/0002...`). Si el entorno
+    -- no permite crear event triggers (privilegios insuficientes), esta
+    -- sección puede omitirse sin afectar el resto de la migración -- el
+    -- 4.2 de abajo ya cubre RLS explícitamente por tabla.
+    WHEN insufficient_privilege THEN
+        RAISE NOTICE 'Sin privilegios para crear el event trigger ensure_rls -- se omite; RLS sigue activándose explícitamente por tabla (sección 4.2).';
 END $$;
 
-
--- ────────────────────────────────────────────────────────────
--- 3. USUARIOS
--- Coordinadores, instaladores y admins.
--- Se enlaza con auth.users de Supabase Auth via auth_id.
--- ────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS usuarios (
-    id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-    auth_id         uuid        UNIQUE REFERENCES auth.users(id) ON DELETE SET NULL,
-    empresa_id      uuid        NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
-    sucursal_id     uuid        REFERENCES sucursales(id) ON DELETE SET NULL,
-    rol             text        NOT NULL CHECK (rol IN ('coordinador', 'instalador', 'admin')),
-    nombre          text        NOT NULL,
-    email           text        NOT NULL,
-    telefono        text,
-    empresa_nombre  text,       -- nombre de la empresa/taller del instalador
-    -- métricas del instalador (actualizadas por triggers o funciones)
-    rating          numeric(3,2) DEFAULT 5.0,
-    cumplimiento    integer      DEFAULT 100,   -- porcentaje 0-100
-    aceptacion      integer      DEFAULT 100,   -- porcentaje 0-100
-    -- estado del instalador
-    activo          boolean     NOT NULL DEFAULT true,
-    suspendido      boolean     NOT NULL DEFAULT false,
-    docs_completos  boolean     NOT NULL DEFAULT false,
-    created_at      timestamptz NOT NULL DEFAULT now(),
-    updated_at      timestamptz NOT NULL DEFAULT now()
-);
-
-
--- ────────────────────────────────────────────────────────────
--- 4. ZONAS DE COBERTURA
--- Qué zonas atiende cada instalador (relación muchos a muchos).
--- Un instalador puede cubrir varias zonas.
--- ────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS zonas_cobertura (
-    id              uuid    PRIMARY KEY DEFAULT gen_random_uuid(),
-    instalador_id   uuid    NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-    provincia       text    NOT NULL,
-    zona            text    NOT NULL,
-    UNIQUE (instalador_id, provincia, zona)
-);
-
-
--- ────────────────────────────────────────────────────────────
--- 5. TRABAJOS
--- Tabla central. Un trabajo = un job de instalación publicado
--- por un coordinador para ser atendido por un instalador.
--- ────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS trabajos (
-    id                  uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-    empresa_id          uuid        NOT NULL REFERENCES empresas(id),
-    sucursal_id         uuid        NOT NULL REFERENCES sucursales(id),
-    coordinador_id      uuid        NOT NULL REFERENCES usuarios(id),
-
-    -- Descripción del trabajo
-    tipo                text        NOT NULL,   -- ej: 'Instalación A/C 12,000 BTU'
-    zona                text        NOT NULL,
-    provincia           text        NOT NULL DEFAULT 'Panamá',
-    tipo_inmueble       text,                   -- 'Edificio' | 'Casa'
-    calle               text,                   -- dirección parcial (visible antes de asignar)
-    equipo              text,                   -- modelo del equipo a instalar
-    requisitos          text,                   -- notas adicionales para el instalador
-
-    -- Precio y tiempo de bid
-    precio_sugerido     numeric(10,2),
-    bid_mins            integer     NOT NULL DEFAULT 10,  -- minutos para cerrar el bid
-    published_at        timestamptz NOT NULL DEFAULT now(),
-    bid_cierra_at       timestamptz,            -- calculado por trigger BEFORE INSERT
-
-    -- Estado del trabajo
-    -- 'live'      → publicado, esperando bids
-    -- 'assigned'  → instalador seleccionado
-    -- 'completed' → trabajo completado
-    -- 'cancelled' → trabajo cancelado
-    phase               text        NOT NULL DEFAULT 'live'
-                        CHECK (phase IN ('live', 'assigned', 'completed', 'cancelled')),
-
-    assigned_bid_id     uuid,                   -- FK a bids (se agrega después de crear bids)
-
-    -- Datos del cliente
-    -- IMPORTANTE: visibles solo al instalador asignado (controlado por RLS)
-    cliente_nombre      text,
-    cliente_telefono    text,
-    cliente_direccion   text,                   -- dirección exacta completa
-
-    created_at          timestamptz NOT NULL DEFAULT now(),
-    updated_at          timestamptz NOT NULL DEFAULT now()
-);
-
-
--- ────────────────────────────────────────────────────────────
--- 6. BIDS (ofertas de los instaladores)
--- Un instalador solo puede hacer un bid por trabajo.
--- ────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS bids (
-    id                  uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-    trabajo_id          uuid        NOT NULL REFERENCES trabajos(id) ON DELETE CASCADE,
-    instalador_id       uuid        NOT NULL REFERENCES usuarios(id),
-
-    -- Oferta del instalador
-    precio              numeric(10,2) NOT NULL,
-    fecha_disponible    date        NOT NULL,
-    hora_disponible     text        NOT NULL,   -- ej: '10:00 a.m.'
-    comentario          text,
-
-    -- Estado del bid
-    -- 'pendiente'    → en espera de decisión del coordinador
-    -- 'seleccionado' → este bid fue elegido (instalador asignado)
-    -- 'rechazado'    → el coordinador eligió a otro instalador
-    estado              text        NOT NULL DEFAULT 'pendiente'
-                        CHECK (estado IN ('pendiente', 'seleccionado', 'rechazado')),
-
-    respondido_at       timestamptz NOT NULL DEFAULT now(),
-    created_at          timestamptz NOT NULL DEFAULT now(),
-
-    UNIQUE (trabajo_id, instalador_id)  -- un instalador, un bid por trabajo
-);
-
--- Ahora que bids existe, agregar FK de trabajos → bids
-ALTER TABLE trabajos
-    ADD CONSTRAINT fk_trabajos_assigned_bid
-    FOREIGN KEY (assigned_bid_id) REFERENCES bids(id) ON DELETE SET NULL;
-
-
--- ────────────────────────────────────────────────────────────
--- 7. NOTIFICACIONES
--- Log de alertas enviadas para auditoría y reintentos.
--- ────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS notificaciones (
-    id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-    trabajo_id      uuid        NOT NULL REFERENCES trabajos(id) ON DELETE CASCADE,
-    destinatario_id uuid        NOT NULL REFERENCES usuarios(id),
-    canal           text        NOT NULL CHECK (canal IN ('sms', 'whatsapp', 'push', 'email')),
-    mensaje         text,
-    enviado         boolean     NOT NULL DEFAULT false,
-    enviado_at      timestamptz,
-    error           text,       -- mensaje de error si falló el envío
-    created_at      timestamptz NOT NULL DEFAULT now()
-);
+-- 4.2 RLS explícito por tabla (idempotente, no depende del event trigger).
+ALTER TABLE public.empresas               ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tiendas                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admins                 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.coordinadores          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.instaladores           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.trabajos               ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.trabajo_instaladores   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ofertas                ENABLE ROW LEVEL SECURITY;
 
 
 -- ============================================================
--- TRIGGERS
+-- 5. POLICIES RLS BASE
 -- ============================================================
+-- Únicamente las 18 policies confirmadas vía `pg_policies` como ya
+-- existentes ANTES de la migración `0003` -- se excluyen a propósito las
+-- que agregan `0004`/`0005`/`0009` más adelante en la cadena (esas
+-- migraciones no se tocaron, siguen creándolas ellas mismas).
 
--- ────────────────────────────────────────────────────────────
--- TRIGGER: calcular bid_cierra_at al insertar un trabajo
--- NOTA IMPORTANTE: NO usar generated column para esto.
--- Supabase no soporta generated columns que referencien otras
--- columnas al momento del INSERT. Schema v2 tenía este bug.
--- v3 lo resuelve con este trigger BEFORE INSERT.
--- ────────────────────────────────────────────────────────────
-CREATE OR REPLACE FUNCTION set_bid_cierra_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.bid_cierra_at := NEW.published_at + (NEW.bid_mins || ' minutes')::interval;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- ---- admins ----
+DROP POLICY IF EXISTS "admins pueden leer su perfil" ON public.admins;
+CREATE POLICY "admins pueden leer su perfil"
+    ON public.admins FOR SELECT
+    TO authenticated
+    USING (auth.uid() = id);
 
-CREATE OR REPLACE TRIGGER trigger_set_bid_cierra_at
-    BEFORE INSERT ON trabajos
-    FOR EACH ROW
-    EXECUTE FUNCTION set_bid_cierra_at();
+-- ---- coordinadores ----
+DROP POLICY IF EXISTS "coordinadores leen su perfil" ON public.coordinadores;
+CREATE POLICY "coordinadores leen su perfil"
+    ON public.coordinadores FOR SELECT
+    TO authenticated
+    USING (auth.uid() = id);
 
+-- ---- empresas ----
+DROP POLICY IF EXISTS "usuarios autenticados pueden leer empresas" ON public.empresas;
+CREATE POLICY "usuarios autenticados pueden leer empresas"
+    ON public.empresas FOR SELECT
+    TO authenticated
+    USING (true);
 
--- ────────────────────────────────────────────────────────────
--- TRIGGER: actualizar updated_at automáticamente
--- ────────────────────────────────────────────────────────────
-CREATE OR REPLACE FUNCTION set_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at := now();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- ---- tiendas ----
+DROP POLICY IF EXISTS "usuarios autenticados pueden leer tiendas" ON public.tiendas;
+CREATE POLICY "usuarios autenticados pueden leer tiendas"
+    ON public.tiendas FOR SELECT
+    TO authenticated
+    USING (true);
 
-CREATE OR REPLACE TRIGGER trigger_trabajos_updated_at
-    BEFORE UPDATE ON trabajos
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-
-CREATE OR REPLACE TRIGGER trigger_usuarios_updated_at
-    BEFORE UPDATE ON usuarios
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-
-
--- ============================================================
--- ROW LEVEL SECURITY (RLS)
--- ============================================================
-
--- Habilitar RLS en todas las tablas
-ALTER TABLE empresas          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE sucursales        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE usuarios          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE zonas_cobertura   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE trabajos          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE bids              ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notificaciones    ENABLE ROW LEVEL SECURITY;
-
-
--- ────────────────────────────────────────────────────────────
--- Función auxiliar: obtener el rol del usuario autenticado
--- ────────────────────────────────────────────────────────────
-CREATE OR REPLACE FUNCTION get_my_rol()
-RETURNS text AS $$
-    SELECT rol FROM usuarios WHERE auth_id = auth.uid()
-$$ LANGUAGE sql SECURITY DEFINER;
-
--- Función auxiliar: obtener la sucursal del coordinador autenticado
-CREATE OR REPLACE FUNCTION get_my_sucursal_id()
-RETURNS uuid AS $$
-    SELECT sucursal_id FROM usuarios WHERE auth_id = auth.uid()
-$$ LANGUAGE sql SECURITY DEFINER;
-
--- Función auxiliar: obtener el id interno del usuario autenticado
-CREATE OR REPLACE FUNCTION get_my_usuario_id()
-RETURNS uuid AS $$
-    SELECT id FROM usuarios WHERE auth_id = auth.uid()
-$$ LANGUAGE sql SECURITY DEFINER;
-
-
--- ────────────────────────────────────────────────────────────
--- POLÍTICAS: empresas
--- ────────────────────────────────────────────────────────────
-CREATE POLICY "Todos pueden ver empresas activas"
-    ON empresas FOR SELECT
-    USING (activa = true);
-
-
--- ────────────────────────────────────────────────────────────
--- POLÍTICAS: sucursales
--- ────────────────────────────────────────────────────────────
-CREATE POLICY "Todos pueden ver sucursales activas"
-    ON sucursales FOR SELECT
-    USING (activa = true);
-
-
--- ────────────────────────────────────────────────────────────
--- POLÍTICAS: usuarios
--- ────────────────────────────────────────────────────────────
--- Cada usuario ve su propio perfil
-CREATE POLICY "Usuario ve su propio perfil"
-    ON usuarios FOR SELECT
-    USING (auth_id = auth.uid());
-
--- Coordinador ve instaladores activos de su empresa
-CREATE POLICY "Coordinador ve instaladores de su empresa"
-    ON usuarios FOR SELECT
+-- ---- instaladores ----
+DROP POLICY IF EXISTS "coordinadores ven instaladores de su empresa" ON public.instaladores;
+CREATE POLICY "coordinadores ven instaladores de su empresa"
+    ON public.instaladores FOR SELECT
     USING (
-        get_my_rol() IN ('coordinador', 'admin')
-        AND rol = 'instalador'
-        AND activo = true
+        empresa_id IN (SELECT coordinadores.empresa_id FROM coordinadores WHERE coordinadores.id = auth.uid())
     );
 
--- Admin ve todos los usuarios
-CREATE POLICY "Admin ve todos los usuarios"
-    ON usuarios FOR SELECT
-    USING (get_my_rol() = 'admin');
+DROP POLICY IF EXISTS "instaladores ven su propio perfil" ON public.instaladores;
+CREATE POLICY "instaladores ven su propio perfil"
+    ON public.instaladores FOR SELECT
+    USING (id = auth.uid());
 
--- Admin puede insertar y actualizar usuarios (para invitar instaladores)
-CREATE POLICY "Admin puede crear usuarios"
-    ON usuarios FOR INSERT
-    WITH CHECK (get_my_rol() = 'admin');
-
-CREATE POLICY "Admin puede actualizar usuarios"
-    ON usuarios FOR UPDATE
-    USING (get_my_rol() = 'admin');
-
-
--- ────────────────────────────────────────────────────────────
--- POLÍTICAS: zonas_cobertura
--- ────────────────────────────────────────────────────────────
-CREATE POLICY "Instalador ve sus propias zonas"
-    ON zonas_cobertura FOR SELECT
-    USING (instalador_id = get_my_usuario_id());
-
-CREATE POLICY "Coordinador y admin ven todas las zonas"
-    ON zonas_cobertura FOR SELECT
-    USING (get_my_rol() IN ('coordinador', 'admin'));
-
-CREATE POLICY "Admin gestiona zonas de cobertura"
-    ON zonas_cobertura FOR ALL
-    USING (get_my_rol() = 'admin');
-
-
--- ────────────────────────────────────────────────────────────
--- POLÍTICAS: trabajos
--- ────────────────────────────────────────────────────────────
-
--- Coordinador ve y gestiona trabajos de su sucursal
-CREATE POLICY "Coordinador ve trabajos de su sucursal"
-    ON trabajos FOR SELECT
+-- ---- trabajos ----
+DROP POLICY IF EXISTS "coordinadores ven trabajos de su tienda o de su empresa si admi" ON public.trabajos;
+CREATE POLICY "coordinadores ven trabajos de su tienda o de su empresa si admi"
+    ON public.trabajos FOR SELECT
     USING (
-        get_my_rol() = 'coordinador'
-        AND sucursal_id = get_my_sucursal_id()
+        (tienda_id IN (SELECT coordinadores.tienda_id FROM coordinadores WHERE coordinadores.id = auth.uid()))
+        OR (empresa_id IN (SELECT coordinadores.empresa_id FROM coordinadores WHERE coordinadores.id = auth.uid() AND coordinadores.rol = 'admin'))
     );
 
-CREATE POLICY "Coordinador crea trabajos en su sucursal"
-    ON trabajos FOR INSERT
+DROP POLICY IF EXISTS "coordinadores publican en su tienda" ON public.trabajos;
+CREATE POLICY "coordinadores publican en su tienda"
+    ON public.trabajos FOR INSERT
     WITH CHECK (
-        get_my_rol() = 'coordinador'
-        AND sucursal_id = get_my_sucursal_id()
+        tienda_id IN (SELECT coordinadores.tienda_id FROM coordinadores WHERE coordinadores.id = auth.uid())
     );
 
-CREATE POLICY "Coordinador actualiza trabajos de su sucursal"
-    ON trabajos FOR UPDATE
+DROP POLICY IF EXISTS "coordinadores actualizan su tienda" ON public.trabajos;
+CREATE POLICY "coordinadores actualizan su tienda"
+    ON public.trabajos FOR UPDATE
     USING (
-        get_my_rol() = 'coordinador'
-        AND sucursal_id = get_my_sucursal_id()
+        (tienda_id IN (SELECT coordinadores.tienda_id FROM coordinadores WHERE coordinadores.id = auth.uid()))
+        OR (empresa_id IN (SELECT coordinadores.empresa_id FROM coordinadores WHERE coordinadores.id = auth.uid() AND coordinadores.rol = 'admin'))
     );
 
--- Instalador ve trabajos 'live' en sus zonas de cobertura
--- (SIN datos del cliente — eso se controla en la siguiente política)
-CREATE POLICY "Instalador ve trabajos live en su zona"
-    ON trabajos FOR SELECT
+DROP POLICY IF EXISTS "instaladores ven trabajos donde fueron notificados" ON public.trabajos;
+CREATE POLICY "instaladores ven trabajos donde fueron notificados"
+    ON public.trabajos FOR SELECT
+    USING (instalador_fue_notificado(id));
+
+-- ---- trabajo_instaladores ----
+DROP POLICY IF EXISTS "coordinadores ven y gestionan notificaciones de su empresa" ON public.trabajo_instaladores;
+CREATE POLICY "coordinadores ven y gestionan notificaciones de su empresa"
+    ON public.trabajo_instaladores FOR SELECT
     USING (
-        get_my_rol() = 'instalador'
-        AND phase = 'live'
-        AND EXISTS (
-            SELECT 1 FROM zonas_cobertura zc
-            WHERE zc.instalador_id = get_my_usuario_id()
-            AND zc.zona = trabajos.zona
-            AND zc.provincia = trabajos.provincia
-        )
+        trabajo_id IN (SELECT trabajos.id FROM trabajos WHERE trabajos.empresa_id IN (
+            SELECT coordinadores.empresa_id FROM coordinadores WHERE coordinadores.id = auth.uid()
+        ))
     );
 
--- Admin ve todos los trabajos
-CREATE POLICY "Admin ve todos los trabajos"
-    ON trabajos FOR SELECT
-    USING (get_my_rol() = 'admin');
+DROP POLICY IF EXISTS "coordinadores crean notificaciones de su empresa" ON public.trabajo_instaladores;
+CREATE POLICY "coordinadores crean notificaciones de su empresa"
+    ON public.trabajo_instaladores FOR INSERT
+    WITH CHECK (
+        trabajo_id IN (SELECT trabajos.id FROM trabajos WHERE trabajos.empresa_id IN (
+            SELECT coordinadores.empresa_id FROM coordinadores WHERE coordinadores.id = auth.uid()
+        ))
+    );
 
-CREATE POLICY "Admin puede actualizar cualquier trabajo"
-    ON trabajos FOR UPDATE
-    USING (get_my_rol() = 'admin');
+DROP POLICY IF EXISTS "coordinadores actualizan notificaciones de su empresa" ON public.trabajo_instaladores;
+CREATE POLICY "coordinadores actualizan notificaciones de su empresa"
+    ON public.trabajo_instaladores FOR UPDATE
+    USING (
+        trabajo_id IN (SELECT trabajos.id FROM trabajos WHERE trabajos.empresa_id IN (
+            SELECT coordinadores.empresa_id FROM coordinadores WHERE coordinadores.id = auth.uid()
+        ))
+    );
+
+DROP POLICY IF EXISTS "instaladores ven sus propias notificaciones" ON public.trabajo_instaladores;
+CREATE POLICY "instaladores ven sus propias notificaciones"
+    ON public.trabajo_instaladores FOR SELECT
+    USING (instalador_id = auth.uid());
+
+DROP POLICY IF EXISTS "instaladores actualizan su propio estado" ON public.trabajo_instaladores;
+CREATE POLICY "instaladores actualizan su propio estado"
+    ON public.trabajo_instaladores FOR UPDATE
+    USING (instalador_id = auth.uid())
+    WITH CHECK (instalador_id = auth.uid());
+
+-- ---- ofertas ----
+DROP POLICY IF EXISTS "coordinadores ven ofertas de su empresa" ON public.ofertas;
+CREATE POLICY "coordinadores ven ofertas de su empresa"
+    ON public.ofertas FOR SELECT
+    USING (
+        trabajo_id IN (SELECT trabajos.id FROM trabajos WHERE trabajos.empresa_id IN (
+            SELECT coordinadores.empresa_id FROM coordinadores WHERE coordinadores.id = auth.uid()
+        ))
+    );
+
+DROP POLICY IF EXISTS "instaladores ven sus propias ofertas" ON public.ofertas;
+CREATE POLICY "instaladores ven sus propias ofertas"
+    ON public.ofertas FOR SELECT
+    USING (instalador_id = auth.uid());
+
+DROP POLICY IF EXISTS "instaladores envian su propia oferta" ON public.ofertas;
+CREATE POLICY "instaladores envian su propia oferta"
+    ON public.ofertas FOR INSERT
+    WITH CHECK (instalador_id = auth.uid());
 
 
--- ────────────────────────────────────────────────────────────
--- POLÍTICA CRÍTICA: datos del cliente
--- cliente_nombre, cliente_telefono, cliente_direccion solo
--- son accesibles al instalador cuyo bid está seleccionado.
+-- ============================================================
+-- 6. GRANTS BASE
+-- ============================================================
+-- SELECT en las 8 tablas para `authenticated` -- confirmado real vía
+-- `information_schema.role_table_grants` en las 8 tablas (más `INSERT`
+-- adicional en `trabajos`, necesario para "coordinadores publican en su
+-- tienda"). `REFERENCES`/`TRIGGER`/`TRUNCATE` que Producción real también
+-- muestra para `anon`/`authenticated` en todas las tablas son privilegios
+-- por defecto de plataforma (Supabase los aplica automáticamente a tablas
+-- nuevas vía `ALTER DEFAULT PRIVILEGES` de proyecto) -- no se declaran acá
+-- explícitamente porque no otorgan ninguna capacidad funcional real y un
+-- proyecto Supabase nuevo los aplica por sí solo.
+GRANT SELECT ON public.empresas             TO authenticated;
+GRANT SELECT ON public.tiendas              TO authenticated;
+GRANT SELECT ON public.admins               TO authenticated;
+GRANT SELECT ON public.coordinadores        TO authenticated;
+GRANT SELECT ON public.instaladores         TO authenticated;
+GRANT SELECT, INSERT ON public.trabajos     TO authenticated;
+-- `trabajo_instaladores`/`ofertas`: SELECT/INSERT/UPDATE para
+-- `authenticated` se otorgan en `0007_authenticated_grants_sprint72.sql`
+-- (Sprint 7.2, sin cambios) -- no se duplican acá para no tocar ese
+-- archivo ni su justificación original.
+-- `admins`/`instaladores` para `service_role`: se otorgan en
+-- `0003_service_role_grants_admins_instaladores.sql` (sin cambios).
+
+
+-- ============================================================
+-- VALIDACIÓN (ejecutar después de aplicar, antes de continuar con 0002+)
+-- ============================================================
+-- select table_name from information_schema.tables where table_schema='public' order by table_name;
+-- -- Debe listar: admins, coordinadores, empresas, instaladores, ofertas, tiendas, trabajo_instaladores, trabajos
 --
--- IMPLEMENTACIÓN: crear una vista que enmascare los campos
--- sensibles para instaladores no asignados.
--- ────────────────────────────────────────────────────────────
-CREATE OR REPLACE VIEW trabajos_vista AS
-SELECT
-    t.id,
-    t.empresa_id,
-    t.sucursal_id,
-    t.coordinador_id,
-    t.tipo,
-    t.zona,
-    t.provincia,
-    t.tipo_inmueble,
-    t.calle,
-    t.equipo,
-    t.requisitos,
-    t.precio_sugerido,
-    t.bid_mins,
-    t.published_at,
-    t.bid_cierra_at,
-    t.phase,
-    t.assigned_bid_id,
-    -- Datos del cliente: solo visibles si el instalador actual es el asignado
-    CASE
-        WHEN get_my_rol() IN ('coordinador', 'admin') THEN t.cliente_nombre
-        WHEN get_my_rol() = 'instalador' AND EXISTS (
-            SELECT 1 FROM bids b
-            WHERE b.id = t.assigned_bid_id
-            AND b.instalador_id = get_my_usuario_id()
-            AND b.estado = 'seleccionado'
-        ) THEN t.cliente_nombre
-        ELSE NULL
-    END AS cliente_nombre,
-    CASE
-        WHEN get_my_rol() IN ('coordinador', 'admin') THEN t.cliente_telefono
-        WHEN get_my_rol() = 'instalador' AND EXISTS (
-            SELECT 1 FROM bids b
-            WHERE b.id = t.assigned_bid_id
-            AND b.instalador_id = get_my_usuario_id()
-            AND b.estado = 'seleccionado'
-        ) THEN t.cliente_telefono
-        ELSE NULL
-    END AS cliente_telefono,
-    CASE
-        WHEN get_my_rol() IN ('coordinador', 'admin') THEN t.cliente_direccion
-        WHEN get_my_rol() = 'instalador' AND EXISTS (
-            SELECT 1 FROM bids b
-            WHERE b.id = t.assigned_bid_id
-            AND b.instalador_id = get_my_usuario_id()
-            AND b.estado = 'seleccionado'
-        ) THEN t.cliente_direccion
-        ELSE NULL
-    END AS cliente_direccion,
-    t.created_at,
-    t.updated_at
-FROM trabajos t;
-
-
--- ────────────────────────────────────────────────────────────
--- POLÍTICAS: bids
--- ────────────────────────────────────────────────────────────
-
--- Instalador ve solo sus propios bids
-CREATE POLICY "Instalador ve sus propios bids"
-    ON bids FOR SELECT
-    USING (instalador_id = get_my_usuario_id());
-
--- Instalador puede hacer un bid (INSERT)
-CREATE POLICY "Instalador puede hacer bid"
-    ON bids FOR INSERT
-    WITH CHECK (
-        get_my_rol() = 'instalador'
-        AND instalador_id = get_my_usuario_id()
-        -- solo si el trabajo está en fase 'live' y el bid no cerró
-        AND EXISTS (
-            SELECT 1 FROM trabajos t
-            WHERE t.id = bids.trabajo_id
-            AND t.phase = 'live'
-            AND t.bid_cierra_at > now()
-        )
-    );
-
--- Coordinador ve todos los bids de sus trabajos
-CREATE POLICY "Coordinador ve bids de sus trabajos"
-    ON bids FOR SELECT
-    USING (
-        get_my_rol() = 'coordinador'
-        AND EXISTS (
-            SELECT 1 FROM trabajos t
-            WHERE t.id = bids.trabajo_id
-            AND t.sucursal_id = get_my_sucursal_id()
-        )
-    );
-
--- Coordinador puede actualizar bids (para seleccionar/rechazar)
-CREATE POLICY "Coordinador actualiza bids de sus trabajos"
-    ON bids FOR UPDATE
-    USING (
-        get_my_rol() = 'coordinador'
-        AND EXISTS (
-            SELECT 1 FROM trabajos t
-            WHERE t.id = bids.trabajo_id
-            AND t.sucursal_id = get_my_sucursal_id()
-        )
-    );
-
--- Admin ve y gestiona todos los bids
-CREATE POLICY "Admin gestiona todos los bids"
-    ON bids FOR ALL
-    USING (get_my_rol() = 'admin');
-
-
--- ────────────────────────────────────────────────────────────
--- POLÍTICAS: notificaciones
--- ────────────────────────────────────────────────────────────
-CREATE POLICY "Coordinador y admin ven notificaciones"
-    ON notificaciones FOR SELECT
-    USING (get_my_rol() IN ('coordinador', 'admin'));
-
-CREATE POLICY "Instalador ve sus propias notificaciones"
-    ON notificaciones FOR SELECT
-    USING (destinatario_id = get_my_usuario_id());
+-- select policyname, tablename from pg_policies where schemaname='public' order by tablename, policyname;
+-- -- Debe listar exactamente las 18 policies de la sección 5 (0004/0005/0009/0010 agregan el resto más adelante)
+--
+-- select proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' order by proname;
+-- -- Debe incluir: asignar_instalador, instalador_fue_notificado, rls_auto_enable, set_bid_cierra_at
 
 
 -- ============================================================
--- ÍNDICES (para performance)
+-- ROLLBACK
 -- ============================================================
-CREATE INDEX IF NOT EXISTS idx_trabajos_sucursal   ON trabajos(sucursal_id);
-CREATE INDEX IF NOT EXISTS idx_trabajos_phase       ON trabajos(phase);
-CREATE INDEX IF NOT EXISTS idx_trabajos_zona        ON trabajos(zona, provincia);
-CREATE INDEX IF NOT EXISTS idx_trabajos_published   ON trabajos(published_at DESC);
-CREATE INDEX IF NOT EXISTS idx_bids_trabajo         ON bids(trabajo_id);
-CREATE INDEX IF NOT EXISTS idx_bids_instalador      ON bids(instalador_id);
-CREATE INDEX IF NOT EXISTS idx_bids_estado          ON bids(estado);
-CREATE INDEX IF NOT EXISTS idx_usuarios_rol         ON usuarios(rol);
-CREATE INDEX IF NOT EXISTS idx_usuarios_auth        ON usuarios(auth_id);
-CREATE INDEX IF NOT EXISTS idx_zonas_instalador     ON zonas_cobertura(instalador_id);
-
+-- DROP TABLE IF EXISTS public.ofertas, public.trabajo_instaladores, public.trabajos,
+--     public.instaladores, public.coordinadores, public.admins, public.tiendas, public.empresas CASCADE;
+-- DROP EVENT TRIGGER IF EXISTS ensure_rls;
+-- DROP FUNCTION IF EXISTS public.rls_auto_enable();
+-- DROP FUNCTION IF EXISTS public.submit_bid(uuid, numeric, text, text, text);
+-- DROP FUNCTION IF EXISTS public.asignar_instalador(uuid, uuid);
+-- DROP FUNCTION IF EXISTS public.instalador_fue_notificado(uuid);
+-- DROP FUNCTION IF EXISTS public.set_bid_cierra_at();
 
 -- ============================================================
--- VERIFICACIÓN RÁPIDA
--- Ejecutar después del schema para confirmar que todo quedó bien.
--- ============================================================
-
--- Verificar tablas creadas
-SELECT table_name FROM information_schema.tables
-WHERE table_schema = 'public'
-ORDER BY table_name;
-
--- Verificar trigger bid_cierra_at (prueba con INSERT)
--- INSERT INTO trabajos (empresa_id, sucursal_id, coordinador_id, tipo, zona, bid_mins)
--- VALUES ('<empresa_id>', '<sucursal_id>', '<coordinador_id>', 'Test', 'Paitilla', 10)
--- RETURNING id, published_at, bid_cierra_at;
--- bid_cierra_at debe ser published_at + 10 minutos
-
--- Verificar sucursales insertadas
-SELECT nombre, provincia FROM sucursales ORDER BY nombre;
-
--- ============================================================
--- FIN DEL SCHEMA v3
+-- FIN DE LA MIGRACIÓN 0001 (reconstruida — Sprint 8.4.1)
 -- ============================================================

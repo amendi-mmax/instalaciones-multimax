@@ -26,14 +26,21 @@
     --violet: #a99bff;
     --text: #eaf0fb;
     --muted: #8190ac;
+    /* Familias tipográficas del prototipo (--fd/--fb/--fm en el body original). Se elevan a
+       :root para poder usarse también fuera de `body` (ej. dentro de portales de Dialog/Drawer). */
+    --fd: 'Space Grotesk', system-ui, sans-serif;
+    --fb: 'Inter', system-ui, sans-serif;
+    --fm: 'Space Mono', ui-monospace, monospace;
   }
 
   * {
     box-sizing: border-box;
+    margin: 0;
+    padding: 0;
   }
 
   body {
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: var(--fb);
     background:
       radial-gradient(1200px 600px at 80% -10%, rgba(52, 225, 232, 0.06), transparent 60%),
       radial-gradient(900px 500px at 0% 110%, rgba(139, 124, 255, 0.05), transparent 55%),
@@ -47,6 +54,9 @@
   button {
     font-family: inherit;
     cursor: pointer;
+    border: none;
+    background: none;
+    color: inherit;
   }
 
   input,
@@ -126,6 +136,1963 @@
   .animate-mx-ping,
   .animate-mx-blink,
   .animate-mx-spin {
+    animation: none !important;
+  }
+}
+
+/* El HTML fuente (línea 267-269) aplica `prefers-reduced-motion` a las
+ * clases planas (no las utilidades Tailwind de arriba), pero esa regla no
+ * se había portado. Sprint 3.7 la agrega solo para las clases que ya existen
+ * como reglas planas en este archivo (`.mx-sweep`/`.mx-ping`, nuevas en este
+ * Sprint; `.mx-blink`/`.mx-spin`, ya portadas en Fase 3 pero sin esta
+ * cobertura — gap detectado y corregido de paso, mismo criterio de fidelidad
+ * verbatim). `.mx-resp` (línea 269 del HTML fuente) no se agrega todavía:
+ * esa clase no existe aún en este archivo (pertenece al feed de respuestas
+ * de Coordinator, fuera de alcance de este Sprint). */
+@media (prefers-reduced-motion: reduce) {
+  .mx-sweep,
+  .mx-ping,
+  .mx-blink,
+  .mx-spin {
+    animation: none !important;
+  }
+}
+
+/* ==========================================================================
+ * Fase 3 · Layout general y componentes compartidos
+ * --------------------------------------------------------------------------
+ * Clases `mx-*` portadas VERBATIM (mismos selectores, mismas declaraciones,
+ * mismas custom properties) desde el <style> de Multimax_Despacho_v1.3.html.
+ * Se mantienen fuera de @layer a propósito: en el HTML original son reglas
+ * planas de hoja de estilos (no utilidades de Tailwind), y envolverlas en
+ * @layer alteraría su orden de cascada/especificidad frente a las utilidades
+ * de Tailwind que puedan combinarse en los mismos elementos.
+ *
+ * Alcance de esta fase: SOLO layout general, navegación, header, sidebar y
+ * componentes compartidos genéricos. Las clases específicas de Coordinator,
+ * Installer y Admin (tarjetas de trabajo, radar, rondas, feed de respuestas,
+ * publish-modal completo, calendario maestro, tabla de instaladores, etc.)
+ * se portarán en sus fases correspondientes (Fase 4/5/6) — ver
+ * MIGRATION_STATUS.md para el detalle exacto de qué quedó dentro/fuera.
+ * ========================================================================== */
+
+/* ---- Utilidades de animación con nombre de clase original (no-Tailwind) ---- */
+.mx-spin {
+  animation: mxspin 1s linear infinite;
+}
+.mx-blink {
+  animation: mxblink 1.4s ease-in-out infinite;
+}
+
+/* ---- Header / Top navigation (mx-top) ---- */
+.mx-top {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(10, 15, 28, 0.82);
+  backdrop-filter: blur(12px);
+}
+.mx-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.mx-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  background: linear-gradient(135deg, var(--ice), #1fb6bd);
+  box-shadow: 0 0 22px rgba(52, 225, 232, 0.35);
+}
+.mx-brand-t {
+  font-family: var(--fd);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  font-size: 15px;
+}
+.mx-brand-s {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+.mx-roleswitch {
+  display: flex;
+  gap: 4px;
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 4px;
+}
+.mx-roleswitch button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.mx-roleswitch button.on {
+  background: linear-gradient(135deg, rgba(52, 225, 232, 0.18), rgba(52, 225, 232, 0.06));
+  color: var(--ice);
+  box-shadow: inset 0 0 0 1px rgba(52, 225, 232, 0.3);
+}
+.mx-topright {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mx-ghost {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 7px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.mx-ghost:hover {
+  color: var(--text);
+  border-color: var(--ice);
+}
+.mx-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.mx-master-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(52, 225, 232, 0.1);
+  border: 1px solid rgba(52, 225, 232, 0.3);
+  color: var(--ice);
+  border-radius: 8px;
+  padding: 5px 10px;
+}
+
+/* ---- Two-column layout (mx-grid) y contenedor de columna (mx-col) ---- */
+.mx-grid {
+  display: grid;
+  grid-template-columns: minmax(340px, 1fr) minmax(360px, 1.05fr);
+  gap: 16px;
+  padding: 16px;
+  max-width: 1240px;
+  margin: 0 auto;
+  align-items: start;
+}
+.mx-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ---- Card / CardHeader ---- */
+.mx-card {
+  background: linear-gradient(180deg, var(--surf), var(--ink2));
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+}
+.mx-section-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.mx-section-h > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--fd);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+}
+.mx-section-h svg {
+  color: var(--ice);
+}
+
+/* ---- JobSummaryCard (mx-jobcard) / LiveDispatchCard (mx-round*, mx-actionsrow) /
+   ResponsesPanel (mx-feedcard, mx-sort) — portadas verbatim de
+   Multimax_Despacho_v1.3.html (Sprint 5.1.3, nunca portadas antes: la rama
+   `jobs.length > 0` de `Coordinator()` que estas clases visten no se había
+   reconstruido hasta este Sprint). `.mx-jobcard` en sí no tiene reglas
+   propias en el HTML fuente -- solo aporta semántica sobre `.mx-card`. */
+.mx-jobcard-h {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.mx-jobtitle {
+  font-family: var(--fd);
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 9px;
+}
+.mx-jobmeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.mx-jobmeta span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mx-jobmeta svg {
+  color: var(--ice);
+}
+.mx-jobreq {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #b9c4dc;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px 10px;
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+}
+.mx-jobreq svg {
+  color: var(--amber);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.mx-roundsingle {
+  margin-top: 14px;
+}
+.mx-roundsingle .mx-round {
+  padding: 11px 12px;
+}
+.mx-round {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: rgba(255, 255, 255, 0.015);
+}
+.mx-round b {
+  font-size: 12px;
+  font-family: var(--fd);
+}
+.mx-round span {
+  font-size: 10.5px;
+  color: var(--muted);
+  line-height: 1.3;
+}
+.mx-round.act {
+  border-color: var(--amber);
+  box-shadow: inset 0 0 0 1px rgba(255, 178, 62, 0.3);
+  background: rgba(255, 178, 62, 0.06);
+}
+.mx-round.act b {
+  color: var(--amber);
+}
+.mx-round.done {
+  border-color: rgba(59, 224, 138, 0.3);
+  background: rgba(59, 224, 138, 0.05);
+}
+.mx-round.done b {
+  color: var(--green);
+}
+.mx-actionsrow {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.mx-feedcard {
+  min-height: 220px;
+}
+.mx-sort {
+  display: flex;
+  gap: 3px;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 3px;
+}
+.mx-sort button {
+  font-size: 11px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.mx-sort button.on {
+  background: var(--surf2);
+  color: var(--ice);
+}
+
+/* JobIndicadoresCard (mx-goal) — Sprint 5.1.4 ("Finalización del Workspace
+   Operativo del Coordinador"), portada verbatim de Multimax_Despacho_v1.3.html
+   (líneas 96-97 del <style> original), nunca portada antes: el bloque real
+   "Indicadores" de Coordinator() nunca se había reconstruido hasta este
+   Sprint (ver JSDoc de job-indicadores-card.tsx). */
+.mx-goal {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #bcd;
+  background: rgba(52, 225, 232, 0.06);
+  border: 1px solid rgba(52, 225, 232, 0.2);
+  border-radius: 10px;
+  padding: 9px 11px;
+}
+.mx-goal svg {
+  color: var(--ice);
+  flex-shrink: 0;
+}
+
+/* ---- Button ---- */
+.mx-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 11px 14px;
+  border-radius: 11px;
+  flex: 1;
+  transition: 0.15s;
+}
+.mx-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.mx-btn-ice {
+  background: linear-gradient(135deg, var(--ice), #22b9c0);
+  color: #04222a;
+  box-shadow: 0 6px 20px rgba(52, 225, 232, 0.25);
+}
+.mx-btn-ice:hover:not(:disabled) {
+  filter: brightness(1.07);
+}
+.mx-btn-amber {
+  background: linear-gradient(135deg, var(--amber), #e6962a);
+  color: #2a1a02;
+}
+.mx-btn-amber:hover:not(:disabled) {
+  filter: brightness(1.07);
+}
+.mx-btn-ghost {
+  background: var(--surf2);
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+.mx-btn-ghost:hover:not(:disabled) {
+  border-color: var(--ice);
+}
+
+/* ---- StatTile / Counter (mx-stats) ---- */
+.mx-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+}
+.mx-stat {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 11px 10px;
+}
+.mx-stat-v {
+  font-family: var(--fm);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1;
+}
+.mx-stat-l {
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-top: 5px;
+  letter-spacing: 0.02em;
+}
+.mx-stat-s {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* ---- EmptyState ---- */
+.mx-empty {
+  text-align: center;
+  padding: 34px 16px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.mx-empty b {
+  color: var(--text);
+}
+.mx-empty-ic {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  margin: 0 auto 12px;
+  display: grid;
+  place-items: center;
+  background: rgba(52, 225, 232, 0.08);
+  color: var(--ice);
+  border: 1px solid rgba(52, 225, 232, 0.2);
+}
+.mx-qempty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 60px 24px;
+  text-align: center;
+  max-width: 500px;
+  margin: 0 auto;
+}
+.mx-qempty-ic {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: rgba(52, 225, 232, 0.07);
+  border: 1px solid rgba(52, 225, 232, 0.2);
+  color: var(--ice);
+  display: grid;
+  place-items: center;
+}
+.mx-qempty h3 {
+  font-family: var(--fd);
+  font-size: 20px;
+  font-weight: 700;
+}
+.mx-qempty p {
+  font-size: 13.5px;
+  color: var(--muted);
+  line-height: 1.6;
+  max-width: 360px;
+}
+
+/* ---- Radar (mx-radar) — Sprint 3.7 ----
+ * `.mx-sweep`/`.mx-ping` reutilizan los `@keyframes mxsweep`/`mxping`
+ * definidos más arriba (ver "Utilidades de animación", ya portados en
+ * Fase 3 como `animate-mx-sweep`/`animate-mx-ping`); aquí solo se agregan
+ * las clases planas que el JSX de `Radar` usa vía `className` literal.
+ */
+.mx-radar-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.mx-radar {
+  max-width: 220px;
+}
+.mx-sweep {
+  animation: mxsweep 4.5s linear infinite;
+}
+.mx-ping {
+  animation: mxping 2s ease-out infinite;
+}
+.mx-radar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 8px;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.mx-radar-legend span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.mx-radar-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+/* ---- Input / Textarea / Select / Label (mx-fields) ----
+ * `.mx-input`/`.mx-textarea`/`.mx-select-native` son variantes standalone
+ * (mismas declaraciones que `.mx-fields input`/`.mx-fields select`) para que
+ * los componentes Input/Textarea/Select de src/components/ui funcionen fuera
+ * del wrapper `.mx-fields` de un formulario — mismo caso que `.mx-chip` más
+ * arriba. `.mx-fields` se conserva intacto como layout de formulario. */
+.mx-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.mx-f2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.mx-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.mx-fields input,
+.mx-fields textarea,
+.mx-input,
+.mx-textarea {
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 12px;
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 400;
+}
+.mx-fields input:focus,
+.mx-fields textarea:focus,
+.mx-input:focus,
+.mx-textarea:focus {
+  outline: none;
+  border-color: var(--ice);
+  box-shadow: 0 0 0 3px rgba(52, 225, 232, 0.12);
+}
+.mx-fields select,
+.mx-select-native {
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 12px;
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 400;
+  cursor: pointer;
+}
+.mx-fields select:focus,
+.mx-select-native:focus {
+  outline: none;
+  border-color: var(--ice);
+  box-shadow: 0 0 0 3px rgba(52, 225, 232, 0.12);
+}
+
+/* ---- Chip (toggle) — mx-bidbtn / mx-chips / mx-urg ---- */
+.mx-bidopts {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-top: 2px;
+}
+.mx-bidbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 11px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--ink);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.mx-bidbtn svg {
+  color: var(--muted);
+}
+.mx-bidbtn.on {
+  border-color: var(--ice);
+  color: var(--ice);
+  background: rgba(52, 225, 232, 0.08);
+}
+.mx-bidbtn.on svg {
+  color: var(--ice);
+}
+.mx-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+/*
+ * `.mx-chips button` / `.mx-chips button.on` en el prototipo es un selector
+ * descendiente (requiere un <button> anidado dentro de un contenedor
+ * `.mx-chips`). Para que el Chip de src/components/ui/chip.tsx sea un
+ * componente autocontenido (pueda usarse fuera de ese contenedor exacto),
+ * se añade `.mx-chip`/`.mx-chip.on` con las MISMAS declaraciones aplicadas
+ * directamente al botón. La apariencia resultante es idéntica; solo cambia
+ * el mecanismo de selección CSS. Documentado en MIGRATION_STATUS.md.
+ */
+.mx-chips button,
+.mx-chip {
+  font-size: 13px;
+  padding: 9px 13px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: var(--ink);
+  font-weight: 600;
+}
+.mx-chips button.on,
+.mx-chip.on {
+  border-color: var(--ice);
+  color: var(--ice);
+  background: rgba(52, 225, 232, 0.08);
+}
+.mx-urg {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--ink);
+}
+.mx-urg.on {
+  border-color: var(--red);
+  color: var(--red);
+  background: rgba(255, 92, 122, 0.08);
+}
+
+/* ---- Precio sugerido / Fecha del formulario de publicación
+   (mx-priceinput, mx-datein — Sprint 3.5) ----
+   Fuente: <style> original, líneas 222-230, portado verbatim. No existía en
+   globals.css antes de este Sprint (.mx-cominput/.mx-horasel/.mx-sendbtn,
+   líneas 227-233, pertenecen a otras pantallas — OfferForm del Instalador —
+   fuera de alcance de este Sprint, no se agregan). */
+.mx-priceinput {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 4px 14px;
+}
+.mx-priceinput:focus-within {
+  border-color: var(--ice);
+}
+.mx-priceinput span {
+  font-family: var(--fm);
+  font-size: 22px;
+  color: var(--green);
+  font-weight: 700;
+}
+.mx-priceinput input {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-family: var(--fm);
+  font-size: 24px;
+  font-weight: 700;
+  padding: 12px 0;
+  width: 100%;
+}
+.mx-priceinput input:focus {
+  outline: none;
+}
+.mx-datein {
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 11px 13px;
+  color: var(--text);
+  font-size: 13px;
+  width: 100%;
+  color-scheme: dark;
+}
+.mx-datein:focus {
+  outline: none;
+  border-color: var(--ice);
+}
+
+/* ---- Selector de sucursal (mx-suc-sel, Sprint 3.4) ----
+   Fuente: <style> original, líneas 412-415 (comentario fuente:
+   "Selector de sucursal"), portado verbatim. No existía en globals.css
+   antes de este Sprint. */
+.mx-suc-sel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  max-width: 1240px;
+  margin: 0 auto;
+  border-bottom: 1px solid var(--line);
+  background: rgba(10, 15, 28, 0.4);
+}
+.mx-suc-sel label {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.mx-suc-sel select {
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  padding: 7px 10px;
+  flex: 1;
+  max-width: 240px;
+}
+.mx-suc-sel select:focus {
+  outline: none;
+  border-color: var(--ice);
+}
+
+/* ---- Tabs (mx-subtabs genérico + mx-phonetabs para PhoneFrame) ---- */
+.mx-subtabs-wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 16px 16px 0;
+}
+.mx-subtabs {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 4px;
+  flex-wrap: wrap;
+}
+.mx-subtabs button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 15px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.mx-subtabs button svg {
+  color: var(--muted);
+}
+.mx-subtabs button.on,
+.mx-subtabs button[data-state='active'] {
+  background: linear-gradient(135deg, rgba(52, 225, 232, 0.16), rgba(52, 225, 232, 0.05));
+  color: var(--ice);
+  box-shadow: inset 0 0 0 1px rgba(52, 225, 232, 0.3);
+}
+.mx-subtabs button.on svg,
+.mx-subtabs button[data-state='active'] svg {
+  color: var(--ice);
+}
+.mx-phonetabs {
+  display: flex;
+  border-top: 1px solid var(--line);
+  background: rgba(10, 15, 28, 0.6);
+  margin-top: auto;
+}
+.mx-phonetabs button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.mx-phonetabs button svg {
+  color: var(--muted);
+}
+.mx-phonetabs button.on,
+.mx-phonetabs button.on svg,
+.mx-phonetabs button[data-state='active'],
+.mx-phonetabs button[data-state='active'] svg {
+  color: var(--ice);
+}
+/*
+ * Los selectores `[data-state='active']` de arriba (mx-subtabs/mx-phonetabs)
+ * son un añadido de esta fase: Tabs (ui/tabs.tsx) se construyó sobre
+ * @radix-ui/react-tabs, que expone el estado activo vía el atributo
+ * `data-state` en vez de una clase `.on` manual. Se agregan como selector
+ * ALTERNATIVO junto al `.on` original (que se preserva para el
+ * role-switch del Header, manejado con estado local simple sin Radix) —
+ * mismo resultado visual, dos mecanismos de activación distintos.
+ */
+
+/* ---- Page container (mx-page) ---- */
+.mx-page {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 16px;
+}
+.mx-pagehead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.mx-pagehead h2 {
+  font-family: var(--fd);
+  font-size: 20px;
+  font-weight: 700;
+}
+.mx-pagehead .mx-sub {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.mx-backbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px 12px;
+}
+.mx-backbtn:hover {
+  color: var(--ice);
+  border-color: var(--ice);
+}
+
+/* Sprint 5.1 — "Cola de Trabajos" (CoordinatorJobs) y JobDetail del
+   Coordinador. Portadas verbatim del <style> del HTML fuente
+   (`Multimax_Despacho_v1.3.html`, líneas 298-300, 301-303, 306-321):
+   .mx-jobrow-side/.mx-jobrow-price/.mx-chevr quedaban pendientes desde el
+   Sprint 3.14 (ver comentario de MasterCalendar más abajo, en la sección
+   ".mx-joblist") porque MasterCalendar no los usa -- son de CoordinatorJobs,
+   que este Sprint sí construye. .mx-jobfilter/.mx-detail-grid/.mx-kv* /
+   .mx-timeline/.mx-tl* /.mx-detailacts tampoco tenían Sprint asignado
+   (comentario en la media query de abajo: ".mx-detail-grid (Coordinator, no
+   construido todavía)") -- ídem. */
+.mx-jobrow-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+  flex-shrink: 0;
+}
+.mx-jobrow-price {
+  font-family: var(--fm);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--green);
+}
+.mx-jobrow-side .mx-chevr {
+  color: var(--muted);
+}
+.mx-jobfilter {
+  display: flex;
+  gap: 4px;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 3px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.mx-jobfilter button {
+  font-size: 11.5px;
+  padding: 6px 11px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.mx-jobfilter button.on {
+  background: var(--surf2);
+  color: var(--ice);
+}
+.mx-detail-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 16px;
+  align-items: start;
+}
+.mx-kv {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+.mx-kv-row {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text);
+}
+.mx-kv-row svg {
+  color: var(--ice);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.mx-kv-row b {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 2px;
+  letter-spacing: 0.02em;
+}
+.mx-timeline {
+  display: flex;
+  flex-direction: column;
+}
+.mx-tl {
+  display: flex;
+  gap: 12px;
+  padding-bottom: 16px;
+  position: relative;
+}
+.mx-tl:not(:last-child):before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 18px;
+  bottom: 0;
+  width: 2px;
+  background: var(--line);
+}
+.mx-tl-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--ink);
+  flex-shrink: 0;
+  z-index: 1;
+}
+.mx-tl.done .mx-tl-dot {
+  background: var(--green);
+  border-color: var(--green);
+}
+.mx-tl.act .mx-tl-dot {
+  background: var(--amber);
+  border-color: var(--amber);
+}
+.mx-tl-b {
+  font-size: 13px;
+  font-weight: 600;
+}
+.mx-tl-s {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.mx-detailacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.mx-detailacts button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surf2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 13px;
+}
+.mx-detailacts button:hover {
+  border-color: var(--ice);
+}
+
+/* ---- Phone frame (Installer, estructura genérica) ---- */
+.mx-instwrap {
+  display: grid;
+  grid-template-columns: minmax(320px, 400px) minmax(240px, 300px);
+  gap: 18px;
+  justify-content: center;
+  padding: 22px 16px;
+  align-items: start;
+}
+.mx-phone {
+  background: linear-gradient(180deg, #0d1424, #0a0f1c);
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  overflow: hidden;
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  min-height: 540px;
+  display: flex;
+  flex-direction: column;
+}
+.mx-phone-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+}
+.mx-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+}
+.mx-mesel {
+  margin-left: auto;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 11.5px;
+  padding: 5px 7px;
+  max-width: 150px;
+}
+.mx-mesel:focus {
+  outline: none;
+  border-color: var(--ice);
+}
+/* Sprint 3.10 — estado vacío de "Solicitudes" (InstallerSolicitudesEmptyState).
+   El HTML fuente combina este selector con .mx-phone-done/.mx-phone-sent
+   (línea 181 del <style> original); se porta aquí únicamente .mx-phone-empty
+   con las mismas declaraciones exactas, porque .mx-phone-done/.mx-phone-sent
+   no tienen consumidor todavía (dependen del motor de trabajos real, fuera
+   de alcance de este Sprint — ver docs/sprints/sprint-3.10.md). */
+.mx-phone-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 30px 22px;
+  gap: 10px;
+  color: var(--muted);
+}
+.mx-phone-empty svg {
+  color: var(--muted);
+  opacity: 0.6;
+}
+.mx-phone-empty p {
+  font-size: 15px;
+  color: var(--text);
+  font-weight: 600;
+  font-family: var(--fd);
+}
+.mx-phone-empty span {
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+/* Sprint 3.11 — pantalla "Perfil" del teléfono del Instalador
+   (InstallerProfile, .mx-profscreen). Portado verbatim de las líneas
+   363-374 del <style> original del HTML fuente. Distinto de .mx-profile
+   (línea 937 de este archivo), que es la tarjeta resumen de mx-instside
+   migrada en el Sprint 3.2 (InstallerProfileSummary) — selectores
+   distintos, sin relación entre sí. */
+.mx-profscreen {
+  flex: 1;
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+}
+.mx-profhero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  padding: 6px 0;
+}
+.mx-profava {
+  width: 62px;
+  height: 62px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  background: linear-gradient(135deg, var(--ice), #1fb6bd);
+  box-shadow: 0 0 22px rgba(52, 225, 232, 0.35);
+  font-family: var(--fd);
+  font-weight: 700;
+  font-size: 24px;
+}
+.mx-profname {
+  font-family: var(--fd);
+  font-weight: 700;
+  font-size: 16px;
+}
+.mx-profzone {
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.mx-profstats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+.mx-profstat {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 11px;
+}
+.mx-profstat b {
+  font-family: var(--fm);
+  font-size: 18px;
+  display: block;
+  line-height: 1.1;
+}
+.mx-profstat span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.mx-profblock {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 13px;
+}
+.mx-profblock h4 {
+  font-family: var(--fd);
+  font-size: 12.5px;
+  margin-bottom: 9px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.mx-profblock h4 svg {
+  color: var(--ice);
+}
+/* Sprint 3.12 — pantalla "Mis trabajos" del teléfono del Instalador
+   (InstallerJobs, .mx-myjobs). Portado verbatim de las líneas 351-360 del
+   <style> original del HTML fuente. .mx-phonehdr es el encabezado de grupo
+   ("Próximos"/"Historial"), reutilizable en principio por otras listas del
+   teléfono, pero sin otro consumidor real todavía. */
+.mx-phonehdr {
+  padding: 14px 14px 2px;
+  font-family: var(--fd);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.mx-phonehdr svg {
+  color: var(--ice);
+}
+.mx-myjobs {
+  flex: 1;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+.mx-myjob {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.015);
+}
+.mx-myjob-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+.mx-myjob-t {
+  font-family: var(--fd);
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.mx-myjob-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.mx-myjob-meta span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mx-myjob-meta svg {
+  color: var(--ice);
+}
+.mx-myjob-price {
+  font-family: var(--fm);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--green);
+}
+/* Sprint 3.13 — AdminInstaladores (.mx-admingrid y descendientes), pestaña
+   "Instaladores" de AdminPanel. Portado verbatim de las líneas 324-342 del
+   <style> original del HTML fuente. */
+.mx-admingrid {
+  display: grid;
+  grid-template-columns: 1.3fr 0.7fr;
+  gap: 16px;
+  align-items: start;
+}
+.mx-admintable {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mx-adminrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.mx-adminrow-main {
+  flex: 1;
+  min-width: 0;
+}
+.mx-adminrow-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 5px;
+}
+.mx-adminrow-name {
+  font-family: var(--fd);
+  font-weight: 600;
+  font-size: 14px;
+}
+.mx-adminrow-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.mx-adminrow-meta span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.mx-adminrow-meta svg {
+  color: var(--ice);
+}
+.mx-admin-act {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.mx-admin-act:hover {
+  color: var(--ice);
+  border-color: var(--ice);
+}
+.mx-admin-act.danger:hover {
+  color: var(--red);
+  border-color: var(--red);
+}
+.mx-invite label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 11px;
+}
+.mx-invite input,
+.mx-invite select {
+  width: 100%;
+  margin-top: 6px;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 10px 11px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+}
+.mx-invite input:focus,
+.mx-invite select:focus {
+  outline: none;
+  border-color: var(--ice);
+}
+.mx-invite-ok {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--green);
+  background: rgba(59, 224, 138, 0.08);
+  border: 1px solid rgba(59, 224, 138, 0.25);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  line-height: 1.45;
+}
+.mx-invite-ok svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.mx-invite-note {
+  display: flex;
+  gap: 7px;
+  font-size: 11.5px;
+  color: var(--muted);
+  background: rgba(255, 178, 62, 0.06);
+  border: 1px solid rgba(255, 178, 62, 0.2);
+  border-radius: 10px;
+  padding: 9px 11px;
+  margin-top: 4px;
+  line-height: 1.45;
+}
+.mx-invite-note svg {
+  color: var(--amber);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+/* `.mx-detail-grid` combina esta misma media query en el HTML fuente (línea
+   376: ".mx-detail-grid,.mx-admingrid{grid-template-columns:1fr}"); en el
+   Sprint 3.10 solo se portó acá `.mx-admingrid` porque `.mx-detail-grid`
+   (JobDetail, Coordinator) todavía no estaba construido -- el Sprint 5.1 ya
+   agregó la regla de `.mx-detail-grid` junto con el resto de sus reglas
+   (ver bloque nuevo antes de "Phone frame" más arriba), así que ambas
+   clases comparten esta media query, igual que en el HTML fuente. */
+@media (max-width: 760px) {
+  .mx-admingrid {
+    grid-template-columns: 1fr;
+  }
+  .mx-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+/* Sprint 3.14 — MasterCalendar (líneas 288-300 y 419-440 del <style> original).
+   .mx-jobrow-side/.mx-jobrow-price (línea 298-300) no se portaron acá: no las
+   usa MasterCalendar (su lista de trabajos del día no envuelve el precio en
+   .mx-jobrow-side, lo muestra inline dentro de .mx-jobrow-meta) — pertenecían
+   a CoordinatorJobs(), sin Sprint asignado en ese momento; el Sprint 5.1 ya
+   las agregó (ver bloque nuevo antes de "Phone frame" más arriba).
+   .mx-cal-day.other-month (línea 431) tampoco se porta: MasterCalendar nunca
+   aplica esa clase (las celdas antes del día 1 se renderizan como <div>
+   vacíos sin className, no con "other-month"). */
+.mx-joblist {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mx-jobrow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  width: 100%;
+  background: linear-gradient(180deg, var(--surf), var(--ink2));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  transition: 0.18s;
+}
+.mx-jobrow:hover {
+  border-color: var(--ice);
+  transform: translateY(-1px);
+}
+.mx-jobrow-main {
+  flex: 1;
+  min-width: 0;
+}
+.mx-jobrow-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.mx-jobrow-id {
+  font-family: var(--fm);
+  font-size: 11px;
+  color: var(--muted);
+}
+.mx-jobrow-t {
+  font-family: var(--fd);
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+.mx-jobrow-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.mx-jobrow-meta span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.mx-jobrow-meta svg {
+  color: var(--ice);
+}
+.mx-suc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.mx-cal-outer {
+  background: linear-gradient(180deg, var(--surf), var(--ink2));
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.mx-cal-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.mx-cal-month {
+  font-family: var(--fd);
+  font-weight: 700;
+  font-size: 16px;
+}
+.mx-cal-nav {
+  display: flex;
+  gap: 6px;
+}
+.mx-cal-nav button {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 17px;
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+}
+.mx-cal-nav button:hover {
+  color: var(--ice);
+  border-color: var(--ice);
+}
+.mx-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 10px 10px 14px;
+  gap: 3px;
+}
+.mx-cal-dow {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+  padding: 4px 0 8px;
+  letter-spacing: 0.04em;
+}
+.mx-cal-day {
+  min-height: 58px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 6px 5px 5px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: 0.13s;
+}
+.mx-cal-day:hover {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.02);
+}
+.mx-cal-day.has-jobs {
+  background: rgba(255, 255, 255, 0.015);
+  border-color: rgba(52, 225, 232, 0.12);
+}
+.mx-cal-day.sel {
+  border-color: var(--ice) !important;
+  background: rgba(52, 225, 232, 0.08);
+}
+.mx-cal-day.today .mx-cal-dn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--ice);
+  color: #04222a;
+  display: grid;
+  place-items: center;
+}
+.mx-cal-dn {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+.mx-cal-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  justify-content: center;
+  margin-top: 1px;
+}
+.mx-cal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.mx-cal-count {
+  font-size: 9px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.mx-daylist {
+  animation: mxpop 0.2s ease;
+}
+.mx-daylist-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mx-daylist-hd h3 {
+  font-family: var(--fd);
+  font-weight: 700;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Sprint 3.16 — AssignedPanel / NoResponsePanel (líneas 128-143 y 265 del
+   <style> original). .mx-revealc (líneas 193-197, variante compacta usada
+   dentro de Installer()/AssignedScreen) NO se porta aquí: AssignedPanel usa
+   .mx-reveal/.mx-reveal-row, no .mx-revealc — pertenece a un Sprint futuro
+   del módulo Installer. La regla responsive .mx-nr-acts{grid-template-
+   columns:1fr} (línea 265) se agrega dentro del media query
+   `@media (max-width: 560px)` ya existente (portado desde Baseline). */
+.mx-assigned {
+  border-color: rgba(59, 224, 138, 0.4);
+  background: linear-gradient(180deg, rgba(59, 224, 138, 0.08), var(--ink2));
+}
+.mx-as-h {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--fd);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--green);
+}
+.mx-as-name {
+  font-size: 13.5px;
+  margin: 8px 0 12px;
+  color: var(--text);
+}
+.mx-reveal {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mx-reveal-row {
+  display: grid;
+  grid-template-columns: 18px 90px 1fr;
+  gap: 8px;
+  align-items: start;
+  font-size: 12.5px;
+}
+.mx-reveal-row svg {
+  color: var(--green);
+  margin-top: 1px;
+}
+.mx-reveal-row b {
+  color: var(--muted);
+  font-weight: 600;
+}
+.mx-reveal-row span {
+  color: var(--text);
+}
+.mx-noresp {
+  border-color: rgba(255, 92, 122, 0.4);
+  background: linear-gradient(180deg, rgba(255, 92, 122, 0.08), var(--ink2));
+}
+.mx-nr-h {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--fd);
+  font-weight: 700;
+  color: var(--red);
+  font-size: 15px;
+}
+.mx-nr-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 6px 0 12px;
+}
+.mx-nr-acts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.mx-nr-acts button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  padding: 10px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text);
+}
+.mx-nr-acts button:hover {
+  border-color: var(--red);
+}
+.mx-nr-acts svg {
+  color: var(--red);
+  flex-shrink: 0;
+}
+.mx-instside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.mx-mini {
+  padding: 14px;
+}
+.mx-profile {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.mx-profile > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mx-profile b {
+  color: var(--text);
+  font-family: var(--fm);
+}
+/* .mx-starc: faltaba desde Fase 3 (fuente: línea 117 del <style> original).
+   Se usa en el ícono Star de InstallerProfileSummary (Sprint 3.2) y también
+   en otros bloques todavía no migrados (ResponsesFeed, AdminInstaladores). */
+.mx-starc {
+  color: var(--amber);
+}
+.mx-profile svg {
+  color: var(--ice);
+}
+.mx-rules {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.mx-rules li {
+  padding-left: 16px;
+  position: relative;
+}
+.mx-rules li:before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ice);
+}
+.mx-rules b {
+  color: var(--text);
+}
+
+/* ---- Footer ---- */
+.mx-foot {
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 18px 20px 28px;
+  max-width: 760px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* ---- Dialog / Modal / Drawer (slide-up) ---- */
+.mx-modal-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 12, 24, 0.9);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+}
+.mx-modal-panel {
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-top: 1px solid rgba(52, 225, 232, 0.2);
+  border-radius: 24px 24px 0 0;
+  width: 100%;
+  max-width: 620px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: mxup 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---- Drawer LATERAL (Sprint 8.2, "Master Calendar (Fase 1)") --
+   variante nueva de Drawer (`variant="lateral"`, `ui/drawer.tsx`): panel
+   anclado al borde derecho en vez de bottom-sheet -- mismos tokens de
+   color/borde/blur que `.mx-modal-bg`/`.mx-modal-panel` (arriba), mismo
+   timing/easing de animación que `mxup`, solo con el eje y el anclaje
+   cambiados (`translateX` en vez de `translateY`, `justify-content:
+   flex-end` en vez de `center`). No reemplaza a `.mx-modal-*` -- ambas
+   variantes coexisten, `PublishModal` sigue usando la original sin
+   ningún cambio. */
+.mx-drawer-lateral-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 12, 24, 0.9);
+  z-index: 200;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  backdrop-filter: blur(6px);
+}
+.mx-drawer-lateral-panel {
+  background: var(--surf);
+  border-left: 1px solid var(--line);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.35);
+  width: 100%;
+  max-width: 420px;
+  height: 100%;
+  overflow-y: auto;
+  animation: mxdrawerin 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes mxdrawerin {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@media (max-width: 560px) {
+  .mx-drawer-lateral-panel {
+    max-width: 100%;
+  }
+}
+
+.mx-modal-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 4px;
+  position: sticky;
+  top: 0;
+  background: var(--surf);
+  z-index: 1;
+  border-bottom: 1px solid var(--line);
+}
+.mx-modal-hd h3 {
+  font-family: var(--fd);
+  font-size: 17px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.mx-modal-hd h3 svg {
+  color: var(--ice);
+}
+.mx-modal-close {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--surf2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 20px;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.mx-modal-close:hover {
+  color: var(--text);
+}
+.mx-modal-body {
+  padding: 16px 20px 32px;
+}
+
+/* ---- ConfirmDialog ---- */
+.mx-confirm-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 12, 24, 0.82);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+}
+.mx-confirm-card {
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  max-width: 380px;
+  width: 100%;
+  padding: 22px;
+  animation: mxpop 0.18s ease;
+}
+.mx-confirm-card h3 {
+  font-family: var(--fd);
+  font-size: 17px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 9px;
+}
+.mx-confirm-card h3 svg {
+  color: var(--red);
+}
+.mx-confirm-card p {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.55;
+  margin-bottom: 18px;
+}
+.mx-confirm-acts {
+  display: flex;
+  gap: 10px;
+}
+.mx-confirm-acts button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 11px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 13px;
+}
+.mx-confirm-no {
+  background: var(--surf2);
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+.mx-confirm-no:hover {
+  border-color: var(--ice);
+}
+.mx-confirm-yes {
+  background: rgba(255, 92, 122, 0.14);
+  border: 1px solid var(--red);
+  color: var(--red);
+}
+.mx-confirm-yes:hover {
+  background: rgba(255, 92, 122, 0.22);
+}
+
+/* ---- Breakpoints del prototipo (920px / 560px / 760px) ---- */
+@media (max-width: 920px) {
+  .mx-grid {
+    grid-template-columns: 1fr;
+  }
+  .mx-instwrap {
+    grid-template-columns: 1fr;
+    max-width: 420px;
+    margin: 0 auto;
+  }
+  .mx-instside {
+    order: -1;
+  }
+}
+@media (max-width: 560px) {
+  .mx-top {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .mx-roleswitch {
+    order: 3;
+    width: 100%;
+  }
+  .mx-roleswitch button {
+    flex: 1;
+    justify-content: center;
+  }
+  .mx-topright {
+    order: 2;
+  }
+  .mx-f2 {
+    grid-template-columns: 1fr;
+  }
+  .mx-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+  .mx-nr-acts {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mx-sweep,
+  .mx-ping,
+  .mx-blink,
+  .mx-spin {
     animation: none !important;
   }
 }

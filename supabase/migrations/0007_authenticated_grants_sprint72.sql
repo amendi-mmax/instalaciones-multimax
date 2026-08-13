@@ -1,0 +1,34 @@
+-- Sprint 7.2 — Corrección de privilegios SQL (GRANT) para authenticated
+--
+-- Diagnóstico (confirmado vía MCP, simulación real de sesión con
+-- SET LOCAL ROLE authenticated + request.jwt.claims, dentro de una
+-- transacción con ROLLBACK, sin efectos persistentes):
+--
+--   1. notificar_instaladores_elegibles(uuid) -- RPC SECURITY INVOKER
+--      (migración 0006) -- falla con 42501 permission denied for table
+--      trabajo_instaladores al ejecutar su único INSERT ... SELECT. Las
+--      policies RLS de INSERT/SELECT de trabajo_instaladores ya existen y
+--      son correctas ("coordinadores crean notificaciones de su empresa",
+--      "coordinadores ven y gestionan notificaciones de su empresa") --
+--      nunca llegan a evaluarse porque el GRANT de tabla se comprueba
+--      primero y authenticated no lo tenía.
+--   2. ResponsesPanel (ofertasRepository.getByTrabajoId) -- SELECT directo
+--      sobre ofertas falla con 42501 permission denied for table ofertas.
+--      Las policies RLS de SELECT ya existen y son correctas
+--      ("coordinadores ven ofertas de su empresa",
+--      "instaladores ven sus propias ofertas") -- mismo bloqueo, el GRANT
+--      de tabla nunca dejaba llegar la ejecución hasta RLS.
+--   3. Hallazgo adicional (mismo origen): submit_bid(...) -- RPC SECURITY
+--      INVOKER, ya existente desde el Sprint 5.2.2.1 -- hace
+--      INSERT INTO ofertas y UPDATE trabajo_instaladores; con los mismos
+--      GRANT faltantes, también habría fallado al enviar una oferta.
+--
+-- Mismo patrón exacto que la corrección ya aplicada y validada en el
+-- Sprint 5.2.2.2 para trabajos (SPRINT_5_2_2_2_SQL_GRANTS_FIX.sql):
+-- GRANT aditivo de privilegios SQL estándar, sin tocar RLS, sin policies
+-- nuevas/modificadas, sin SECURITY DEFINER, sin cambios de frontend.
+-- Ningún DELETE concedido -- ninguna policy RLS existente contempla borrado
+-- sobre estas 2 tablas.
+
+grant select, insert, update on public.trabajo_instaladores to authenticated;
+grant select, insert on public.ofertas to authenticated;

@@ -1,0 +1,34 @@
+-- ============================================================
+-- HANDYMAX · Multimax Despacho
+-- 0002 — RETIRADA (Sprint 8.4.1 — Reconstrucción de Migraciones Supabase)
+-- ============================================================
+-- Este archivo ya NO contiene el contenido original (ENUMs `user_role`/
+-- `trabajo_estado`/`oferta_estado`/`trabajo_instalador_estado`, tabla
+-- `trabajo_instaladores` sobre el modelo `usuarios`, funciones
+-- `current_user_role()`/`is_admin()`/etc.) -- ese contenido pertenecía por
+-- completo al modelo `usuarios`/`sucursales`/`bids` (legacy), idéntico
+-- byte a byte al que sigue preservado, sin cambios, en
+-- `supabase/migrations/legacy/0002_auth_roles_rls_legacy.sql`. Ese modelo
+-- nunca fue el que llegó a ejecutarse contra Producción real.
+--
+-- Lo que sí era necesario de la INTENCIÓN original de este archivo
+-- (activar RLS, políticas base de coordinador/instalador, tabla
+-- `trabajo_instaladores`) ya vive en el `0001_initial_schema.sql`
+-- reconstruido (Sprint 8.4.1), expresado directamente sobre el modelo
+-- REAL (`admins`/`coordinadores`/`instaladores`/`trabajos.estado` como
+-- `text`), en vez de duplicar acá una segunda versión.
+--
+-- Este archivo se conserva VACÍO (no se elimina, no se renumera `0003`
+-- en adelante) para no alterar la numeración -- cualquier entorno que ya
+-- haya sincronizado la cadena `0001..0010` sigue encontrando exactamente
+-- los mismos 10 archivos, en el mismo orden, con el mismo nombre.
+--
+-- Es un no-op intencional: no ejecuta ningún DDL. Aplicarlo (o no) sobre
+-- cualquier entorno no tiene ningún efecto.
+-- ============================================================
+
+-- (sin contenido — ver cabecera)
+
+-- ============================================================
+-- FIN DE LA MIGRACIÓN 0002 (retirada)
+-- ============================================================
