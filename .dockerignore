@@ -1,0 +1,13 @@
+node_modules
+
+dist
+
+.git
+
+.vscode
+
+.env
+
+coverage
+
+*.log

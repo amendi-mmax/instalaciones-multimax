@@ -39,12 +39,15 @@ import {
 } from '@/services/supabase.service';
 import type {
   AdminOperationResponse,
+  InviteAdminPayload,
   InviteInstaladorPayload,
   ReactivateInstaladorPayload,
+  SetAdminActivoPayload,
   SuspendInstaladorPayload,
 } from '@/types/admin-operations';
 
 type InstaladorRow = TableRow<'instaladores'>;
+type AdminRow = TableRow<'admins'>;
 
 function businessError(message: string, rollback?: string): HandymaxServiceError {
   return {
@@ -57,7 +60,12 @@ function businessError(message: string, rollback?: string): HandymaxServiceError
 }
 
 async function invokeAdminOperation<T>(
-  action: 'invite_instalador' | 'suspend_instalador' | 'reactivate_instalador',
+  action:
+    | 'invite_instalador'
+    | 'suspend_instalador'
+    | 'reactivate_instalador'
+    | 'invite_admin'
+    | 'set_admin_activo',
   payload: unknown,
 ): Promise<ServiceResult<T>> {
   const { data, error } = await getClient().functions.invoke('admin-operations', {
@@ -107,8 +115,31 @@ export async function reactivateInstalador(
   return invokeAdminOperation<InstaladorRow>('reactivate_instalador', payload);
 }
 
+/**
+ * Sprint B -- `invite_admin`, ya desplegada (Edge Function versión 7).
+ * Mismo criterio que `inviteInstalador`: el caller nunca controla
+ * `empresa_id`/`es_principal`/`activo` (ver JSDoc de `InviteAdminPayload`) --
+ * la Edge Function los fuerza server-side y rechaza con `403` si quien
+ * invoca no es el Administrador Principal activo de su empresa.
+ */
+export async function inviteAdmin(payload: InviteAdminPayload): Promise<ServiceResult<AdminRow>> {
+  return invokeAdminOperation<AdminRow>('invite_admin', payload);
+}
+
+/**
+ * Sprint B -- `set_admin_activo`, ya desplegada. Rechaza con `403` si el
+ * caller no es Principal activo, si el target no pertenece a su empresa, o
+ * si el target es el propio Administrador Principal (ver JSDoc de la
+ * acción en `admin-operations/index.ts`).
+ */
+export async function setAdminActivo(payload: SetAdminActivoPayload): Promise<ServiceResult<AdminRow>> {
+  return invokeAdminOperation<AdminRow>('set_admin_activo', payload);
+}
+
 export const adminOperationsService = {
   inviteInstalador,
   suspendInstalador,
   reactivateInstalador,
+  inviteAdmin,
+  setAdminActivo,
 };

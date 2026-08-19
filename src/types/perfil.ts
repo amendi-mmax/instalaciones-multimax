@@ -114,4 +114,15 @@ export interface Perfil {
    * `instaladores`.
    */
   empresaInstaladoraId: string | null;
+  /**
+   * Sprint C (Gestión de Administradores y Coordinadores) -- espejo de
+   * `admins.es_principal` (migración `0011`). Solo `admin` tiene este
+   * concepto -- `null` para `coordinador`/`instalador` (no aplica), mismo
+   * criterio que `documentosOk`/`empresaInstaladoraId`. Determina si la UI
+   * puede mostrar las acciones "Invitar administrador"/"Activar-desactivar
+   * administrador" -- la autorización real vive exclusivamente en
+   * `admin-operations` (`invite_admin`/`set_admin_activo`), esto es solo
+   * para no mostrar botones que el servidor va a rechazar igual.
+   */
+  esPrincipal: boolean | null;
 }

@@ -118,6 +118,8 @@ export async function resolveProfile(
         creadoEn: row.created_at,
         instaladorInfo: null,
         empresaInstaladoraId: null,
+        // Sprint C -- ya viaja en `row` (select('*') sin cambios, columna nueva).
+        esPrincipal: row.es_principal,
       },
     };
   }
@@ -151,6 +153,8 @@ export async function resolveProfile(
         creadoEn: row.created_at,
         instaladorInfo: null,
         empresaInstaladoraId: null,
+        // Sprint C -- `coordinadores` no tiene columna `es_principal` (concepto exclusivo de `admins`).
+        esPrincipal: null,
       },
     };
   }
@@ -187,6 +191,8 @@ export async function resolveProfile(
         },
         // Sprint 8.4 -- ya viaja en `row` (select('*') sin cambios, columna nueva).
         empresaInstaladoraId: row.empresa_instaladora_id,
+        // Sprint C -- `instaladores` no tiene columna `es_principal` (concepto exclusivo de `admins`).
+        esPrincipal: null,
       },
     };
   }

@@ -1,6 +1,7 @@
-import { Building2, Calendar, LayoutDashboard, Users } from 'lucide-react';
+import { Building2, Calendar, LayoutDashboard, ShieldCheck, Users } from 'lucide-react';
 import { useState } from 'react';
 
+import { AdminAdministradores } from '@/components/shared/admin-administradores';
 import { AdminEmpresasInstaladoras } from '@/components/shared/admin-empresas-instaladoras';
 import { AdminInstaladores } from '@/components/shared/admin-instaladores';
 import { AdminKpiDashboard } from '@/components/shared/admin-kpi-dashboard';
@@ -68,13 +69,27 @@ import { MxSubtabs } from '@/components/shared/mx-subtabs';
  * nuevo. `AdminKpiDashboard`/`MasterCalendar`/`AdminInstaladores`
  * permanecen sin ningún cambio.
  *
+ * **AJUSTE DE INTEGRACIÓN (Gestión de Administradores y Coordinadores,
+ * cierre del Sprint C)**: se agrega una quinta pestaña, "Administradores"
+ * (ícono `ShieldCheck`), al final -- renderiza `AdminAdministradores`
+ * (NUEVO). Mismo patrón `MxSubtabs`/`MxSubtabButton`, sin CSS/markup de
+ * navegación nuevo. Reutiliza exclusivamente los contratos ya validados en
+ * el Sprint C (`adminsRepository`/`adminOperationsService.inviteAdmin`/
+ * `.setAdminActivo`) -- sin tocar RLS/migraciones/Edge Functions. No se
+ * agrega ninguna pestaña de "Coordinadores" todavía -- no existe backend
+ * real para esa entidad (ver `ANALISIS_GESTION_USUARIOS.md`).
+ * `AdminKpiDashboard`/`MasterCalendar`/`AdminInstaladores`/
+ * `AdminEmpresasInstaladoras` permanecen sin ningún cambio.
+ *
  * Sin props, sin CSS propio (compone únicamente clases ya portadas:
  * `.mx-subtabs-wrap`/`.mx-subtabs` desde el Sprint 3.3, y las de
  * `AdminKpiDashboard`/`MasterCalendar`/`AdminInstaladores`/
- * `AdminEmpresasInstaladoras`).
+ * `AdminEmpresasInstaladoras`/`AdminAdministradores`).
  */
 export function AdminPanel() {
-  const [tab, setTab] = useState<'dashboard' | 'calendario' | 'instaladores' | 'empresas'>('dashboard');
+  const [tab, setTab] = useState<'dashboard' | 'calendario' | 'instaladores' | 'empresas' | 'administradores'>(
+    'dashboard',
+  );
 
   return (
     <div>
@@ -107,11 +122,19 @@ export function AdminPanel() {
         >
           Empresas
         </MxSubtabButton>
+        <MxSubtabButton
+          active={tab === 'administradores'}
+          icon={<ShieldCheck size={14} />}
+          onClick={() => setTab('administradores')}
+        >
+          Administradores
+        </MxSubtabButton>
       </MxSubtabs>
       {tab === 'dashboard' ? <AdminKpiDashboard /> : null}
       {tab === 'calendario' ? <MasterCalendar /> : null}
       {tab === 'instaladores' ? <AdminInstaladores /> : null}
       {tab === 'empresas' ? <AdminEmpresasInstaladoras /> : null}
+      {tab === 'administradores' ? <AdminAdministradores /> : null}
     </div>
   );
 }

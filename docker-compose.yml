@@ -1,0 +1,23 @@
+services:
+
+  handymax:
+
+    build: .
+
+    container_name: handymax
+
+    restart: unless-stopped
+
+    network_mode: host
+
+    labels:
+
+      - traefik.enable=true
+
+      - traefik.http.routers.handymax.rule=Host(`instalaciones.multimax.net`)
+
+      - traefik.http.routers.handymax.entrypoints=websecure
+
+      - traefik.http.routers.handymax.tls.certresolver=letsencrypt
+
+      - traefik.http.services.handymax.loadbalancer.server.port=80
