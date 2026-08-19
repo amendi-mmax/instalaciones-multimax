@@ -35,10 +35,9 @@ max_rows = 1000
 [db]
 port = 54322
 shadow_port = 54320
-# PostgreSQL 16: misma versión usada para validar 0001/seed/0002 en este
-# Sprint (`sudo service postgresql start` + base de prueba local, ver
-# PHASE_4.md).
-major_version = 16
+# PostgreSQL 17: versión mayor actualmente utilizada por la base remota
+# de producción. Debe coincidir con la versión mayor del proyecto remoto.
+major_version = 17
 
 [db.pooler]
 enabled = false
