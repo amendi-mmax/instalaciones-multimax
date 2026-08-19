@@ -20,6 +20,7 @@ export type Database = {
           created_at: string
           email: string | null
           empresa_id: string
+          es_principal: boolean
           id: string
           nombre: string
           telefono: string | null
@@ -29,6 +30,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           empresa_id: string
+          es_principal?: boolean
           id: string
           nombre: string
           telefono?: string | null
@@ -38,6 +40,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           empresa_id?: string
+          es_principal?: boolean
           id?: string
           nombre?: string
           telefono?: string | null
@@ -567,6 +570,10 @@ export type Database = {
       asignar_instalador: {
         Args: { p_instalador_id: string; p_trabajo_id: string }
         Returns: undefined
+      }
+      es_admin_de_empresa: {
+        Args: { target_empresa_id: string }
+        Returns: boolean
       }
       instalador_fue_notificado: {
         Args: { p_trabajo_id: string }

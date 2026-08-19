@@ -107,15 +107,48 @@ interface SuspendReactivateInstaladorPayload {
   instalador_id: string;
 }
 
+/**
+ * Sprint B (Gestión de Administradores y Coordinadores, backend) -- ver
+ * ANALISIS_GESTION_USUARIOS.md, sección "CIERRE ARQUITECTÓNICO", C6, para
+ * el análisis completo. `empresa_id`/`es_principal`/`activo`/`rol` NUNCA se
+ * leen de este payload -- el caller no los controla bajo ninguna
+ * circunstancia (matriz de permisos aprobada, C2): un admin invitado por
+ * `invite_admin` siempre nace `es_principal:false`, `activo:true`,
+ * `empresa_id` = la del caller.
+ */
+interface InviteAdminPayload {
+  nombre: string;
+  email: string;
+  telefono?: string | null;
+}
+
+/** Sprint B -- `set_admin_activo` nunca toca `es_principal`, solo `activo`. */
+interface SetAdminActivoPayload {
+  admin_id: string;
+  activo: boolean;
+}
+
 type ActionRequest =
   | { action: 'invite_instalador'; payload: InviteInstaladorPayload }
   | { action: 'suspend_instalador'; payload: SuspendReactivateInstaladorPayload }
-  | { action: 'reactivate_instalador'; payload: SuspendReactivateInstaladorPayload };
+  | { action: 'reactivate_instalador'; payload: SuspendReactivateInstaladorPayload }
+  | { action: 'invite_admin'; payload: InviteAdminPayload }
+  | { action: 'set_admin_activo'; payload: SetAdminActivoPayload };
 
+/**
+ * Sprint B -- se agregan `es_principal`/`activo` (antes solo
+ * `id`/`empresa_id`) para poder gatear `invite_admin`/`set_admin_activo`
+ * sin una segunda consulta a `admins`: `verifyCaller()` ya lee la fila
+ * completa que estas 2 acciones nuevas necesitan.
+ */
 interface AdminRow {
   id: string;
   empresa_id: string;
+  es_principal: boolean;
+  activo: boolean;
 }
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -234,7 +267,7 @@ async function verifyCaller(
   console.log('[admin-operations:verifyCaller] consultando public.admins para id =', user.id);
   const { data: adminRow, error: adminError } = await serviceRoleClient
     .from('admins')
-    .select('id, empresa_id')
+    .select('id, empresa_id, es_principal, activo')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -411,6 +444,192 @@ async function setSuspendido(
   return jsonResponse({ ok: true, data: updated }, 200);
 }
 
+/**
+ * `invite_admin` — Sprint B (Gestión de Administradores y Coordinadores).
+ * Ver ANALISIS_GESTION_USUARIOS.md, sección "CIERRE ARQUITECTÓNICO", C6.
+ *
+ * Gate exclusivo de esta acción (matriz de permisos C2): el caller debe
+ * ser el Administrador Principal ACTIVO de su empresa -- un Administrador
+ * Secundario, o un Principal cuya propia fila estuviera `activo:false`
+ * (caso hoy imposible por el trigger `proteger_ultimo_admin_principal`,
+ * pero validado igual, sin asumir), recibe `403` antes de cualquier otra
+ * validación.
+ *
+ * Mismo flujo con rollback que `inviteInstalador()` (Auth invite primero,
+ * `INSERT` con el id real después, revertir el Auth User si el `INSERT`
+ * falla) -- ningún paso nuevo, misma garantía de "sin auth.users huérfano
+ * permanente sin intentar limpiarlo".
+ *
+ * `empresa_id`/`es_principal`/`activo` se fuerzan server-side, nunca desde
+ * `payload` (ver JSDoc de `InviteAdminPayload`) -- por diseño, esta acción
+ * JAMÁS puede crear un segundo Principal: `es_principal` es siempre
+ * `false` acá, así que ni siquiera llega a ejercitar el índice único
+ * parcial (`uq_admins_un_principal_por_empresa`, 0011) como defensa.
+ */
+async function inviteAdmin(
+  serviceRoleClient: ReturnType<typeof createClient>,
+  admin: AdminRow,
+  payload: InviteAdminPayload,
+): Promise<Response> {
+  if (!admin.activo || admin.es_principal !== true) {
+    return jsonResponse(
+      { ok: false, error: { message: 'Solo el Administrador Principal activo puede invitar administradores.' } },
+      403,
+    );
+  }
+
+  const nombre = payload.nombre?.trim();
+  const email = payload.email?.trim();
+
+  if (!nombre) {
+    return jsonResponse({ ok: false, error: { message: 'El nombre es obligatorio.' } }, 400);
+  }
+  if (!email || !EMAIL_PATTERN.test(email)) {
+    return jsonResponse({ ok: false, error: { message: 'El correo es obligatorio y debe tener un formato válido.' } }, 400);
+  }
+
+  // Mismo mecanismo de `redirectTo` ya usado por `inviteInstalador()` --
+  // apunta a `/nueva-contrasena` (ya soporta `type=invite`), sin ninguna
+  // ruta nueva. Ver ARCHITECTURE.md §14.10/CLAUDE.md.
+  const appUrl = Deno.env.get('APP_URL');
+  const inviteOptions: { data: Record<string, string>; redirectTo?: string } = {
+    data: { nombre, rol: 'admin' },
+  };
+  if (appUrl) {
+    inviteOptions.redirectTo = `${appUrl.replace(/\/$/, '')}/nueva-contrasena`;
+  }
+
+  const { data: inviteData, error: inviteError } =
+    await serviceRoleClient.auth.admin.inviteUserByEmail(email, inviteOptions);
+
+  if (inviteError || !inviteData?.user) {
+    return jsonResponse(
+      { ok: false, error: { message: inviteError?.message ?? 'No se pudo enviar la invitación.' } },
+      502,
+    );
+  }
+
+  const newUserId = inviteData.user.id;
+
+  // `empresa_id`/`es_principal`/`activo` -- SIEMPRE estos valores exactos,
+  // nunca leídos de `payload` (que ni siquiera declara esos campos en su
+  // tipo). Un admin invitado por esta acción es SIEMPRE Secundario y
+  // arranca activo de inmediato (a diferencia de `instaladores`, que
+  // requieren verificación de documentos -- un admin invitado por el
+  // propio Principal no tiene ese paso, decisión aprobada explícitamente).
+  const { data: adminRow, error: insertError } = await serviceRoleClient
+    .from('admins')
+    .insert({
+      id: newUserId,
+      empresa_id: admin.empresa_id,
+      nombre,
+      email,
+      telefono: payload.telefono ?? null,
+      activo: true,
+      es_principal: false,
+    })
+    .select()
+    .single();
+
+  if (insertError) {
+    // Mismo patrón de compensación que `inviteInstalador()` -- ver su
+    // JSDoc para el detalle completo del razonamiento.
+    const { error: rollbackError } = await serviceRoleClient.auth.admin.deleteUser(newUserId);
+
+    return jsonResponse(
+      {
+        ok: false,
+        error: {
+          message: insertError.message,
+          rollback: rollbackError
+            ? `Además, no se pudo revertir la invitación de Auth (usuario ${newUserId} puede haber quedado huérfano -- requiere limpieza manual en el Dashboard).`
+            : 'La invitación de Auth fue revertida correctamente.',
+        },
+      },
+      500,
+    );
+  }
+
+  return jsonResponse({ ok: true, data: adminRow }, 200);
+}
+
+/**
+ * `set_admin_activo` — Sprint B. Activa/desactiva un Administrador
+ * Secundario. Ver ANALISIS_GESTION_USUARIOS.md C2/C6/C3 para el análisis
+ * completo de por qué el rechazo sobre el Principal ocurre en 2 capas
+ * independientes (este pre-chequeo + el trigger `proteger_ultimo_admin_
+ * principal`, 0012, como garantía final de base de datos -- nunca solo
+ * este chequeo de aplicación).
+ *
+ * Nunca modifica `es_principal` -- el único campo que este `UPDATE` toca
+ * es `activo`, ni siquiera cuando el payload trajera otro valor (el tipo
+ * `SetAdminActivoPayload` ni siquiera declara ese campo).
+ */
+async function setAdminActivo(
+  serviceRoleClient: ReturnType<typeof createClient>,
+  admin: AdminRow,
+  payload: SetAdminActivoPayload,
+): Promise<Response> {
+  if (!admin.activo || admin.es_principal !== true) {
+    return jsonResponse(
+      {
+        ok: false,
+        error: { message: 'Solo el Administrador Principal activo puede activar/desactivar administradores.' },
+      },
+      403,
+    );
+  }
+
+  const adminId = payload.admin_id;
+  if (!adminId) {
+    return jsonResponse({ ok: false, error: { message: 'admin_id es obligatorio.' } }, 400);
+  }
+  if (typeof payload.activo !== 'boolean') {
+    return jsonResponse({ ok: false, error: { message: 'activo debe ser un valor booleano.' } }, 400);
+  }
+
+  const { data: existing, error: fetchError } = await serviceRoleClient
+    .from('admins')
+    .select('id, empresa_id, es_principal')
+    .eq('id', adminId)
+    .maybeSingle();
+
+  if (fetchError || !existing) {
+    return jsonResponse({ ok: false, error: { message: 'Administrador no encontrado.' } }, 404);
+  }
+  if (existing.empresa_id !== admin.empresa_id) {
+    return jsonResponse(
+      { ok: false, error: { message: 'Este administrador no pertenece a tu empresa.' } },
+      403,
+    );
+  }
+  // Rechazo explícito ANTES de tocar la base de datos -- matriz de
+  // permisos aprobada: nadie (ni siquiera el propio Principal) puede
+  // modificar al Administrador Principal mediante esta acción. El trigger
+  // `proteger_ultimo_admin_principal` (0012) es la garantía final e
+  // independiente -- este chequeo es el mensaje claro de UX sobre la
+  // misma regla, nunca la única barrera real.
+  if (existing.es_principal) {
+    return jsonResponse(
+      { ok: false, error: { message: 'No es posible modificar al Administrador Principal.' } },
+      403,
+    );
+  }
+
+  const { data: updated, error: updateError } = await serviceRoleClient
+    .from('admins')
+    .update({ activo: payload.activo })
+    .eq('id', adminId)
+    .select()
+    .single();
+
+  if (updateError) {
+    return jsonResponse({ ok: false, error: { message: updateError.message } }, 500);
+  }
+
+  return jsonResponse({ ok: true, data: updated }, 200);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -456,6 +675,10 @@ Deno.serve(async (req: Request) => {
       return setSuspendido(serviceRoleClient, admin, body.payload, true);
     case 'reactivate_instalador':
       return setSuspendido(serviceRoleClient, admin, body.payload, false);
+    case 'invite_admin':
+      return inviteAdmin(serviceRoleClient, admin, body.payload);
+    case 'set_admin_activo':
+      return setAdminActivo(serviceRoleClient, admin, body.payload);
     default:
       return jsonResponse({ ok: false, error: { message: 'Acción no reconocida.' } }, 400);
   }
