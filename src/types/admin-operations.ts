@@ -8,13 +8,14 @@
  * Sprint B (Gestión de Administradores y Coordinadores) agrega
  * `InviteAdminPayload`/`SetAdminActivoPayload` — espejo de las acciones
  * `invite_admin`/`set_admin_activo`, ya desplegadas en Producción (Edge
- * Function versión 7). No se agrega ningún tipo para Coordinadores todavía:
- * `admin-operations` no tiene ninguna acción `invite_coordinador`/
- * `set_coordinador_activo` desplegada (Sprint D, pendiente) — declarar un
- * tipo/servicio para una acción que la función respondería con
- * `400 "Acción no reconocida"` sería un contrato falso. Ver
- * `ANALISIS_GESTION_USUARIOS.md` para el detalle completo.
+ * Function versión 7).
+ *
+ * Sprint 9.3 agrega `InviteCoordinadorPayload`/`SetCoordinadorActivoPayload`
+ * — espejo exacto de las acciones `invite_coordinador`/`set_coordinador_activo`
+ * en `admin-operations/index.ts`. `empresa_id`/`rol`/`activo` NUNCA viajan
+ * acá, mismo criterio que `InviteAdminPayload`.
  */
+import type { TableRow } from '@/services/database.service';
 
 export interface InviteInstaladorPayload {
   nombre: string;
@@ -53,6 +54,36 @@ export interface SetAdminActivoPayload {
   admin_id: string;
   activo: boolean;
 }
+
+/**
+ * Sprint 9.3 -- espejo exacto de `InviteCoordinadorPayload` en la Edge
+ * Function. `empresa_id`/`rol`/`activo` NUNCA viajan acá -- se fuerzan
+ * server-side. `coordinadores` no tiene columna `email`/`telefono`
+ * (confirmado contra el schema real) -- `email` solo se usa para la
+ * invitación de Supabase Auth, nunca se persiste en la tabla.
+ */
+export interface InviteCoordinadorPayload {
+  nombre: string;
+  email: string;
+  tienda_id: string;
+}
+
+/** Sprint 9.3 -- espejo exacto de `SetCoordinadorActivoPayload`. */
+export interface SetCoordinadorActivoPayload {
+  coordinador_id: string;
+  activo: boolean;
+}
+
+/**
+ * Sprint 9.3 -- shape real devuelto por `list_coordinadores`/
+ * `invite_coordinador`: la fila real de `public.coordinadores` (`TableRow`,
+ * sin cambios de schema) enriquecida con `email`, resuelto server-side vía
+ * Auth Admin API (`serviceRoleClient.auth.admin.getUserById()`) porque
+ * `coordinadores` no tiene columna `email` propia (ver JSDoc de
+ * `InviteCoordinadorPayload`). NO es una columna de la tabla -- es
+ * exclusivamente el shape de la respuesta de estas 2 acciones.
+ */
+export type CoordinadorConEmail = TableRow<'coordinadores'> & { email: string | null };
 
 /**
  * Espejo de `jsonResponse(body, status)` — la Edge Function siempre responde

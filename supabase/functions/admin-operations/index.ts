@@ -128,12 +128,43 @@ interface SetAdminActivoPayload {
   activo: boolean;
 }
 
+/**
+ * Sprint 9.3 (Gestión de Coordinadores) -- ver ANALISIS_GESTION_USUARIOS.md,
+ * sección "CIERRE ARQUITECTÓNICO", C6/C9 (Sprint D). `empresa_id`/`rol`/
+ * `activo` NUNCA se leen de este payload -- se fuerzan server-side, mismo
+ * criterio que `InviteAdminPayload`. `coordinadores` no tiene columna
+ * `email`/`telefono` (confirmado contra el schema real) -- `email` solo se
+ * usa para `inviteUserByEmail()`, nunca se persiste en la tabla.
+ */
+interface InviteCoordinadorPayload {
+  nombre: string;
+  email: string;
+  tienda_id: string;
+}
+
+/** Sprint 9.3 -- `set_coordinador_activo` solo toca `activo`. */
+interface SetCoordinadorActivoPayload {
+  coordinador_id: string;
+  activo: boolean;
+}
+
+/**
+ * Sprint 9.3 -- `list_coordinadores` no recibe ningún filtro del caller
+ * (`empresa_id` siempre es `admin.empresa_id`, igual que el resto de
+ * acciones) -- payload vacío, se declara igual por consistencia con el
+ * shape `{ action, payload }` que usan todas las demás acciones.
+ */
+type ListCoordinadoresPayload = Record<string, never>;
+
 type ActionRequest =
   | { action: 'invite_instalador'; payload: InviteInstaladorPayload }
   | { action: 'suspend_instalador'; payload: SuspendReactivateInstaladorPayload }
   | { action: 'reactivate_instalador'; payload: SuspendReactivateInstaladorPayload }
   | { action: 'invite_admin'; payload: InviteAdminPayload }
-  | { action: 'set_admin_activo'; payload: SetAdminActivoPayload };
+  | { action: 'set_admin_activo'; payload: SetAdminActivoPayload }
+  | { action: 'invite_coordinador'; payload: InviteCoordinadorPayload }
+  | { action: 'set_coordinador_activo'; payload: SetCoordinadorActivoPayload }
+  | { action: 'list_coordinadores'; payload: ListCoordinadoresPayload };
 
 /**
  * Sprint B -- se agregan `es_principal`/`activo` (antes solo
@@ -630,6 +661,251 @@ async function setAdminActivo(
   return jsonResponse({ ok: true, data: updated }, 200);
 }
 
+/**
+ * `list_coordinadores` — Sprint 9.3 (Gestión de Coordinadores).
+ *
+ * Por qué existe como acción de la Edge Function (y no un `SELECT` directo
+ * del cliente vía `coordinadoresRepository`, como sí hace `AdminAdministradores`
+ * con `adminsRepository.getByEmpresaId()`): `public.coordinadores` NO tiene
+ * columna `email` (confirmado contra el schema real, `database.generated.ts`)
+ * -- a diferencia de `admins`/`instaladores`. El único lugar donde el email
+ * de un coordinador existe realmente es `auth.users`, y ninguna tabla
+ * `public.*` expone esa relación vía RLS a un cliente `authenticated` (ni
+ * debería -- expondría el email de cualquier usuario del proyecto a
+ * cualquier admin sin control). La única forma segura de resolverlo es
+ * `service_role` + Auth Admin API (`auth.admin.getUserById()`), exactamente
+ * el mismo tipo de operación de confianza que ya justifica la existencia de
+ * esta Edge Function completa (ver JSDoc de cabecera del archivo). Por eso
+ * el listado de Coordinadores se sirve desde acá en vez de un `SELECT`
+ * directo -- `coordinadoresRepository.getByEmpresaId()`/`.getByTiendaId()`
+ * siguen existiendo sin cambios para cualquier otro consumo que no
+ * necesite el email (p. ej. una consulta futura scoped por tienda).
+ *
+ * Scoped por `admin.empresa_id` (nunca un filtro del payload -- el tipo
+ * `ListCoordinadoresPayload` ni siquiera declara campos). Sin gate de
+ * `es_principal` -- matriz de permisos C2: ver/gestionar coordinadores es
+ * igual para Principal y Secundario.
+ */
+async function listCoordinadores(
+  serviceRoleClient: ReturnType<typeof createClient>,
+  admin: AdminRow,
+): Promise<Response> {
+  if (!admin.activo) {
+    return jsonResponse(
+      { ok: false, error: { message: 'Tu cuenta de administrador no está activa.' } },
+      403,
+    );
+  }
+
+  const { data: coordinadores, error: fetchError } = await serviceRoleClient
+    .from('coordinadores')
+    .select('*')
+    .eq('empresa_id', admin.empresa_id)
+    .order('nombre', { ascending: true });
+
+  if (fetchError) {
+    return jsonResponse({ ok: false, error: { message: fetchError.message } }, 500);
+  }
+
+  // Auth Admin API no ofrece un "getUsersByIds" en lote -- se resuelve uno
+  // por uno vía `getUserById()`. Escala de este proyecto (una empresa real,
+  // puñado de coordinadores) hace este patrón aceptable; si el volumen
+  // creciera significativamente, sería candidato a revisar (no es el caso
+  // hoy, no se optimiza prematuramente).
+  const coordinadoresConEmail = await Promise.all(
+    (coordinadores ?? []).map(async (coordinador) => {
+      const { data: userData } = await serviceRoleClient.auth.admin.getUserById(coordinador.id);
+      return { ...coordinador, email: userData?.user?.email ?? null };
+    }),
+  );
+
+  return jsonResponse({ ok: true, data: coordinadoresConEmail }, 200);
+}
+
+/**
+ * `invite_coordinador` — Sprint 9.3 (Gestión de Coordinadores). Ver
+ * ANALISIS_GESTION_USUARIOS.md, "CIERRE ARQUITECTÓNICO", C6/C9 (Sprint D).
+ *
+ * A diferencia de `invite_admin` (exclusivo del Principal), esta acción está
+ * disponible para cualquier admin activo (Principal o Secundario) -- matriz
+ * de permisos C2: "ver y gestionar coordinadores/instaladores/empresas es
+ * igual para Principal y Secundario, la única diferencia real es la gestión
+ * de administradores". Mismo criterio ya aplicado a `invite_instalador`
+ * (sin gate de `es_principal`).
+ *
+ * `tienda_id` se valida server-side contra `admin.empresa_id` -- nunca se
+ * confía en que el `<select>` del frontend solo ofreciera tiendas válidas.
+ * Mismo flujo con rollback que `inviteInstalador()`/`inviteAdmin()` (Auth
+ * invite primero, `INSERT` con el id real después, revertir el Auth User si
+ * el `INSERT` falla).
+ *
+ * `rol` se fuerza siempre a `'coordinador'` -- nunca se lee del payload (el
+ * tipo `InviteCoordinadorPayload` ni siquiera lo declara). `coordinadores`
+ * no tiene columna `email`/`telefono` (confirmado contra el schema real) --
+ * el correo solo se usa para `inviteUserByEmail()`, nunca se persiste.
+ */
+async function inviteCoordinador(
+  serviceRoleClient: ReturnType<typeof createClient>,
+  admin: AdminRow,
+  payload: InviteCoordinadorPayload,
+): Promise<Response> {
+  if (!admin.activo) {
+    return jsonResponse(
+      { ok: false, error: { message: 'Tu cuenta de administrador no está activa.' } },
+      403,
+    );
+  }
+
+  const nombre = payload.nombre?.trim();
+  const email = payload.email?.trim();
+  const tiendaId = payload.tienda_id;
+
+  if (!nombre) {
+    return jsonResponse({ ok: false, error: { message: 'El nombre es obligatorio.' } }, 400);
+  }
+  if (!email || !EMAIL_PATTERN.test(email)) {
+    return jsonResponse({ ok: false, error: { message: 'El correo es obligatorio y debe tener un formato válido.' } }, 400);
+  }
+  if (!tiendaId) {
+    return jsonResponse({ ok: false, error: { message: 'La tienda es obligatoria.' } }, 400);
+  }
+
+  // Defensa server-side real (nunca confiar solo en las opciones del
+  // <select> del frontend) -- misma validación documentada en
+  // ANALISIS_GESTION_USUARIOS.md §6/§14 para invite_coordinador.
+  const { data: tienda, error: tiendaError } = await serviceRoleClient
+    .from('tiendas')
+    .select('id, empresa_id')
+    .eq('id', tiendaId)
+    .maybeSingle();
+
+  if (tiendaError || !tienda) {
+    return jsonResponse({ ok: false, error: { message: 'La tienda seleccionada no existe.' } }, 400);
+  }
+  if (tienda.empresa_id !== admin.empresa_id) {
+    return jsonResponse(
+      { ok: false, error: { message: 'La tienda seleccionada no pertenece a tu empresa.' } },
+      403,
+    );
+  }
+
+  // Mismo mecanismo de `redirectTo` ya usado por `inviteInstalador()`/
+  // `inviteAdmin()` -- apunta a `/nueva-contrasena`. Ver ARCHITECTURE.md
+  // §14.10/CLAUDE.md.
+  const appUrl = Deno.env.get('APP_URL');
+  const inviteOptions: { data: Record<string, string>; redirectTo?: string } = {
+    data: { nombre, rol: 'coordinador' },
+  };
+  if (appUrl) {
+    inviteOptions.redirectTo = `${appUrl.replace(/\/$/, '')}/nueva-contrasena`;
+  }
+
+  const { data: inviteData, error: inviteError } =
+    await serviceRoleClient.auth.admin.inviteUserByEmail(email, inviteOptions);
+
+  if (inviteError || !inviteData?.user) {
+    return jsonResponse(
+      { ok: false, error: { message: inviteError?.message ?? 'No se pudo enviar la invitación.' } },
+      502,
+    );
+  }
+
+  const newUserId = inviteData.user.id;
+
+  // `rol` siempre `'coordinador'` -- nunca leído del payload. `activo`
+  // arranca en `true` (mismo criterio que `invite_admin`: un coordinador
+  // invitado por un admin no tiene un paso de verificación de documentos
+  // como los instaladores).
+  const { data: coordinadorRow, error: insertError } = await serviceRoleClient
+    .from('coordinadores')
+    .insert({
+      id: newUserId,
+      empresa_id: admin.empresa_id,
+      tienda_id: tiendaId,
+      nombre,
+      rol: 'coordinador',
+      activo: true,
+    })
+    .select()
+    .single();
+
+  if (insertError) {
+    // Mismo patrón de compensación que `inviteInstalador()`/`inviteAdmin()`.
+    const { error: rollbackError } = await serviceRoleClient.auth.admin.deleteUser(newUserId);
+
+    return jsonResponse(
+      {
+        ok: false,
+        error: {
+          message: insertError.message,
+          rollback: rollbackError
+            ? `Además, no se pudo revertir la invitación de Auth (usuario ${newUserId} puede haber quedado huérfano -- requiere limpieza manual en el Dashboard).`
+            : 'La invitación de Auth fue revertida correctamente.',
+        },
+      },
+      500,
+    );
+  }
+
+  return jsonResponse({ ok: true, data: { ...coordinadorRow, email } }, 200);
+}
+
+/**
+ * `set_coordinador_activo` — Sprint 9.3. Activa/desactiva un coordinador.
+ * Mismo patrón que `setSuspendido()` (instaladores): valida pertenencia a
+ * la empresa del admin que invoca, luego `UPDATE`. Sin gate de
+ * `es_principal` -- mismo criterio que `invite_coordinador` (C2).
+ */
+async function setCoordinadorActivo(
+  serviceRoleClient: ReturnType<typeof createClient>,
+  admin: AdminRow,
+  payload: SetCoordinadorActivoPayload,
+): Promise<Response> {
+  if (!admin.activo) {
+    return jsonResponse(
+      { ok: false, error: { message: 'Tu cuenta de administrador no está activa.' } },
+      403,
+    );
+  }
+
+  const coordinadorId = payload.coordinador_id;
+  if (!coordinadorId) {
+    return jsonResponse({ ok: false, error: { message: 'coordinador_id es obligatorio.' } }, 400);
+  }
+  if (typeof payload.activo !== 'boolean') {
+    return jsonResponse({ ok: false, error: { message: 'activo debe ser un valor booleano.' } }, 400);
+  }
+
+  const { data: existing, error: fetchError } = await serviceRoleClient
+    .from('coordinadores')
+    .select('id, empresa_id')
+    .eq('id', coordinadorId)
+    .maybeSingle();
+
+  if (fetchError || !existing) {
+    return jsonResponse({ ok: false, error: { message: 'Coordinador no encontrado.' } }, 404);
+  }
+  if (existing.empresa_id !== admin.empresa_id) {
+    return jsonResponse(
+      { ok: false, error: { message: 'Este coordinador no pertenece a tu empresa.' } },
+      403,
+    );
+  }
+
+  const { data: updated, error: updateError } = await serviceRoleClient
+    .from('coordinadores')
+    .update({ activo: payload.activo })
+    .eq('id', coordinadorId)
+    .select()
+    .single();
+
+  if (updateError) {
+    return jsonResponse({ ok: false, error: { message: updateError.message } }, 500);
+  }
+
+  return jsonResponse({ ok: true, data: updated }, 200);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -679,6 +955,12 @@ Deno.serve(async (req: Request) => {
       return inviteAdmin(serviceRoleClient, admin, body.payload);
     case 'set_admin_activo':
       return setAdminActivo(serviceRoleClient, admin, body.payload);
+    case 'list_coordinadores':
+      return listCoordinadores(serviceRoleClient, admin);
+    case 'invite_coordinador':
+      return inviteCoordinador(serviceRoleClient, admin, body.payload);
+    case 'set_coordinador_activo':
+      return setCoordinadorActivo(serviceRoleClient, admin, body.payload);
     default:
       return jsonResponse({ ok: false, error: { message: 'Acción no reconocida.' } }, 400);
   }
