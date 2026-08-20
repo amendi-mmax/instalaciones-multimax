@@ -39,10 +39,13 @@ import {
 } from '@/services/supabase.service';
 import type {
   AdminOperationResponse,
+  CoordinadorConEmail,
   InviteAdminPayload,
+  InviteCoordinadorPayload,
   InviteInstaladorPayload,
   ReactivateInstaladorPayload,
   SetAdminActivoPayload,
+  SetCoordinadorActivoPayload,
   SuspendInstaladorPayload,
 } from '@/types/admin-operations';
 
@@ -65,7 +68,10 @@ async function invokeAdminOperation<T>(
     | 'suspend_instalador'
     | 'reactivate_instalador'
     | 'invite_admin'
-    | 'set_admin_activo',
+    | 'set_admin_activo'
+    | 'list_coordinadores'
+    | 'invite_coordinador'
+    | 'set_coordinador_activo',
   payload: unknown,
 ): Promise<ServiceResult<T>> {
   const { data, error } = await getClient().functions.invoke('admin-operations', {
@@ -136,10 +142,47 @@ export async function setAdminActivo(payload: SetAdminActivoPayload): Promise<Se
   return invokeAdminOperation<AdminRow>('set_admin_activo', payload);
 }
 
+/**
+ * Sprint 9.3 -- `list_coordinadores`, ya desplegada. Devuelve los
+ * coordinadores de la empresa del caller (scoped server-side, nunca por un
+ * filtro del cliente) enriquecidos con `email` (resuelto vía Auth Admin API
+ * dentro de la Edge Function -- `coordinadores` no tiene columna `email`
+ * propia, ver JSDoc de `CoordinadorConEmail`). Sin payload real -- se envía
+ * `{}` por consistencia con el shape `{ action, payload }` de toda acción.
+ */
+export async function listCoordinadores(): Promise<ServiceResult<CoordinadorConEmail[]>> {
+  return invokeAdminOperation<CoordinadorConEmail[]>('list_coordinadores', {});
+}
+
+/**
+ * Sprint 9.3 -- `invite_coordinador`, ya desplegada. Disponible para
+ * cualquier admin activo (Principal o Secundario) -- sin gate de
+ * `es_principal`, matriz de permisos C2. Valida `tienda_id` server-side
+ * contra la empresa del caller.
+ */
+export async function inviteCoordinador(
+  payload: InviteCoordinadorPayload,
+): Promise<ServiceResult<CoordinadorConEmail>> {
+  return invokeAdminOperation<CoordinadorConEmail>('invite_coordinador', payload);
+}
+
+/**
+ * Sprint 9.3 -- `set_coordinador_activo`, ya desplegada. Rechaza con `403`
+ * si el coordinador objetivo no pertenece a la empresa del caller.
+ */
+export async function setCoordinadorActivo(
+  payload: SetCoordinadorActivoPayload,
+): Promise<ServiceResult<TableRow<'coordinadores'>>> {
+  return invokeAdminOperation<TableRow<'coordinadores'>>('set_coordinador_activo', payload);
+}
+
 export const adminOperationsService = {
   inviteInstalador,
   suspendInstalador,
   reactivateInstalador,
   inviteAdmin,
   setAdminActivo,
+  listCoordinadores,
+  inviteCoordinador,
+  setCoordinadorActivo,
 };
