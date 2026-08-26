@@ -1,23 +1,30 @@
 services:
-
   handymax:
-
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
 
     container_name: handymax
 
-    restart: unless-stopped
-
-    network_mode: host
+    expose:
+      - "80"
 
     labels:
+      traefik.enable: "true"
+      traefik.http.routers.handymax.entrypoints: websecure
+      traefik.http.routers.handymax.rule: Host(`instalaciones.multimax.net`)
+      traefik.http.routers.handymax.tls.certresolver: letsencrypt
+      traefik.http.services.handymax.loadbalancer.server.port: "80"
+      traefik.docker.network: handymax_default
 
-      - traefik.enable=true
+    networks:
+      default: null
 
-      - traefik.http.routers.handymax.rule=Host(`instalaciones.multimax.net`)
+    restart: unless-stopped
 
-      - traefik.http.routers.handymax.entrypoints=websecure
-
-      - traefik.http.routers.handymax.tls.certresolver=letsencrypt
-
-      - traefik.http.services.handymax.loadbalancer.server.port=80
+networks:
+  default:
+    name: handymax_default

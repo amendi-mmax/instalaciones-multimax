@@ -1,10 +1,16 @@
-##############################################
+############################################
 # Etapa 1 - Build
-##############################################
+############################################
 
 FROM node:22-alpine AS build
 
 WORKDIR /app
+
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
 
 COPY package*.json ./
 
@@ -14,9 +20,10 @@ COPY . .
 
 RUN npm run build
 
-##############################################
+
+############################################
 # Etapa 2 - Producción
-##############################################
+############################################
 
 FROM nginx:1.27-alpine
 
