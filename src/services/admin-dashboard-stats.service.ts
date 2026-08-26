@@ -95,7 +95,15 @@ function calcularPorSucursal(
     else if (row.estado === 'cancelled') stat.cancelados += 1;
   }
 
-  return Array.from(stats.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  // Solo sucursales con al menos 1 trabajo en el rango (ajuste UX,
+  // Sprint 9.4) -- filtro puramente de presentación sobre el resultado ya
+  // calculado, mismo criterio que ya aplica `calcularPorInstalador` abajo.
+  // El catálogo completo (incluidas las tiendas en 0) sigue siendo la
+  // base del cálculo -- no se toca la consulta ni el conteo, solo qué se
+  // devuelve para renderizar.
+  return Array.from(stats.values())
+    .filter((tienda) => tienda.total > 0)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre));
 }
 
 /**
