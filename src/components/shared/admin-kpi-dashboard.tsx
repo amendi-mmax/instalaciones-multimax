@@ -1,6 +1,7 @@
 import { LayoutDashboard } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
+import { AdminDashboardStats } from '@/components/shared/admin-dashboard-stats';
 import { AdminKpiCard } from '@/components/shared/admin-kpi-card';
 import { PageContainer } from '@/components/shared/page-container';
 import { StatGrid } from '@/components/shared/stat-tile';
@@ -47,6 +48,15 @@ import { buildAdminKpiViewModels, getAdminKpiData, type AdminKpiData } from '@/s
  * ni se muestra en ningún lado de este componente -- se descarta a
  * propósito (Regla del Sprint: "el Dashboard nunca debe exponer mensajes
  * de Supabase").
+ *
+ * **Sprint 9.4 ("Extensión del Dashboard Ejecutivo con estadísticas
+ * operativas")**: se agrega `AdminDashboardStats` (NUEVO) debajo del
+ * `StatGrid` de los 8 KPIs -- no reemplaza ni modifica ninguno de ellos.
+ * Segunda capa con sus propios filtros (rango de fechas + sucursal) y sus
+ * propias consultas -- ver su JSDoc para el detalle completo de qué
+ * métricas del prototipo de referencia (InstalaMax) quedaron
+ * implementadas (solo conteos operativos) y cuáles no (todo lo
+ * financiero: ingresos/comisión/pagos/utilidad/cobros extra).
  */
 export function AdminKpiDashboard() {
   const [kpiData, setKpiData] = useState<AdminKpiData | null | undefined>(undefined);
@@ -74,6 +84,7 @@ export function AdminKpiDashboard() {
           ))}
         </StatGrid>
       </Card>
+      <AdminDashboardStats />
     </PageContainer>
   );
 }

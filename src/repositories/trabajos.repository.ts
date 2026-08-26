@@ -123,11 +123,39 @@ async function getByMonthAndFilters(
   return toServiceResult(query);
 }
 
+/**
+ * Filtro por rango de `publicado_at` (timestamptz real, sin la ambigüedad
+ * de formato de `fecha`) -- Sprint 9.4 ("Dashboard Ejecutivo", segunda
+ * capa de estadísticas). `desde`/`hasta` ya vienen como ISO completo
+ * (resueltos por el servicio a partir de los `<input type="date">` del
+ * filtro) -- este repositorio no interpreta formatos de fecha, solo pasa
+ * el rango tal cual a `gte`/`lte`, mismo criterio de "un repositorio no
+ * decide reglas de negocio" ya usado por el resto de este archivo.
+ */
+export interface TrabajosRangoFilter {
+  desde: string;
+  hasta: string;
+  tiendaId?: string;
+}
+
+async function getByRangoPublicado(filter: TrabajosRangoFilter): Promise<ServiceResult<TableRow<'trabajos'>[]>> {
+  let query = getClient()
+    .from(TABLES.trabajos)
+    .select('*')
+    .gte('publicado_at', filter.desde)
+    .lte('publicado_at', filter.hasta);
+
+  if (filter.tiendaId) query = query.eq('tienda_id', filter.tiendaId);
+
+  return toServiceResult(query);
+}
+
 export const trabajosRepository: Repository<'trabajos'> & {
   getByEmpresaId: typeof getByEmpresaId;
   getByTiendaId: typeof getByTiendaId;
   getByEstado: typeof getByEstado;
   getByMonthAndFilters: typeof getByMonthAndFilters;
+  getByRangoPublicado: typeof getByRangoPublicado;
 } = {
   getAll,
   getById,
@@ -138,4 +166,5 @@ export const trabajosRepository: Repository<'trabajos'> & {
   getByTiendaId,
   getByEstado,
   getByMonthAndFilters,
+  getByRangoPublicado,
 };
