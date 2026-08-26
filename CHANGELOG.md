@@ -2,6 +2,31 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Sprint 9.4 — Dashboard Ejecutivo: estadísticas operativas] — 2026-08-26 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
+
+Extiende el Dashboard Ejecutivo del Administrador con una segunda capa de estadísticas, tomando como referencia de producto (no de copia visual) el panel administrativo del prototipo InstalaMax. Precedida de una auditoría completa (Fase 1/2) del modelo de datos real (9 tablas confirmadas vía MCP `list_tables`: `empresas`/`tiendas`/`coordinadores`/`instaladores`/`trabajos`/`trabajo_instaladores`/`ofertas`/`admins`/`empresas_instaladoras`) contra las 9 métricas del prototipo (ingresos, comisión Multimax 30%, pagado a instaladores/vendedores, utilidad neta, cobros extra pendientes, y desgloses por sucursal/vendedor/instalador).
+
+**Resultado de la auditoría — matriz de viabilidad**: solo las estadísticas de **conteo** (rango de fechas, filtro de sucursal, resumen por estado, desglose por sucursal, desglose por instalador) resultaron IMPLEMENTABLE AHORA con datos reales y confiables. Las 6 métricas financieras/de vendedor quedaron NO IMPLEMENTABLE, cada una con causa raíz concreta y verificada (no supuesta):
+- **Comisión Multimax (30%)**: `grep` exhaustivo de "30%"/"comisión Multimax" en todo el repositorio (código + docs + migraciones) no encontró ninguna fuente oficial que defina esa regla -- los 2 únicos matches eran falsos positivos ("≈30% de cobertura de migración del HTML"). No se hardcodea sin definición de negocio.
+- **Pagado a instaladores / por instalador (montos)**: requiere `ofertas.precio` de la oferta ganadora. `pg_policies` (MCP) confirma que `public.admins` **no tiene ninguna policy de SELECT sobre `ofertas` ni `trabajo_instaladores`** -- mismo patrón de bug ya corregido para `trabajos` en `0005_admins_select_trabajos.sql` (`admins` es una tabla distinta de `coordinadores`, ninguna policy existente la reconoce). Además, `ofertas`/`trabajo_instaladores` tienen 0 filas reales en Producción hoy. No se aplicó ninguna migración de RLS en este Sprint (Regla del Sprint: "si se necesita cambio de RLS, detenerse y documentarlo antes de aplicarlo" -- documentado, no aplicado).
+- **Pagado a vendedores / comisiones por vendedor**: el concepto "vendedor" no existe en ninguna tabla, columna, rol ni documento del proyecto (`grep -ri "vendedor"` → 0 resultados en todo el repositorio). Crear esa entidad está fuera de alcance de este Sprint.
+- **Ingresos totales / Utilidad neta**: dependen de las anteriores (o de `trabajos.precio_sugerido`, que es el precio *sugerido por el coordinador al publicar*, no un monto confirmado/cobrado) -- confirmado con el usuario que no se muestra ninguna cifra aproximada bajo el rótulo de "ingresos".
+- **Cobros extra pendientes**: no existe tabla/columna de cargo adicional, estado de cobro ni monto pendiente en ninguna de las 9 tablas reales.
+
+**Decisiones de producto confirmadas con el usuario antes de implementar**: (1) el rango de fechas filtra por `trabajos.publicado_at` (timestamptz real, mismo campo que ya usa el KPI "Publicados hoy"), no por `trabajos.fecha` (texto, fecha programada de instalación); (2) alcance de esta ronda limitado exclusivamente a la capa operativa (conteos), sin ninguna cifra monetaria aproximada.
+
+**Repositorio**: `trabajos.repository.ts` (MODIFICADO) -- nuevo método `getByRangoPublicado({desde, hasta, tiendaId?})`, `.gte('publicado_at', ...).lte('publicado_at', ...)` + filtro opcional de tienda; no decide formato de fecha (recibe ISO ya resuelto por el servicio), mismo criterio que el resto del archivo.
+
+**Tipos** (`src/types/admin-dashboard-stats.ts`, NUEVO): `AdminDashboardStatsFilter`/`AdminDashboardResumen`/`TiendaStat`/`InstaladorStat`/`AdminDashboardStatsData`.
+
+**Servicio** (`src/services/admin-dashboard-stats.service.ts`, NUEVO): `getAdminDashboardStats(empresaId, filter)` -- 1 sola consulta a `trabajos` (rango + tienda opcional) + `tiendasRepository.getByEmpresaId()`/`instaladoresRepository.getByEmpresaId()` (ya existentes, sin cambios) vía `Promise.all`, sin duplicar consultas por tarjeta; transforma en memoria (resumen por estado, agrupación por tienda, agrupación por instalador -- solo instaladores con al menos 1 trabajo asignado en el rango).
+
+**UI** (`src/components/shared/admin-dashboard-stats.tsx`, NUEVO): filtros (Desde/Hasta vía `Input type="date"`, atajos "Últimos 7 días"/"Últimos 30 días"/"Este mes", `Select` de sucursal) + `StatGrid`/`StatTile` de resumen + 2 desgloses (`.mx-admintable`/`.mx-adminrow*`, mismas clases ya portadas para `AdminInstaladores`, sin CSS nuevo). Montado dentro de `admin-kpi-dashboard.tsx` (MODIFICADO, +import +1 línea de render) debajo del `StatGrid` de los 8 KPIs existentes -- **ningún KPI existente fue tocado, movido ni reemplazado**; no se agregó ninguna pestaña nueva a `AdminPanel`.
+
+**Validación de datos** (MCP, solo lectura): consulta real de `trabajos` de los últimos 30 días para la empresa de prueba confirma el resultado esperado de la lógica del servicio (3 trabajos, todos `'live'`, todos en tienda "Tumba Muerto", 0 con instalador asignado) -- coincide exactamente con lo que `calcularResumen`/`calcularPorSucursal`/`calcularPorInstalador` producirían.
+
+`typecheck`/`lint`/`build` limpios (mismos 3 warnings preexistentes, sin relación). Sin migraciones creadas ni aplicadas. Sin cambios de RLS. Sin `git push`/`merge`.
+
 ## [Sprint 9.3 — Gestión de Coordinadores] — 2026-08-20 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
 
 Continúa el módulo "Gestión de usuarios" (ver `ANALISIS_GESTION_USUARIOS.md`) cerrando la parte de Coordinadores que había quedado pendiente ("Sprint D") tras el Módulo CRUD de Administradores. Traslada al panel administrativo la gestión de coordinadores de tienda, replicando exactamente el patrón ya validado para Administradores -- misma Edge Function (`admin-operations`, sin crear una segunda), mismo mecanismo de invitación (`auth.admin.inviteUserByEmail()` + `redirectTo: ${APP_URL}/nueva-contrasena`), mismo rollback (`auth.admin.deleteUser()` si falla el `INSERT`).
