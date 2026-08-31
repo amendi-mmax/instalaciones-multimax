@@ -1,11 +1,13 @@
-import { Radio, Users } from 'lucide-react';
+import { CheckCircle2, Radio, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
 import { EmptyState } from '@/components/shared/empty-state';
-import { Loading } from '@/components/ui/spinner';
+import { Loading, Spinner } from '@/components/ui/spinner';
 import { useOperationalContext } from '@/hooks/useOperationalContext';
 import { instaladoresRepository, ofertasRepository } from '@/repositories';
+import { callAsignarInstalador } from '@/services/database.service';
 import type { TableRow } from '@/services/database.service';
 
 /**
@@ -42,9 +44,23 @@ import type { TableRow } from '@/services/database.service';
  * calidad del instalador") -- limitación conocida, documentada, no
  * silenciada.
  *
- * **Selección de ganador**: explícitamente fuera de alcance del Sprint 7.2
- * (brief: "selección del instalador ganador... queda explícitamente fuera
- * del Sprint"). Solo lectura.
+ * **Selección de ganador** (Ajustes funcionales del flujo Instalador):
+ * explícitamente fuera de alcance del Sprint 7.2 -- implementada acá por
+ * primera vez en todo el proyecto. Botón "Asignar" por oferta, invoca
+ * `callAsignarInstalador()` (RPC real `asignar_instalador`, ya existente
+ * desde Sprint 4.1.1B, nunca consumido por ningún componente hasta ahora
+ * -- confirmado por auditoría previa). Requiere las policies RLS nuevas de
+ * UPDATE sobre `trabajos`/`trabajo_instaladores` para `admins` (migración
+ * `0019` -- `coordinadores` ya tenía las suyas desde `0001`), para que
+ * tanto un Coordinador real como un Administrador en "Modo Coordinador"
+ * puedan ejecutar la asignación bajo su propia sesión (el RPC es
+ * `SECURITY INVOKER`, corre con los permisos reales de quien lo invoca).
+ * Tras una asignación exitosa, el estado local `asignadoId` deshabilita el
+ * resto de los botones de esta lista (ya no tiene sentido asignar dos
+ * veces el mismo trabajo) -- el `trabajo.estado` real pasa a `'assigned'`
+ * en la base de datos, visible de inmediato en "Mis trabajos" del
+ * instalador ganador en su próxima carga (vía `trabajos_para_instalador`,
+ * columna `gane_yo`, sin ningún cambio adicional necesario ahí).
  */
 const SORT_TABS = [
   ['precio', 'Precio'],
@@ -64,6 +80,9 @@ export function ResponsesPanel() {
   const [ofertas, setOfertas] = useState<OfertaRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [nombreById, setNombreById] = useState<Record<string, string>>({});
+  const [asignandoId, setAsignandoId] = useState<string | null>(null);
+  const [asignadoId, setAsignadoId] = useState<string | null>(null);
+  const [asignarError, setAsignarError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!trabajoId) {
@@ -73,6 +92,8 @@ export function ResponsesPanel() {
     }
     let active = true;
     setError(null);
+    setAsignadoId(null);
+    setAsignarError(null);
     ofertasRepository.getByTrabajoId(trabajoId).then((result) => {
       if (!active) return;
       if (result.ok) {
@@ -116,6 +137,23 @@ export function ResponsesPanel() {
       })
     : [];
 
+  const asignar = async (oferta: OfertaRow) => {
+    if (!trabajoId || asignandoId) return;
+    setAsignarError(null);
+    setAsignandoId(oferta.instalador_id);
+    const result = await callAsignarInstalador({
+      p_trabajo_id: trabajoId,
+      p_instalador_id: oferta.instalador_id,
+    });
+    setAsignandoId(null);
+
+    if (!result.ok) {
+      setAsignarError(result.error.message);
+      return;
+    }
+    setAsignadoId(oferta.instalador_id);
+  };
+
   return (
     <Card className="mx-feedcard">
       <CardHeader
@@ -155,6 +193,11 @@ export function ResponsesPanel() {
         />
       ) : (
         <div className="mx-myjobs">
+          {asignarError ? (
+            <p className="mx-sub" style={{ color: 'var(--red)' }}>
+              {asignarError}
+            </p>
+          ) : null}
           {ofertasOrdenadas.map((oferta) => (
             <div key={oferta.id} className="mx-myjob" style={{ cursor: 'default' }}>
               <div className="mx-myjob-top">
@@ -165,6 +208,21 @@ export function ResponsesPanel() {
                 <span>{oferta.dia} · {oferta.hora}</span>
                 {oferta.comentario ? <span>{oferta.comentario}</span> : null}
               </div>
+              {asignadoId === oferta.instalador_id ? (
+                <div className="mx-invite-ok" style={{ marginTop: 6 }}>
+                  <CheckCircle2 size={14} />
+                  <span>Instalador asignado a este trabajo.</span>
+                </div>
+              ) : (
+                <Button
+                  variant="ice"
+                  style={{ width: '100%', marginTop: 6 }}
+                  disabled={asignandoId !== null || asignadoId !== null}
+                  onClick={() => void asignar(oferta)}
+                >
+                  {asignandoId === oferta.instalador_id ? <Spinner size={16} /> : 'Asignar'}
+                </Button>
+              )}
             </div>
           ))}
         </div>

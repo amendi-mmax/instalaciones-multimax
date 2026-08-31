@@ -12,6 +12,15 @@ import type { ChangeEvent, ReactNode } from 'react';
  * PhoneFrame — este componente es puramente estructural, sin lógica de
  * negocio, tal como exige el alcance de esta fase.
  *
+ * `headerLabel` (Ajustes funcionales del flujo Instalador): reemplaza el
+ * literal fijo `"Multimax · Instalador"` que este componente tenía
+ * hardcodeado -- ese texto nunca reflejaba la empresa instaladora real del
+ * instalador autenticado (siempre el nombre del tenant, `"Multimax"`, sin
+ * relación con `instaladores.empresa_instaladora_id`, Sprint 8.4). Ahora
+ * quien use `PhoneFrame` decide el contenido exacto (mismo criterio que
+ * `tabs`/`children`) -- este componente sigue siendo puramente
+ * estructural, sin resolver ningún dato él mismo.
+ *
  * `disabled` (Estabilización del módulo Instalador, post Sprint 8.2): el
  * `.mx-mesel` original dejaba elegir entre varias identidades mock
  * (`INSTALLERS`, distintas "empresas instaladoras" de demostración) — un
@@ -31,6 +40,8 @@ export interface PhoneFrameOption {
 }
 
 export interface PhoneFrameProps {
+  /** Texto de `.mx-phone-bar`, antes del selector -- ver JSDoc de cabecera. */
+  headerLabel: ReactNode;
   /** Opciones del selector "quién soy" (`.mx-mesel`). */
   options: PhoneFrameOption[];
   selected: string;
@@ -44,6 +55,7 @@ export interface PhoneFrameProps {
 }
 
 export function PhoneFrame({
+  headerLabel,
   options,
   selected,
   onSelectedChange,
@@ -58,7 +70,7 @@ export function PhoneFrame({
     <div className="mx-phone">
       <div className="mx-phone-bar">
         <span className="mx-dot" />
-        Multimax · Instalador
+        {headerLabel}
         <select
           className="mx-mesel"
           value={selected}

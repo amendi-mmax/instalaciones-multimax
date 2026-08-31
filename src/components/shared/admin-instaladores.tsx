@@ -198,12 +198,27 @@ export function AdminInstaladores() {
     await loadInstaladores();
   };
 
-  const toggleSuspendido = async (installer: InstaladorRow) => {
+  /**
+   * Ajustes funcionales del flujo Instalador -- 3 acciones administrativas
+   * posibles, mutuamente excluyentes según el estado real del instalador
+   * (nunca ambas visibles a la vez):
+   * - `suspendido === true` -> "Activar" (`reactivateInstalador`, solo
+   *   toca `suspendido`).
+   * - `suspendido === false && activo === false` -> "Aprobar"
+   *   (`setInstaladorActivo({activo:true})`, solo toca `activo` -- el
+   *   único mecanismo real que puede sacar a un instalador recién invitado
+   *   de su estado inicial `activo:false`).
+   * - `suspendido === false && activo === true` -> "Suspender"
+   *   (`suspendInstalador`, solo toca `suspendido`).
+   */
+  const ejecutarAccion = async (installer: InstaladorRow) => {
     setError(null);
     setUpdatingId(installer.id);
     const result = installer.suspendido
       ? await adminOperationsService.reactivateInstalador({ instalador_id: installer.id })
-      : await adminOperationsService.suspendInstalador({ instalador_id: installer.id });
+      : !installer.activo
+        ? await adminOperationsService.setInstaladorActivo({ instalador_id: installer.id, activo: true })
+        : await adminOperationsService.suspendInstalador({ instalador_id: installer.id });
     setUpdatingId(null);
 
     if (!result.ok) {
@@ -233,12 +248,20 @@ export function AdminInstaladores() {
             ) : (
               instaladores.map((installer) => {
                 const suspendido = installer.suspendido;
-                const tone: BadgeTone = suspendido ? 'red' : !installer.documentos_ok ? 'amber' : 'green';
+                const pendienteAprobacion = !suspendido && !installer.activo;
+                const tone: BadgeTone = suspendido
+                  ? 'red'
+                  : pendienteAprobacion || !installer.documentos_ok
+                    ? 'amber'
+                    : 'green';
                 const label = suspendido
                   ? 'Suspendido'
-                  : !installer.documentos_ok
-                    ? 'Docs pendientes'
-                    : 'Activo';
+                  : pendienteAprobacion
+                    ? 'Pendiente de aprobación'
+                    : !installer.documentos_ok
+                      ? 'Docs pendientes'
+                      : 'Activo';
+                const accionLabel = suspendido ? 'Activar' : pendienteAprobacion ? 'Aprobar' : 'Suspender';
                 const isRowUpdating = updatingId === installer.id;
                 // Parte 5: nombre resuelto mediante la relación real
                 // (mapa id -> nombre del catálogo), nunca texto plano.
@@ -274,17 +297,11 @@ export function AdminInstaladores() {
                     </div>
                     <button
                       type="button"
-                      className={`mx-admin-act${suspendido ? '' : ' danger'}`}
+                      className={`mx-admin-act${accionLabel === 'Suspender' ? ' danger' : ''}`}
                       disabled={isRowUpdating}
-                      onClick={() => void toggleSuspendido(installer)}
+                      onClick={() => void ejecutarAccion(installer)}
                     >
-                      {isRowUpdating ? (
-                        <Spinner size={12} />
-                      ) : suspendido ? (
-                        'Reactivar'
-                      ) : (
-                        'Suspender'
-                      )}
+                      {isRowUpdating ? <Spinner size={12} /> : accionLabel}
                     </button>
                   </div>
                 );

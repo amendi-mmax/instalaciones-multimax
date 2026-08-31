@@ -16,17 +16,39 @@
  * definición (join contra `trabajo_instaladores`) -- `getAll()` no necesita
  * ningún filtro adicional de "instalador actual": RLS + la vista ya
  * garantizan que un instalador solo vea sus propias notificaciones.
+ *
+ * **Ajustes funcionales del flujo Instalador** (migración `0018`): la
+ * vista ahora también expone `oferta_enviada`/`mi_oferta_precio`/
+ * `mi_oferta_enviado_at` (LEFT JOIN contra `ofertas`, señal real de "¿este
+ * instalador ya ofertó?", independiente de `mi_estado`/`trabajo_instaladores`
+ * -- ver JSDoc de la migración para la causa raíz completa) y ya no
+ * excluye trabajos sin fila de notificación (INNER JOIN -> LEFT JOIN,
+ * visibilidad ampliada a todas las zonas, misma migración). `TableRow<T>`
+ * (`database.service.ts`) sigue sin cubrir `Views` -- se extiende acá el
+ * tipo generado con las 3 columnas nuevas, sin tocar
+ * `database.generated.ts` (archivo regenerado por el usuario vía Supabase
+ * CLI, no por este entorno -- ver `src/lib/supabase/config.ts`), hasta que
+ * se regenere y ya las incluya de forma nativa.
  */
 import type { Database } from '@/types/database.generated';
 
 import { getClient, toServiceResult, type ServiceResult } from '@/services/supabase.service';
 import { VIEWS } from '@/lib/supabase/config';
 
-export type TrabajoParaInstaladorRow = Database['public']['Views']['trabajos_para_instalador']['Row'];
+export type TrabajoParaInstaladorRow = Database['public']['Views']['trabajos_para_instalador']['Row'] & {
+  oferta_enviada: boolean;
+  mi_oferta_precio: number | null;
+  mi_oferta_enviado_at: string | null;
+};
 
+// Los `as unknown as ...` de abajo son exclusivamente por el desfase
+// documentado arriba (`database.generated.ts` todavía no regenerado con
+// las 3 columnas nuevas de la migración `0018`) -- la forma real que
+// devuelve Supabase en tiempo de ejecución sí las incluye (columnas reales
+// de la vista ya redefinida), no es un dato inventado ni un `any` real.
 async function getAll(): Promise<ServiceResult<TrabajoParaInstaladorRow[]>> {
   const query = getClient().from(VIEWS.trabajosParaInstalador).select('*');
-  return toServiceResult(query);
+  return toServiceResult(query) as unknown as Promise<ServiceResult<TrabajoParaInstaladorRow[]>>;
 }
 
 async function getByTrabajoId(
@@ -37,7 +59,7 @@ async function getByTrabajoId(
     .select('*')
     .eq('trabajo_id', trabajoId)
     .maybeSingle();
-  return toServiceResult(query);
+  return toServiceResult(query) as unknown as Promise<ServiceResult<TrabajoParaInstaladorRow | null>>;
 }
 
 export const trabajosParaInstaladorRepository = {

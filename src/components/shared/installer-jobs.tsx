@@ -1,5 +1,5 @@
 import { Briefcase, Calendar, MapPin } from 'lucide-react';
-import { Fragment, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Loading } from '@/components/ui/spinner';
@@ -8,45 +8,72 @@ import { trabajosParaInstaladorRepository, type TrabajoParaInstaladorRow } from 
 
 /**
  * InstallerJobs — Estabilización del módulo Instalador (post Sprint 8.2).
- * Reemplaza el mock estático `MISJOBS`/`ESTADO` (Sprint 3.12) por los
+ * Reemplazó el mock estático `MISJOBS`/`ESTADO` (Sprint 3.12) por los
  * trabajos reales del instalador autenticado.
  *
- * **Fuente de datos**: reutiliza `trabajosParaInstaladorRepository` (vista
- * real `trabajos_para_instalador`, ya filtrada por RLS a `auth.uid()` --
- * mismo repositorio que ya consume `InstallerSolicitudes`, Sprint 7.2). "Mis
- * trabajos" es el subconjunto de esa misma vista donde `gane_yo === true`
- * (columna real `t.instalador_asignado_id = auth.uid()`, ver definición de
- * la vista) -- es decir, los trabajos que este instalador efectivamente
- * ganó/tiene asignados, a diferencia de "Solicitudes" que muestra todas las
- * notificaciones sin filtrar por resultado. No se creó ningún repositorio ni
- * servicio nuevo -- misma fuente, filtro distinto.
+ * **Ajustes funcionales del flujo Instalador ("Mis trabajos" completo)**:
+ * hasta esta ronda, esta pantalla mostraba EXCLUSIVAMENTE `gane_yo ===
+ * true` (trabajos asignados/completados/cancelados) -- un trabajo donde el
+ * instalador ofertó pero todavía no fue decidido no aparecía en ningún
+ * lado de la aplicación. Se agrega la categoría real "Ofertados"
+ * (`oferta_enviada === true`, columna real nueva de la vista -- migración
+ * `0018` -- LEFT JOIN contra `ofertas`, independiente de si hubo o no una
+ * notificación previa por zona) y se reorganiza en 4 categorías con chips
+ * de filtro (mismo patrón visual `.mx-jobfilter` ya usado por
+ * `TrabajosPage.tsx`, Sprint 5.1, sin CSS nuevo):
+ * - **Ofertados**: `oferta_enviada && !gane_yo` -- oferta enviada, esperando
+ *   decisión (o el trabajo se asignó a otro instalador).
+ * - **Asignados**: `gane_yo && estado_trabajo === 'assigned'`.
+ * - **Completados**: `gane_yo && estado_trabajo === 'completed'`.
+ * - **Cancelados**: `(oferta_enviada || gane_yo) && estado_trabajo === 'cancelled'`
+ *   -- "trabajos relacionados con el instalador que fueron cancelados"
+ *   (brief textual), no cualquier trabajo cancelado visible.
  *
- * **Agrupación "Próximos"/"Historial"**: la vista expone `estado_trabajo`
- * (columna real `trabajos.estado`, valores confirmados vía MCP:
- * `'live'|'assigned'|'completed'|'cancelled'`, ver `trabajoEstadoInfo()` en
- * `@/constants`). Se agrupa en "Historial" únicamente `completed`/
- * `cancelled`; cualquier otro valor (incluido `live`, caso límite que en la
- * práctica no debería ocurrir con `gane_yo === true`, y cualquier valor
- * futuro no contemplado) cae en "Próximos" por seguridad -- nunca se oculta
- * un trabajo por un valor de estado inesperado.
+ * No confunde "ver" (cualquier trabajo `'live'` de la empresa, ahora
+ * visible en `InstallerSolicitudes`) con "participar" (ofertó y/o fue
+ * asignado) -- esta pantalla es exclusivamente participación real, mismo
+ * criterio que ya regía antes de este ajuste, ahora completo.
  *
- * Verificado vía MCP (2026-08-07): Producción no tiene todavía ningún
- * trabajo con `estado <> 'live'` -- esta pantalla no pudo validarse
- * visualmente con datos reales de "Historial"/"Asignado" por ausencia de
- * esos datos, no por un defecto de la consulta.
+ * **Fuente de datos**: misma `trabajosParaInstaladorRepository` (vista real
+ * `trabajos_para_instalador`) que ya consume `InstallerSolicitudes` -- sin
+ * repositorio/servicio nuevo.
+ *
+ * Verificado vía MCP (2026-08-07, previo a este ajuste): Producción no
+ * tenía todavía ningún trabajo con `estado <> 'live'` -- esta pantalla no
+ * pudo validarse visualmente con datos reales de "Asignado"/"Completado"/
+ * "Cancelado"/"Ofertado" por ausencia de esos datos, no por un defecto de
+ * la consulta.
  */
-type Grupo = 'Próximos' | 'Historial';
+type Categoria = 'ofertados' | 'asignados' | 'completados' | 'cancelados';
 
-const GRUPOS: readonly Grupo[] = ['Próximos', 'Historial'];
-const ESTADOS_HISTORIAL = new Set(['completed', 'cancelled']);
+const CATEGORIAS: readonly [Categoria, string][] = [
+  ['ofertados', 'Ofertados'],
+  ['asignados', 'Asignados'],
+  ['completados', 'Completados'],
+  ['cancelados', 'Cancelados'],
+];
 
-function grupoDeTrabajo(estadoTrabajo: string | null): Grupo {
-  return estadoTrabajo && ESTADOS_HISTORIAL.has(estadoTrabajo) ? 'Historial' : 'Próximos';
+const SIN_TRABAJOS: Record<Categoria, string> = {
+  ofertados: 'No tienes trabajos ofertados.',
+  asignados: 'No tienes trabajos asignados.',
+  completados: 'No tienes trabajos completados.',
+  cancelados: 'No tienes trabajos cancelados.',
+};
+
+function categoriaDeTrabajo(trabajo: TrabajoParaInstaladorRow): Categoria | null {
+  if (trabajo.gane_yo && trabajo.estado_trabajo === 'assigned') return 'asignados';
+  if (trabajo.gane_yo && trabajo.estado_trabajo === 'completed') return 'completados';
+  if ((trabajo.oferta_enviada || trabajo.gane_yo) && trabajo.estado_trabajo === 'cancelled') {
+    return 'cancelados';
+  }
+  if (trabajo.oferta_enviada && !trabajo.gane_yo) return 'ofertados';
+  return null;
 }
 
 export function InstallerJobs() {
   const [trabajos, setTrabajos] = useState<TrabajoParaInstaladorRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [categoria, setCategoria] = useState<Categoria>('ofertados');
 
   useEffect(() => {
     let active = true;
@@ -77,58 +104,72 @@ export function InstallerJobs() {
     return <Loading label="Cargando trabajos…" />;
   }
 
-  const misTrabajos = trabajos.filter((trabajo) => trabajo.gane_yo === true);
+  const misTrabajos = trabajos.filter((trabajo) => categoriaDeTrabajo(trabajo) !== null);
 
   if (misTrabajos.length === 0) {
     return (
       <div className="mx-phone-empty">
         <Briefcase size={26} />
-        <p>No tienes trabajos asignados.</p>
-        <span>Cuando aceptes un trabajo aparecerá aquí.</span>
+        <p>No tienes trabajos todavía.</p>
+        <span>Cuando ofertes o te asignen un trabajo aparecerá aquí.</span>
       </div>
     );
   }
 
+  const items = misTrabajos.filter((trabajo) => categoriaDeTrabajo(trabajo) === categoria);
+
   return (
     <div className="mx-myjobs">
-      {GRUPOS.map((grupo) => {
-        const items = misTrabajos.filter((trabajo) => grupoDeTrabajo(trabajo.estado_trabajo) === grupo);
-        if (items.length === 0) return null;
+      <div className="mx-phonehdr">
+        <Briefcase size={13} />
+        Mis trabajos
+      </div>
+      <div className="mx-jobfilter">
+        {CATEGORIAS.map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            className={categoria === key ? 'on' : ''}
+            onClick={() => setCategoria(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {items.length === 0 ? (
+        <div className="mx-phone-empty">
+          <Briefcase size={22} />
+          <p>{SIN_TRABAJOS[categoria]}</p>
+        </div>
+      ) : (
+        items.map((trabajo) => {
+          const estado = trabajoEstadoInfo(trabajo.estado_trabajo ?? '');
 
-        return (
-          <Fragment key={grupo}>
-            <div className="mx-phonehdr">
-              <Briefcase size={13} />
-              {grupo}
+          return (
+            <div key={trabajo.trabajo_id} className="mx-myjob">
+              <div className="mx-myjob-top">
+                <span className="mx-myjob-t">{trabajo.tipo}</span>
+                <Badge tone={estado.tone}>{estado.label}</Badge>
+              </div>
+              <div className="mx-myjob-meta">
+                <span>
+                  <MapPin size={12} />
+                  {trabajo.zona}
+                </span>
+                <span>
+                  <Calendar size={12} />
+                  {trabajo.fecha} · {trabajo.hora}
+                </span>
+                {(trabajo.mi_oferta_precio ?? trabajo.precio_sugerido) != null ? (
+                  <span className="mx-myjob-price">
+                    ${trabajo.mi_oferta_precio ?? trabajo.precio_sugerido}
+                  </span>
+                ) : null}
+              </div>
             </div>
-            {items.map((trabajo) => {
-              const estado = trabajoEstadoInfo(trabajo.estado_trabajo ?? '');
-
-              return (
-                <div key={trabajo.trabajo_id} className="mx-myjob">
-                  <div className="mx-myjob-top">
-                    <span className="mx-myjob-t">{trabajo.tipo}</span>
-                    <Badge tone={estado.tone}>{estado.label}</Badge>
-                  </div>
-                  <div className="mx-myjob-meta">
-                    <span>
-                      <MapPin size={12} />
-                      {trabajo.zona}
-                    </span>
-                    <span>
-                      <Calendar size={12} />
-                      {trabajo.fecha} · {trabajo.hora}
-                    </span>
-                    {trabajo.precio_sugerido != null ? (
-                      <span className="mx-myjob-price">${trabajo.precio_sugerido}</span>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
-          </Fragment>
-        );
-      })}
+          );
+        })
+      )}
     </div>
   );
 }

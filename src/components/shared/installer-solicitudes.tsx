@@ -11,6 +11,7 @@ import {
   trabajosParaInstaladorRepository,
   type TrabajoParaInstaladorRow,
 } from '@/repositories';
+import type { Perfil } from '@/types/perfil';
 
 /**
  * InstallerSolicitudes — Sprint 7.2 (continuación del Sprint 7.1). Reemplaza
@@ -40,11 +41,26 @@ import {
  * Sprint 8.2, ver `installer-dashboard.tsx`), sin ningún cambio necesario
  * en este archivo.
  *
+ * **Ajustes funcionales del flujo Instalador (visibilidad ampliada de
+ * zona)**: la vista (migración `0018`) ya no se limita a los trabajos
+ * donde el instalador fue notificado (empresa+provincia+zona) -- ahora
+ * incluye TODOS los trabajos `'live'` de su empresa, sin importar la
+ * zona. La zona del instalador (`profile.zona`, prop NUEVA de este
+ * componente) se usa exclusivamente como indicador/prioridad visual
+ * (`EN TU ZONA`/`OTRA ZONA`, nunca como filtro que oculte resultados) --
+ * los trabajos de la misma zona se ordenan primero, pero ambos grupos
+ * permiten ofertar exactamente igual (regla explícita del usuario: "la
+ * zona no debe utilizarse como filtro excluyente").
+ *
  * **Oferta única**: `submit_bid` ya garantiza una sola oferta por
  * instalador por trabajo (`ON CONFLICT ... DO NOTHING`, ver migración
- * `0006`); acá se refuerza en la UI ocultando el formulario cuando
- * `mi_estado !== 'notificado'` (ya respondió), para no ofrecer una acción
- * que el backend silenciosamente ignoraría.
+ * `0006`); acá se refuerza en la UI usando `oferta_enviada` (columna real
+ * nueva de la vista, LEFT JOIN contra `ofertas`) para decidir si mostrar
+ * el formulario -- **ya no `mi_estado !== 'notificado'`**: para un trabajo
+ * de otra zona (sin fila de notificación en `trabajo_instaladores`),
+ * `mi_estado` es siempre `null` aunque el instalador sí haya ofertado, lo
+ * que dejaba el badge/formulario en un estado incorrecto -- corregido acá,
+ * sin tocar `submit_bid`/`trabajo_instaladores`.
  */
 type Vista = { tipo: 'lista' } | { tipo: 'detalle'; trabajoId: string };
 
@@ -57,7 +73,11 @@ interface OfertaForm {
 
 const INITIAL_OFERTA_FORM: OfertaForm = { precio: '', dia: '', hora: '', comentario: '' };
 
-export function InstallerSolicitudes() {
+export interface InstallerSolicitudesProps {
+  profile: Perfil;
+}
+
+export function InstallerSolicitudes({ profile }: InstallerSolicitudesProps) {
   const [trabajos, setTrabajos] = useState<TrabajoParaInstaladorRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [vista, setVista] = useState<Vista>({ tipo: 'lista' });
@@ -106,8 +126,9 @@ export function InstallerSolicitudes() {
         </div>
       );
     }
+    const esMiZona = profile.zona != null && trabajo.zona === profile.zona;
     return (
-      <SolicitudDetalle trabajo={trabajo} onVolver={() => setVista({ tipo: 'lista' })} />
+      <SolicitudDetalle trabajo={trabajo} esMiZona={esMiZona} onVolver={() => setVista({ tipo: 'lista' })} />
     );
   }
 
@@ -115,61 +136,85 @@ export function InstallerSolicitudes() {
     return <InstallerSolicitudesEmptyState />;
   }
 
+  // Priorización visual (Ajustes funcionales del flujo Instalador): los
+  // trabajos de la misma zona del instalador se muestran primero -- no se
+  // oculta ni se excluye ningún trabajo de otra zona, solo cambia el
+  // orden. `esMiZona` se calcula acá, en memoria, sobre datos ya
+  // cargados -- no se persiste en Supabase (regla explícita del brief).
+  const trabajosOrdenados = [...trabajos].sort((a, b) => {
+    const aEsMiZona = a.zona === profile.zona ? 0 : 1;
+    const bEsMiZona = b.zona === profile.zona ? 0 : 1;
+    return aEsMiZona - bEsMiZona;
+  });
+
   return (
     <div className="mx-myjobs">
       <div className="mx-phonehdr">
         <Briefcase size={13} />
         Solicitudes
       </div>
-      {trabajos.map((trabajo) => (
-        <div
-          key={trabajo.trabajo_id}
-          className="mx-myjob"
-          role="button"
-          tabIndex={0}
-          style={{ cursor: 'pointer' }}
-          onClick={() => setVista({ tipo: 'detalle', trabajoId: trabajo.trabajo_id! })}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              setVista({ tipo: 'detalle', trabajoId: trabajo.trabajo_id! });
-            }
-          }}
-        >
-          <div className="mx-myjob-top">
-            <span className="mx-myjob-t">{trabajo.tipo}</span>
-            {trabajo.mi_estado === 'respondido' ? (
-              <Badge tone="green">Oferta enviada</Badge>
-            ) : (
-              <Badge tone="amber">Nueva solicitud</Badge>
-            )}
+      {trabajosOrdenados.map((trabajo) => {
+        const esMiZona = profile.zona != null && trabajo.zona === profile.zona;
+
+        return (
+          <div
+            key={trabajo.trabajo_id}
+            className="mx-myjob"
+            role="button"
+            tabIndex={0}
+            style={{ cursor: 'pointer' }}
+            onClick={() => setVista({ tipo: 'detalle', trabajoId: trabajo.trabajo_id! })}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                setVista({ tipo: 'detalle', trabajoId: trabajo.trabajo_id! });
+              }
+            }}
+          >
+            <div className="mx-myjob-top">
+              <span className="mx-myjob-t">{trabajo.tipo}</span>
+              {trabajo.oferta_enviada ? (
+                <Badge tone="green">Oferta enviada</Badge>
+              ) : (
+                <Badge tone="amber">Nueva solicitud</Badge>
+              )}
+            </div>
+            <div className="mx-myjob-meta">
+              <span>
+                <MapPin size={12} />
+                {trabajo.zona}
+              </span>
+              <Badge tone={esMiZona ? 'ice' : 'muted'}>{esMiZona ? 'EN TU ZONA' : 'OTRA ZONA'}</Badge>
+              <span>
+                <Calendar size={12} />
+                {trabajo.fecha} · {trabajo.hora}
+              </span>
+              {trabajo.precio_sugerido != null ? (
+                <span className="mx-myjob-price">${trabajo.precio_sugerido}</span>
+              ) : null}
+            </div>
           </div>
-          <div className="mx-myjob-meta">
-            <span>
-              <MapPin size={12} />
-              {trabajo.zona}
-            </span>
-            <span>
-              <Calendar size={12} />
-              {trabajo.fecha} · {trabajo.hora}
-            </span>
-            {trabajo.precio_sugerido != null ? (
-              <span className="mx-myjob-price">${trabajo.precio_sugerido}</span>
-            ) : null}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
 function SolicitudDetalle({
   trabajo,
+  esMiZona,
   onVolver,
 }: {
   trabajo: TrabajoParaInstaladorRow;
+  esMiZona: boolean;
   onVolver: () => void;
 }) {
-  const yaEnviada = trabajo.mi_estado !== 'notificado';
+  // Ajustes funcionales del flujo Instalador: `oferta_enviada` (columna
+  // real de la vista, existencia verificada en `ofertas`) en vez de
+  // `mi_estado !== 'notificado'` -- ver JSDoc de cabecera del archivo para
+  // la causa raíz completa (un trabajo de otra zona nunca tiene fila en
+  // `trabajo_instaladores`, así que `mi_estado` quedaba siempre `null`
+  // aunque la oferta sí se hubiera guardado).
+  const yaEnviada = trabajo.oferta_enviada;
 
   const [form, setForm] = useState<OfertaForm>(INITIAL_OFERTA_FORM);
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -229,6 +274,7 @@ function SolicitudDetalle({
             <MapPin size={12} />
             {trabajo.zona}, {trabajo.provincia}
           </span>
+          <Badge tone={esMiZona ? 'ice' : 'muted'}>{esMiZona ? 'EN TU ZONA' : 'OTRA ZONA'}</Badge>
           <span>
             <Calendar size={12} />
             {trabajo.fecha} · {trabajo.hora}

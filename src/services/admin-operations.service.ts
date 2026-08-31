@@ -46,6 +46,7 @@ import type {
   ReactivateInstaladorPayload,
   SetAdminActivoPayload,
   SetCoordinadorActivoPayload,
+  SetInstaladorActivoPayload,
   SuspendInstaladorPayload,
 } from '@/types/admin-operations';
 
@@ -67,6 +68,7 @@ async function invokeAdminOperation<T>(
     | 'invite_instalador'
     | 'suspend_instalador'
     | 'reactivate_instalador'
+    | 'set_instalador_activo'
     | 'invite_admin'
     | 'set_admin_activo'
     | 'list_coordinadores'
@@ -119,6 +121,18 @@ export async function reactivateInstalador(
   payload: ReactivateInstaladorPayload,
 ): Promise<ServiceResult<InstaladorRow>> {
   return invokeAdminOperation<InstaladorRow>('reactivate_instalador', payload);
+}
+
+/**
+ * Ajustes funcionales del flujo Instalador -- `set_instalador_activo`.
+ * Toca EXCLUSIVAMENTE `activo`, nunca `suspendido` -- distinto de
+ * `suspendInstalador`/`reactivateInstalador`. Es la acción de "Aprobar"
+ * en `AdminInstaladores`.
+ */
+export async function setInstaladorActivo(
+  payload: SetInstaladorActivoPayload,
+): Promise<ServiceResult<InstaladorRow>> {
+  return invokeAdminOperation<InstaladorRow>('set_instalador_activo', payload);
 }
 
 /**
@@ -180,6 +194,7 @@ export const adminOperationsService = {
   inviteInstalador,
   suspendInstalador,
   reactivateInstalador,
+  setInstaladorActivo,
   inviteAdmin,
   setAdminActivo,
   listCoordinadores,

@@ -9,6 +9,7 @@ import { MxPhoneTabs } from '@/components/shared/mx-phone-tabs';
 import { MxSubtabButton } from '@/components/shared/mx-subtab-button';
 import { PhoneFrame, type PhoneFrameOption } from '@/components/shared/phone-frame';
 import { TwoColumnLayout } from '@/components/shared/two-column-layout';
+import { useEmpresaInstaladoraNombre } from '@/hooks/useEmpresaInstaladoraNombre';
 import type { Perfil } from '@/types/perfil';
 
 /**
@@ -30,19 +31,33 @@ import type { Perfil } from '@/types/perfil';
  * deshabilitada (`disabled`, ver JSDoc de `phone-frame.tsx`) — visualmente
  * el mismo control, ya no editable.
  *
- * **Corrección posterior (pedida explícitamente por el usuario)**: la
- * primera versión de este ajuste mostraba `profile.empresaNombre` en esa
- * opción — resuelve al *tenant* real (`empresas`, p. ej. "Multimax"), NO a
- * una empresa instaladora (subcontratista) real, relación que todavía no
- * existe en el schema (la introducirá el Sprint 8.3). Mostrar el nombre del
- * tenant ahí era un valor real pero de la pregunta equivocada — se corrige a
- * la etiqueta fija "Pendiente de asignación" (mismo texto usado en
- * `installer-profile.tsx`), honesta mientras esa relación no exista.
+ * **Corrección posterior (pedida explícitamente por el usuario en su
+ * momento)**: la primera versión de este ajuste mostraba
+ * `profile.empresaNombre` en esa opción — resuelve al *tenant* real
+ * (`empresas`, p. ej. "Multimax"), NO a una empresa instaladora
+ * (subcontratista) real, relación que en ese momento todavía no existía en
+ * el schema (la introdujo el Sprint 8.3/8.4). Se corrigió entonces a la
+ * etiqueta fija "Pendiente de asignación".
  *
- * `InstallerProfile`/`InstallerSidebar` reciben datos derivados de ese mismo
- * `profile` en vez de `meInfo` (mock) — ver sus propios JSDoc para el detalle
- * de qué campos son reales y cuáles quedan como placeholder documentado por
- * ausencia estructural en el schema.
+ * **Ajustes funcionales del flujo Instalador**: esa relación
+ * (`instaladores.empresa_instaladora_id`) ya existe desde el Sprint 8.4 y
+ * ya se resuelve correctamente en `InstallerProfile` -- pero este
+ * encabezado nunca se actualizó para usarla, seguía mostrando el literal
+ * fijo `"Multimax · Instalador"` (hardcodeado dentro de `PhoneFrame`) y
+ * "Pendiente de asignación" siempre, sin importar si el instalador ya
+ * tenía empresa asignada. Corregido: `headerLabel` ahora usa el nombre
+ * real de la empresa instaladora (mismo hook `useEmpresaInstaladoraNombre`
+ * que ya usa `InstallerProfile`, sin duplicar la resolución), con
+ * `profile.empresaNombre` (el tenant real, "Multimax") como respaldo
+ * mientras no haya empresa instaladora asignada -- nunca un texto
+ * inventado. El selector (`empresaOptions`, sigue deshabilitado, con una
+ * única opción fija) ahora muestra la zona real del instalador en vez de
+ * repetir el mismo texto de "Pendiente de asignación".
+ *
+ * `InstallerProfile`/`InstallerSidebar`/`InstallerSolicitudes` reciben datos
+ * derivados de ese mismo `profile` en vez de `meInfo` (mock) — ver sus
+ * propios JSDoc para el detalle de qué campos son reales y cuáles quedan
+ * como placeholder documentado por ausencia estructural en el schema.
  */
 export interface InstallerDashboardProps {
   profile: Perfil;
@@ -51,7 +66,11 @@ export interface InstallerDashboardProps {
 export function InstallerDashboard({ profile }: InstallerDashboardProps) {
   const [instTab, setInstTab] = useState<'solicitudes' | 'trabajos' | 'perfil'>('solicitudes');
 
-  const empresaOptions: PhoneFrameOption[] = [{ value: profile.id, label: 'Pendiente de asignación' }];
+  const empresaInstaladoraNombre = useEmpresaInstaladoraNombre(profile.empresaInstaladoraId);
+  const headerLabel = `${empresaInstaladoraNombre ?? profile.empresaNombre ?? 'Multimax'} · Instalador`;
+  const empresaOptions: PhoneFrameOption[] = [
+    { value: profile.id, label: profile.zona ?? 'Sin zona asignada' },
+  ];
 
   const info = profile.instaladorInfo;
 
@@ -60,6 +79,7 @@ export function InstallerDashboard({ profile }: InstallerDashboardProps) {
       variant="phone"
       left={
         <PhoneFrame
+          headerLabel={headerLabel}
           options={empresaOptions}
           selected={profile.id}
           onSelectedChange={() => undefined}
@@ -90,7 +110,7 @@ export function InstallerDashboard({ profile }: InstallerDashboardProps) {
             </MxPhoneTabs>
           }
         >
-          {instTab === 'solicitudes' ? <InstallerSolicitudes /> : null}
+          {instTab === 'solicitudes' ? <InstallerSolicitudes profile={profile} /> : null}
           {instTab === 'trabajos' ? <InstallerJobs /> : null}
           {instTab === 'perfil' ? <InstallerProfile profile={profile} /> : null}
         </PhoneFrame>

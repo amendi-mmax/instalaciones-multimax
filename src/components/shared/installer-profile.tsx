@@ -1,9 +1,8 @@
 import { Building2, Calendar, Mail, MapPin, Phone, ShieldAlert, ShieldCheck, Store } from 'lucide-react';
-import { useEffect, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
+import { useEmpresaInstaladoraNombre } from '@/hooks/useEmpresaInstaladoraNombre';
 import { formatFecha } from '@/lib/perfil-format';
-import { callNombreEmpresaInstaladora } from '@/services/database.service';
 import type { Perfil } from '@/types/perfil';
 
 /**
@@ -31,14 +30,15 @@ import type { Perfil } from '@/types/perfil';
  * - **Empresa instaladora** (Sprint 8.4, "Registro de Instaladores
  *   utilizando Empresas Instaladoras reales"): `profile.empresaInstaladoraId`
  *   (FK real, migración `0010_instaladores_empresa_instaladora.sql`) es
- *   solo un `id` -- el NOMBRE se resuelve acá mismo, vía
- *   `callNombreEmpresaInstaladora()` (RPC `SECURITY DEFINER`, la misma
- *   migración), porque `empresas_instaladoras` tiene RLS admin-only
- *   (Sprint 8.3, sin cambios en este Sprint -- "NO modificar RLS" es
- *   regla explícita del brief) y un instalador autenticado no puede
- *   hacer `SELECT` directo sobre esa tabla. Si `empresaInstaladoraId` es
- *   `null` (instalador sin empresa asignada todavía) se muestra
- *   "Pendiente de asignación" sin llamar al RPC.
+ *   solo un `id` -- el NOMBRE se resuelve vía `useEmpresaInstaladoraNombre()`
+ *   (Ajustes funcionales del flujo Instalador -- extrae esta resolución,
+ *   antes local a este archivo, a un hook compartido con
+ *   `installer-dashboard.tsx`), que internamente sigue usando
+ *   `callNombreEmpresaInstaladora()` (RPC `SECURITY DEFINER`) porque
+ *   `empresas_instaladoras` tiene RLS admin-only (Sprint 8.3, sin cambios)
+ *   y un instalador autenticado no puede hacer `SELECT` directo sobre esa
+ *   tabla. Si `empresaInstaladoraId` es `null` se muestra "Pendiente de
+ *   asignación" sin llamar al RPC.
  * - **Avatar**: ninguna de las 3 tablas de perfil tiene columna
  *   `avatar`/`avatar_url` (confirmado desde Sprint 4.2.1) — se conserva el
  *   avatar de iniciales ya existente (`mx-profava`), que no es un dato mock,
@@ -86,24 +86,7 @@ export function InstallerProfile({ profile }: InstallerProfileProps) {
   const aceptacion = info?.aceptacion ?? null;
   const km = info?.km ?? null;
 
-  const [empresaInstaladoraNombre, setEmpresaInstaladoraNombre] = useState<string | null>(null);
-
-  useEffect(() => {
-    const id = profile.empresaInstaladoraId;
-    if (!id) {
-      setEmpresaInstaladoraNombre(null);
-      return;
-    }
-    let active = true;
-    callNombreEmpresaInstaladora({ p_empresa_instaladora_id: id }).then((result) => {
-      if (!active) return;
-      setEmpresaInstaladoraNombre(result.ok ? (result.data ?? null) : null);
-    });
-    return () => {
-      active = false;
-    };
-  }, [profile.empresaInstaladoraId]);
-
+  const empresaInstaladoraNombre = useEmpresaInstaladoraNombre(profile.empresaInstaladoraId);
   const empresaInstaladoraLabel = resolveEmpresaInstaladoraLabel(empresaInstaladoraNombre);
 
   return (
