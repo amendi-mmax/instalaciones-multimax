@@ -138,6 +138,29 @@ grant select on public.trabajos_para_instalador to authenticated;
 
 
 -- ============================================================
+-- 3. SECURITY_INVOKER — misma migración, misma transacción implícita
+-- ============================================================
+-- Sin esto, la vista (owner `postgres`, rolbypassrls=true) evalúa RLS
+-- como el owner, no como el usuario invocador -- la policy nueva de la
+-- sección 1 (y las demás de `trabajos`) NO se aplicarían al consultar a
+-- través de esta vista, dejando una ventana real de exposición
+-- cross-tenant/cross-estado (hallazgo de seguridad confirmado teórica y
+-- empíricamente -- ver `0021_trabajos_para_instalador_security_invoker.sql`
+-- para el detalle completo). Se agrega acá, en la MISMA migración que
+-- redefine la vista, para que Producción nunca pase por un estado
+-- intermedio "vista nueva sin security_invoker" -- `CREATE OR REPLACE
+-- VIEW` + `ALTER VIEW` se aplican atómicamente como un único lote (sin
+-- `BEGIN`/`COMMIT` explícitos, PostgreSQL trata el lote completo como una
+-- transacción implícita: si cualquier sentencia fallara, nada de esta
+-- migración quedaría aplicado). `0021` se conserva como migración de
+-- reafirmación idempotente (mismo `ALTER VIEW`, sin efecto si ya está en
+-- `true`) -- no se elimina, por trazabilidad del hallazgo de seguridad
+-- como pieza auditada independientemente.
+ALTER VIEW public.trabajos_para_instalador
+    SET (security_invoker = true);
+
+
+-- ============================================================
 -- VALIDACIÓN (ejecutar después de aplicar)
 -- ============================================================
 -- select policyname, cmd, roles, qual
@@ -161,8 +184,10 @@ grant select on public.trabajos_para_instalador to authenticated;
 
 
 -- ============================================================
--- ROLLBACK
+-- ROLLBACK (orden inverso exacto de aplicación)
 -- ============================================================
+-- ALTER VIEW public.trabajos_para_instalador RESET (security_invoker);
+--
 -- DROP POLICY IF EXISTS "instaladores ven trabajos live de su empresa" ON public.trabajos;
 --
 -- create or replace view public.trabajos_para_instalador as
