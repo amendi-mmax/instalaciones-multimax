@@ -121,6 +121,19 @@ interface SetInstaladorActivoPayload {
 }
 
 /**
+ * Ajustes finales del flujo Instalador -- `set_instalador_documentos_ok`
+ * toca EXCLUSIVAMENTE `documentos_ok`, nunca `activo`/`suspendido`. Antes de
+ * esta acción, `documentos_ok` era escrito una sola vez (`invite_instalador`,
+ * siempre `false`) y solo LEÍDO desde la UI administrativa (badge "Docs
+ * pendientes", `AdminInstaladores`) -- no existía ningún mecanismo real para
+ * marcarlo como aprobado. Mismo molde exacto que `set_instalador_activo`.
+ */
+interface SetInstaladorDocumentosOkPayload {
+  instalador_id: string;
+  documentos_ok: boolean;
+}
+
+/**
  * Sprint B (Gestión de Administradores y Coordinadores, backend) -- ver
  * ANALISIS_GESTION_USUARIOS.md, sección "CIERRE ARQUITECTÓNICO", C6, para
  * el análisis completo. `empresa_id`/`es_principal`/`activo`/`rol` NUNCA se
@@ -174,6 +187,7 @@ type ActionRequest =
   | { action: 'suspend_instalador'; payload: SuspendReactivateInstaladorPayload }
   | { action: 'reactivate_instalador'; payload: SuspendReactivateInstaladorPayload }
   | { action: 'set_instalador_activo'; payload: SetInstaladorActivoPayload }
+  | { action: 'set_instalador_documentos_ok'; payload: SetInstaladorDocumentosOkPayload }
   | { action: 'invite_admin'; payload: InviteAdminPayload }
   | { action: 'set_admin_activo'; payload: SetAdminActivoPayload }
   | { action: 'invite_coordinador'; payload: InviteCoordinadorPayload }
@@ -511,6 +525,62 @@ async function setInstaladorActivo(
   const { data: updated, error: updateError } = await serviceRoleClient
     .from('instaladores')
     .update({ activo: payload.activo })
+    .eq('id', instaladorId)
+    .select()
+    .single();
+
+  if (updateError) {
+    return jsonResponse({ ok: false, error: { message: updateError.message } }, 500);
+  }
+
+  return jsonResponse({ ok: true, data: updated }, 200);
+}
+
+/**
+ * `set_instalador_documentos_ok` — Ajustes finales del flujo Instalador
+ * ("Aprobación de documentos"). Mismo molde exacto que
+ * `setInstaladorActivo()`: gate `admin.activo`, valida pertenencia a la
+ * empresa del caller, actualiza EXCLUSIVAMENTE `documentos_ok`.
+ */
+async function setInstaladorDocumentosOk(
+  serviceRoleClient: ReturnType<typeof createClient>,
+  admin: AdminRow,
+  payload: SetInstaladorDocumentosOkPayload,
+): Promise<Response> {
+  if (!admin.activo) {
+    return jsonResponse(
+      { ok: false, error: { message: 'Tu cuenta de administrador no está activa.' } },
+      403,
+    );
+  }
+
+  const instaladorId = payload.instalador_id;
+  if (!instaladorId) {
+    return jsonResponse({ ok: false, error: { message: 'instalador_id es obligatorio.' } }, 400);
+  }
+  if (typeof payload.documentos_ok !== 'boolean') {
+    return jsonResponse({ ok: false, error: { message: 'documentos_ok debe ser un valor booleano.' } }, 400);
+  }
+
+  const { data: existing, error: fetchError } = await serviceRoleClient
+    .from('instaladores')
+    .select('id, empresa_id')
+    .eq('id', instaladorId)
+    .maybeSingle();
+
+  if (fetchError || !existing) {
+    return jsonResponse({ ok: false, error: { message: 'Instalador no encontrado.' } }, 404);
+  }
+  if (existing.empresa_id !== admin.empresa_id) {
+    return jsonResponse(
+      { ok: false, error: { message: 'Este instalador no pertenece a tu empresa.' } },
+      403,
+    );
+  }
+
+  const { data: updated, error: updateError } = await serviceRoleClient
+    .from('instaladores')
+    .update({ documentos_ok: payload.documentos_ok })
     .eq('id', instaladorId)
     .select()
     .single();
@@ -1000,6 +1070,8 @@ Deno.serve(async (req: Request) => {
       return setSuspendido(serviceRoleClient, admin, body.payload, false);
     case 'set_instalador_activo':
       return setInstaladorActivo(serviceRoleClient, admin, body.payload);
+    case 'set_instalador_documentos_ok':
+      return setInstaladorDocumentosOk(serviceRoleClient, admin, body.payload);
     case 'invite_admin':
       return inviteAdmin(serviceRoleClient, admin, body.payload);
     case 'set_admin_activo':

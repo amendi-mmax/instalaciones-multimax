@@ -115,6 +115,57 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserId]);
 
+  /**
+   * Ajustes finales del flujo Instalador — CASO C ("Administrador aprueba
+   * documentos mientras el instalador tiene la sesión abierta"). Sin esto,
+   * `profile` solo se re-resuelve cuando cambia `currentUserId` (arriba) —
+   * un instalador con la pestaña abierta nunca se enteraría de una
+   * aprobación real hecha por un Admin en otra sesión hasta cerrar sesión o
+   * recargar manualmente.
+   *
+   * Por instrucción explícita del usuario ("No crear una infraestructura
+   * realtime nueva solamente para este cambio si actualmente no existe"):
+   * NO se agrega una suscripción de Supabase Realtime (`useRealtime()` ya
+   * existe como infraestructura genérica, pero conectarla exigiría además
+   * habilitar `instaladores` en la publicación `supabase_realtime` — un
+   * cambio de base de datos fuera del alcance mínimo de este ajuste). En su
+   * lugar, se reutiliza el mismo mecanismo ya existente (`resolveProfile()`,
+   * el único camino real para obtener el perfil) y se vuelve a invocar
+   * cuando la pestaña recupera el foco/visibilidad — patrón estándar de
+   * revalidación, sin canales/websockets/migraciones nuevas. Cubre el caso
+   * real más común (el instalador vuelve a la pestaña después de que el
+   * Admin aprobó sus documentos) sin push instantáneo entre pestañas
+   * simultáneas — limitación documentada, no silenciada.
+   */
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const revalidate = () => {
+      if (document.visibilityState !== 'visible') return;
+      resolveProfile(currentUserId, session?.user?.email ?? null).then((result) => {
+        if (result.ok) {
+          setProfileState({ userId: currentUserId, profile: result.data });
+        }
+        // Un error de red/Supabase en la revalidación no debe cerrar la
+        // sesión ni borrar un `profile` ya cargado -- se ignora en
+        // silencio, igual que un refresh de token fallido no afecta la
+        // sesión ya establecida.
+      });
+    };
+
+    window.addEventListener('focus', revalidate);
+    document.addEventListener('visibilitychange', revalidate);
+    return () => {
+      window.removeEventListener('focus', revalidate);
+      document.removeEventListener('visibilitychange', revalidate);
+    };
+    // Mismo criterio que el efecto de arriba: solo debe reengancharse por
+    // cambio de usuario, no por cada nuevo objeto `session` (refresh de
+    // token) -- `session` se lee dentro de `revalidate` vía closure, sin
+    // necesidad de recrear el listener por eso.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId]);
+
   const login = useCallback(async (params: SignInWithPasswordParams): Promise<AuthActionResult> => {
     const result = await signInWithPassword(params);
     if (!result.ok) {

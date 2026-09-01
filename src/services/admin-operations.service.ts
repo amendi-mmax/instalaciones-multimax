@@ -47,6 +47,7 @@ import type {
   SetAdminActivoPayload,
   SetCoordinadorActivoPayload,
   SetInstaladorActivoPayload,
+  SetInstaladorDocumentosOkPayload,
   SuspendInstaladorPayload,
 } from '@/types/admin-operations';
 
@@ -69,6 +70,7 @@ async function invokeAdminOperation<T>(
     | 'suspend_instalador'
     | 'reactivate_instalador'
     | 'set_instalador_activo'
+    | 'set_instalador_documentos_ok'
     | 'invite_admin'
     | 'set_admin_activo'
     | 'list_coordinadores'
@@ -136,6 +138,17 @@ export async function setInstaladorActivo(
 }
 
 /**
+ * Ajustes finales del flujo Instalador -- `set_instalador_documentos_ok`.
+ * Toca EXCLUSIVAMENTE `documentos_ok` -- es la acción del checkbox
+ * "Documentos verificados" en `AdminInstaladores`.
+ */
+export async function setInstaladorDocumentosOk(
+  payload: SetInstaladorDocumentosOkPayload,
+): Promise<ServiceResult<InstaladorRow>> {
+  return invokeAdminOperation<InstaladorRow>('set_instalador_documentos_ok', payload);
+}
+
+/**
  * Sprint B -- `invite_admin`, ya desplegada (Edge Function versión 7).
  * Mismo criterio que `inviteInstalador`: el caller nunca controla
  * `empresa_id`/`es_principal`/`activo` (ver JSDoc de `InviteAdminPayload`) --
@@ -195,6 +208,7 @@ export const adminOperationsService = {
   suspendInstalador,
   reactivateInstalador,
   setInstaladorActivo,
+  setInstaladorDocumentosOk,
   inviteAdmin,
   setAdminActivo,
   listCoordinadores,

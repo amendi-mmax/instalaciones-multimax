@@ -1,12 +1,13 @@
 import { CheckCircle2, Radio, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
 import { EmptyState } from '@/components/shared/empty-state';
 import { Loading, Spinner } from '@/components/ui/spinner';
 import { useOperationalContext } from '@/hooks/useOperationalContext';
-import { instaladoresRepository, ofertasRepository } from '@/repositories';
+import { empresasInstaladorasRepository, instaladoresRepository, ofertasRepository } from '@/repositories';
 import { callAsignarInstalador } from '@/services/database.service';
 import type { TableRow } from '@/services/database.service';
 
@@ -61,6 +62,22 @@ import type { TableRow } from '@/services/database.service';
  * en la base de datos, visible de inmediato en "Mis trabajos" del
  * instalador ganador en su próxima carga (vía `trabajos_para_instalador`,
  * columna `gane_yo`, sin ningún cambio adicional necesario ahí).
+ *
+ * **Ajustes finales del flujo Instalador**: hasta esta ronda, este panel
+ * solo podía mostrar ofertas del `activeJob` en memoria de
+ * `OperationalContextProvider` -- un Admin/Coordinador que recargaba la
+ * página o entraba a un trabajo `live` distinto desde "Mis trabajos"
+ * (`TrabajoDetailPage.tsx`) no tenía forma de ver sus ofertas reales
+ * (seguían existiendo en `ofertas`, solo dejaban de ser visibles). Se
+ * agrega el prop opcional `trabajoId`: si se recibe, tiene prioridad sobre
+ * `activeJob?.trabajoId` -- `DespachoPage.tsx` sigue invocando
+ * `<ResponsesPanel />` sin props, cero cambio de comportamiento ahí.
+ * `TrabajoDetailPage.tsx` pasa el `id` real del trabajo consultado.
+ *
+ * También se agrega "Empresa instaladora" por oferta (pedido explícito del
+ * ajuste) -- mismo patrón ya usado en `AdminInstaladores`
+ * (`empresasInstaladorasRepository.listar(empresaId)` + mapa id -> nombre),
+ * sin duplicar esa lógica: una sola consulta adicional, no N+1.
  */
 const SORT_TABS = [
   ['precio', 'Precio'],
@@ -72,14 +89,20 @@ const SORT_TABS = [
 type SortBy = (typeof SORT_TABS)[number][0];
 type OfertaRow = TableRow<'ofertas'>;
 
-export function ResponsesPanel() {
+export interface ResponsesPanelProps {
+  /** Si se omite, usa `activeJob?.trabajoId` (comportamiento histórico). */
+  trabajoId?: string;
+}
+
+export function ResponsesPanel({ trabajoId: trabajoIdProp }: ResponsesPanelProps = {}) {
   const { activeJob, empresaId } = useOperationalContext();
-  const trabajoId = activeJob?.trabajoId;
+  const trabajoId = trabajoIdProp ?? activeJob?.trabajoId;
 
   const [sortBy, setSortBy] = useState<SortBy>('precio');
   const [ofertas, setOfertas] = useState<OfertaRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [nombreById, setNombreById] = useState<Record<string, string>>({});
+  const [empresaInstaladoraById, setEmpresaInstaladoraById] = useState<Record<string, string>>({});
   const [asignandoId, setAsignandoId] = useState<string | null>(null);
   const [asignadoId, setAsignadoId] = useState<string | null>(null);
   const [asignarError, setAsignarError] = useState<string | null>(null);
@@ -110,14 +133,30 @@ export function ResponsesPanel() {
   useEffect(() => {
     if (!empresaId) return;
     let active = true;
-    instaladoresRepository.getByEmpresaId(empresaId).then((result) => {
+    Promise.all([
+      instaladoresRepository.getByEmpresaId(empresaId),
+      empresasInstaladorasRepository.listar(empresaId),
+    ]).then(([instaladoresResult, empresasResult]) => {
       if (!active) return;
-      if (result.ok) {
-        const map: Record<string, string> = {};
-        for (const instalador of result.data) {
-          map[instalador.id] = instalador.nombre;
+
+      const nombresEmpresasInstaladoras: Record<string, string> = {};
+      if (empresasResult.ok) {
+        for (const empresa of empresasResult.data) {
+          nombresEmpresasInstaladoras[empresa.id] = empresa.nombre;
         }
-        setNombreById(map);
+      }
+
+      if (instaladoresResult.ok) {
+        const nombres: Record<string, string> = {};
+        const empresasPorInstalador: Record<string, string> = {};
+        for (const instalador of instaladoresResult.data) {
+          nombres[instalador.id] = instalador.nombre;
+          empresasPorInstalador[instalador.id] = instalador.empresa_instaladora_id
+            ? (nombresEmpresasInstaladoras[instalador.empresa_instaladora_id] ?? 'Pendiente de asignación')
+            : 'Pendiente de asignación';
+        }
+        setNombreById(nombres);
+        setEmpresaInstaladoraById(empresasPorInstalador);
       }
     });
     return () => {
@@ -205,8 +244,12 @@ export function ResponsesPanel() {
                 <span className="mx-myjob-price">${oferta.precio}</span>
               </div>
               <div className="mx-myjob-meta">
+                <span>{empresaInstaladoraById[oferta.instalador_id] ?? 'Pendiente de asignación'}</span>
                 <span>{oferta.dia} · {oferta.hora}</span>
                 {oferta.comentario ? <span>{oferta.comentario}</span> : null}
+              </div>
+              <div style={{ marginTop: 4 }}>
+                <Badge tone="ice">Oferta enviada</Badge>
               </div>
               {asignadoId === oferta.instalador_id ? (
                 <div className="mx-invite-ok" style={{ marginTop: 6 }}>

@@ -91,6 +91,7 @@ export function AdminInstaladores() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [updatingDocsId, setUpdatingDocsId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [empresasInstaladoras, setEmpresasInstaladoras] = useState<EmpresaInstaladoraRow[] | null>(null);
@@ -229,6 +230,31 @@ export function AdminInstaladores() {
     await loadInstaladores();
   };
 
+  /**
+   * Ajustes finales del flujo Instalador -- "Aprobación de documentos".
+   * Antes no existía ninguna acción para esto (`documentos_ok` solo se leía,
+   * nunca se escribía después de la invitación) -- mismo criterio de
+   * `ejecutarAccion()`: recarga la lista completa tras el `UPDATE`, en vez
+   * de mutar el estado local a mano, para mantener una única fuente de
+   * verdad (Supabase).
+   */
+  const toggleDocumentosOk = async (installer: InstaladorRow) => {
+    setError(null);
+    setUpdatingDocsId(installer.id);
+    const result = await adminOperationsService.setInstaladorDocumentosOk({
+      instalador_id: installer.id,
+      documentos_ok: !installer.documentos_ok,
+    });
+    setUpdatingDocsId(null);
+
+    if (!result.ok) {
+      setError(result.error.message);
+      return;
+    }
+
+    await loadInstaladores();
+  };
+
   return (
     <PageContainer>
       <PageHead
@@ -294,6 +320,33 @@ export function AdminInstaladores() {
                           {installer.cumplimiento ?? 0}% cumpl.
                         </span>
                       </div>
+                      {/* Ajustes finales del flujo Instalador -- checkbox
+                          administrativo para "Aprobación de documentos".
+                          Antes solo existía el badge de lectura ("Docs
+                          pendientes"/arriba) -- este control es la acción
+                          real que faltaba. Independiente de
+                          Aprobar/Suspender/Activar (columnas distintas:
+                          `documentos_ok` vs. `activo`/`suspendido`). */}
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          marginTop: 6,
+                          fontSize: 11.5,
+                          color: 'var(--muted)',
+                          cursor: updatingDocsId === installer.id ? 'default' : 'pointer',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={installer.documentos_ok}
+                          disabled={updatingDocsId === installer.id}
+                          onChange={() => void toggleDocumentosOk(installer)}
+                        />
+                        {updatingDocsId === installer.id ? <Spinner size={11} /> : null}
+                        Documentos verificados
+                      </label>
                     </div>
                     <button
                       type="button"

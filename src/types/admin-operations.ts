@@ -50,6 +50,16 @@ export interface SetInstaladorActivoPayload {
 }
 
 /**
+ * Ajustes finales del flujo Instalador -- espejo exacto de
+ * `SetInstaladorDocumentosOkPayload` en la Edge Function. Toca
+ * EXCLUSIVAMENTE `documentos_ok` -- distinto de `SetInstaladorActivoPayload`.
+ */
+export interface SetInstaladorDocumentosOkPayload {
+  instalador_id: string;
+  documentos_ok: boolean;
+}
+
+/**
  * Sprint B -- espejo exacto de `InviteAdminPayload` en la Edge Function
  * (`admin-operations/index.ts`). `empresa_id`/`es_principal`/`activo`/`rol`
  * NUNCA viajan acá -- la función los fuerza server-side (ver su propio

@@ -1,6 +1,7 @@
-import { Bell, Briefcase, User } from 'lucide-react';
+import { Bell, Briefcase, Building2, User } from 'lucide-react';
 import { useState } from 'react';
 
+import { Badge } from '@/components/ui/badge';
 import { InstallerJobs } from '@/components/shared/installer-jobs';
 import { InstallerProfile } from '@/components/shared/installer-profile';
 import { InstallerSidebar } from '@/components/shared/installer-sidebar';
@@ -58,6 +59,20 @@ import type { Perfil } from '@/types/perfil';
  * derivados de ese mismo `profile` en vez de `meInfo` (mock) — ver sus
  * propios JSDoc para el detalle de qué campos son reales y cuáles quedan
  * como placeholder documentado por ausencia estructural en el schema.
+ *
+ * **Ajustes finales del flujo Instalador — cabecera del portal**: se
+ * reemplaza el `headerLabel` de una sola línea ("Empresa · Instalador") por
+ * un bloque de 2 líneas (empresa como elemento principal, "Instalador"
+ * como subtítulo) + badge de estado a la derecha (`Badge tone="green"`,
+ * mismo componente ya usado en `AdminInstaladores`/`TrabajoDetailPage`, sin
+ * introducir ningún primitivo visual nuevo). Se compone enteramente acá,
+ * como contenido de `headerLabel` (`ReactNode`, ya lo admitía) -- NO se
+ * toca `phone-frame.tsx`: su estructura (`.mx-phone-bar`/`.mx-dot`/
+ * `.mx-mesel`) permanece exactamente igual, incluida la información de
+ * zona/badges "EN TU ZONA"/"OTRA ZONA" dentro de `InstallerSolicitudes`
+ * (sin relación con este cambio, no se toca). `profile.estado` ya modela
+ * "Activo" (ver `estadoDesdeFlags()`, `profile.service.ts`) -- se reutiliza
+ * ese mismo valor, no se inventa un estado nuevo.
  */
 export interface InstallerDashboardProps {
   profile: Perfil;
@@ -67,7 +82,31 @@ export function InstallerDashboard({ profile }: InstallerDashboardProps) {
   const [instTab, setInstTab] = useState<'solicitudes' | 'trabajos' | 'perfil'>('solicitudes');
 
   const empresaInstaladoraNombre = useEmpresaInstaladoraNombre(profile.empresaInstaladoraId);
-  const headerLabel = `${empresaInstaladoraNombre ?? profile.empresaNombre ?? 'Multimax'} · Instalador`;
+  const nombreEmpresaMostrado = empresaInstaladoraNombre ?? profile.empresaNombre ?? 'Multimax';
+  const headerLabel = (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+      <Building2 size={16} style={{ flexShrink: 0, color: 'var(--ice)' }} />
+      <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <span
+          style={{
+            fontSize: 13.5,
+            fontWeight: 700,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {nombreEmpresaMostrado}
+        </span>
+        <span style={{ fontSize: 10.5, fontWeight: 500, color: 'var(--muted)' }}>Instalador</span>
+      </span>
+      {profile.estado === 'activo' ? (
+        <Badge tone="green" style={{ marginLeft: 'auto', flexShrink: 0 }}>
+          ● Activo
+        </Badge>
+      ) : null}
+    </span>
+  );
   const empresaOptions: PhoneFrameOption[] = [
     { value: profile.id, label: profile.zona ?? 'Sin zona asignada' },
   ];

@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { ResponsesPanel } from '@/components/shared/responses-panel';
 import { Loading } from '@/components/ui/spinner';
 import { trabajoEstadoInfo } from '@/constants';
 import { instaladoresRepository } from '@/repositories';
@@ -30,6 +31,16 @@ import { getTrabajoDetalle, type TableRow } from '@/services';
  *   criterio ya establecido en `HeaderUserMenu` (Sprint 4.2.1) para ítems
  *   de menú sin implementación real todavía: visibles para fidelidad
  *   visual, pero sin fingir una funcionalidad que no existe.
+ *
+ * **Ajustes finales del flujo Instalador**: se agrega `ResponsesPanel`
+ * (mismo componente ya usado por `DespachoPage.tsx`, sin duplicar su
+ * lógica) cuando `trabajo.estado === 'live'` -- es el único lugar donde un
+ * Admin/Coordinador puede ver las ofertas reales de CUALQUIER trabajo
+ * abierto de su tienda/empresa, no solo del `activeJob` efímero de
+ * "Despacho en vivo" (que se pierde al recargar la página o al navegar
+ * fuera de esa sesión de publicación). Para `assigned`/`completed`/
+ * `cancelled` no tiene sentido seguir aceptando/mostrando ofertas nuevas --
+ * el timeline de "Seguimiento" (abajo) ya cubre ese estado.
  */
 export function TrabajoDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -204,6 +215,12 @@ export function TrabajoDetailPage() {
             ))}
           </div>
         </Card>
+
+        {trabajo.estado === 'live' ? (
+          <div style={{ gridColumn: '1 / -1' }}>
+            <ResponsesPanel trabajoId={trabajo.id} />
+          </div>
+        ) : null}
       </div>
     </div>
   );
