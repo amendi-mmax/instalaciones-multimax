@@ -92,9 +92,18 @@ type OfertaRow = TableRow<'ofertas'>;
 export interface ResponsesPanelProps {
   /** Si se omite, usa `activeJob?.trabajoId` (comportamiento histórico). */
   trabajoId?: string;
+  /**
+   * Evolución de Despacho en vivo — se invoca justo después de una
+   * asignación exitosa (mismo punto donde ya se hace `setAsignadoId`), para
+   * que el contenedor (`DespachoPage.tsx`) pueda refrescar su lista de
+   * trabajos `live` (el trabajo recién asignado deja de ser `live`). No
+   * reemplaza ni modifica el comportamiento ya existente de ocultar el
+   * botón "Asignar" (`asignadoId`) -- es un aviso adicional, opcional.
+   */
+  onAsignado?: () => void;
 }
 
-export function ResponsesPanel({ trabajoId: trabajoIdProp }: ResponsesPanelProps = {}) {
+export function ResponsesPanel({ trabajoId: trabajoIdProp, onAsignado }: ResponsesPanelProps = {}) {
   const { activeJob, empresaId } = useOperationalContext();
   const trabajoId = trabajoIdProp ?? activeJob?.trabajoId;
 
@@ -191,6 +200,7 @@ export function ResponsesPanel({ trabajoId: trabajoIdProp }: ResponsesPanelProps
       return;
     }
     setAsignadoId(oferta.instalador_id);
+    onAsignado?.();
   };
 
   return (
@@ -213,6 +223,17 @@ export function ResponsesPanel({ trabajoId: trabajoIdProp }: ResponsesPanelProps
           </div>
         }
       />
+      {/* Evolución de Despacho en vivo -- indicador "N ofertas recibidas"
+          pedido explícitamente, mismo dato ya disponible (`ofertasOrdenadas.
+          length`), sin consulta adicional. Solo se muestra cuando hay un
+          trabajo real consultado y al menos una oferta -- para 0 ofertas ya
+          existe el EmptyState de abajo, no hace falta repetirlo acá. */}
+      {trabajoId && ofertasOrdenadas.length > 0 ? (
+        <p className="mx-sub" style={{ marginBottom: 8 }}>
+          {ofertasOrdenadas.length} oferta{ofertasOrdenadas.length === 1 ? '' : 's'} recibida
+          {ofertasOrdenadas.length === 1 ? '' : 's'}
+        </p>
+      ) : null}
       {trabajoId && error ? (
         <p className="mx-sub" style={{ color: 'var(--red)' }}>
           {error}

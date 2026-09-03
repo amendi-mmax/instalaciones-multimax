@@ -1,9 +1,10 @@
 import { Bell, Briefcase, Building2, User } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { InstallerJobs } from '@/components/shared/installer-jobs';
 import { InstallerProfile } from '@/components/shared/installer-profile';
+import { InstallerResumenStrip } from '@/components/shared/installer-resumen-strip';
 import { InstallerSidebar } from '@/components/shared/installer-sidebar';
 import { InstallerSolicitudes } from '@/components/shared/installer-solicitudes';
 import { MxPhoneTabs } from '@/components/shared/mx-phone-tabs';
@@ -11,6 +12,8 @@ import { MxSubtabButton } from '@/components/shared/mx-subtab-button';
 import { PhoneFrame, type PhoneFrameOption } from '@/components/shared/phone-frame';
 import { TwoColumnLayout } from '@/components/shared/two-column-layout';
 import { useEmpresaInstaladoraNombre } from '@/hooks/useEmpresaInstaladoraNombre';
+import { categoriaDeTrabajo } from '@/lib/trabajo-categoria';
+import { trabajosParaInstaladorRepository } from '@/repositories';
 import type { Perfil } from '@/types/perfil';
 
 /**
@@ -81,6 +84,38 @@ export interface InstallerDashboardProps {
 export function InstallerDashboard({ profile }: InstallerDashboardProps) {
   const [instTab, setInstTab] = useState<'solicitudes' | 'trabajos' | 'perfil'>('solicitudes');
 
+  /**
+   * Ajustes finales del flujo Instalador -- resumen superior
+   * ("X disponibles" / "Y en curso"). Misma fuente real que ya consumen
+   * `InstallerSolicitudes`/`InstallerJobs` (`trabajos_para_instalador`,
+   * RLS-scoped al instalador autenticado) -- una consulta adicional
+   * dedicada al resumen, deliberada: se mantiene aislada de
+   * `InstallerSolicitudes`/`InstallerJobs` (cero cambios en esos 2
+   * archivos, cero riesgo de regresión sobre componentes ya validados en
+   * Producción) en vez de forzar un refactor de "elevar el fetch" no
+   * relacionado con el resto de este ajuste.
+   *
+   * "Disponibles" = trabajos `live` visibles para este instalador
+   * (visibilidad ampliada, migración `0018` -- cualquier `estado_trabajo
+   * === 'live'` de su empresa, no solo los notificados). "En curso" =
+   * misma categoría `'asignados'` que ya usa `InstallerJobs`
+   * (`categoriaDeTrabajo()`, reutilizada sin duplicar su lógica).
+   */
+  const [disponibles, setDisponibles] = useState(0);
+  const [enCurso, setEnCurso] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    trabajosParaInstaladorRepository.getAll().then((result) => {
+      if (!active || !result.ok) return;
+      setDisponibles(result.data.filter((trabajo) => trabajo.estado_trabajo === 'live').length);
+      setEnCurso(result.data.filter((trabajo) => categoriaDeTrabajo(trabajo) === 'asignados').length);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const empresaInstaladoraNombre = useEmpresaInstaladoraNombre(profile.empresaInstaladoraId);
   const nombreEmpresaMostrado = empresaInstaladoraNombre ?? profile.empresaNombre ?? 'Multimax';
   const headerLabel = (
@@ -149,6 +184,7 @@ export function InstallerDashboard({ profile }: InstallerDashboardProps) {
             </MxPhoneTabs>
           }
         >
+          <InstallerResumenStrip disponibles={disponibles} enCurso={enCurso} />
           {instTab === 'solicitudes' ? <InstallerSolicitudes profile={profile} /> : null}
           {instTab === 'trabajos' ? <InstallerJobs /> : null}
           {instTab === 'perfil' ? <InstallerProfile profile={profile} /> : null}

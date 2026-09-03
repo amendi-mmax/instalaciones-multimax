@@ -1,16 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 
 import { CoordinatorEmptyState } from '@/components/shared/coordinator-empty-state';
+import { DespachoKpiRow, type DespachoKpis } from '@/components/shared/despacho-kpi-row';
 import { JobIndicadoresCard } from '@/components/shared/job-indicadores-card';
 import { JobSummaryCard } from '@/components/shared/job-summary-card';
 import { LiveDispatchCard } from '@/components/shared/live-dispatch-card';
 import { ResponsesPanel } from '@/components/shared/responses-panel';
+import { SearchBox } from '@/components/ui/search-box';
+import { TrabajoRow } from '@/components/shared/trabajo-row';
 import { TwoColumnLayout } from '@/components/shared/two-column-layout';
+import { EmptyState } from '@/components/shared/empty-state';
+import { Search } from 'lucide-react';
 import type { RadarInstallerState } from '@/components/shared/radar';
 import { ELIGIBLE_ORDER } from '@/constants';
 import { useOperationalContext } from '@/hooks/useOperationalContext';
-import { getCoordinatorKpis, type CoordinatorKpis } from '@/services';
+import { ofertasRepository } from '@/repositories';
+import { getCoordinatorKpis, getTrabajosByTienda, type CoordinatorKpis, type TableRow } from '@/services';
 import type { CoordinatorLayoutOutletContext } from '@/layouts/CoordinatorLayout';
 
 /**
@@ -138,6 +144,38 @@ export function DespachoPage() {
   const { onOpenPublish, onOpenConfirmCancel, activeJob } =
     useOutletContext<CoordinatorLayoutOutletContext>();
 
+  /**
+   * Evolución de Despacho en vivo hacia un centro operativo real (Ajustes
+   * finales del flujo Instalador, ronda de Despacho/Ofertas/Búsqueda/KPIs).
+   *
+   * **Problema real detectado (auditoría previa, confirmada por el
+   * usuario)**: hasta esta ronda, "Despacho en vivo" dependía
+   * EXCLUSIVAMENTE de `activeJob` -- estado en memoria de
+   * `OperationalContextProvider`, poblado únicamente por el flujo de
+   * publicación de ESTA sesión. Recargar la página, o simplemente no haber
+   * publicado nada en la sesión activa, mostraba `CoordinatorEmptyState`
+   * aunque existieran trabajos `live` reales con ofertas esperando revisión
+   * -- la única forma de verlas era navegar a "Mis trabajos" → detalle.
+   *
+   * **Solución**: se agrega una fuente de datos real independiente de
+   * `activeJob` -- `getTrabajosByTienda()` (mismo servicio ya usado por
+   * `TrabajosPage.tsx`, sin duplicar lógica), de la que se derivan tanto la
+   * lista de trabajos `live` como los 4 KPIs nuevos (`DespachoKpiRow`), sin
+   * ninguna consulta adicional por indicador. `activeJob` se mantiene 100%
+   * compatible: sigue siendo la selección por defecto al publicar (mismo
+   * `JobSummaryCard`/`LiveDispatchCard` de siempre, sin cambios visuales),
+   * y el trabajo recién publicado aparece de inmediato en la lista general
+   * (mismo `activeJob?.id` como dependencia de recarga, patrón ya
+   * establecido por el efecto de KPIs de arriba).
+   *
+   * `CoordinatorKpiRow`/`JobIndicadoresCard` NO se modifican -- siguen
+   * mostrando exactamente lo mismo que antes, para el trabajo destacado.
+   */
+  const [trabajos, setTrabajos] = useState<TableRow<'trabajos'>[] | null>(null);
+  const [ofertasCountByTrabajoId, setOfertasCountByTrabajoId] = useState<Record<string, number>>({});
+  const [selectedTrabajoId, setSelectedTrabajoId] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState('');
+
   // Ajuste posterior a "Coordinator KPI Loading Resolution" (instrucción
   // directa del usuario): `kpis` deja de ser `CoordinatorKpis | null` --
   // ahora es SIEMPRE un objeto válido, nunca `null`, con `ZERO_KPIS` como
@@ -245,43 +283,201 @@ export function DespachoPage() {
     // `CoordinatorLayout.tsx`/`trabajosRepository`/`OperationalContextProvider`.
   }, [tiendaId, contextoLoading, contextoError, activeJob?.id]);
 
-  // Sprint 5.2.1 -- `activeJob` ya no se calcula acá: se lee del Outlet
-  // Context (fuente real, `CoordinatorLayout.tsx`). Regla 19 (mutuamente
-  // excluyente): `CoordinatorEmptyState` si es `null`, Workspace completo si
-  // existe.
-  if (!activeJob) {
+  // Todos los trabajos de la tienda (cualquier estado) -- misma consulta
+  // real que ya usa `TrabajosPage.tsx`. `activeJob?.id` como dependencia
+  // adicional: un publish real (INSERT ya confirmado en Supabase, ver
+  // `CoordinatorLayout.tsx`) debe reflejarse acá de inmediato, sin esperar
+  // a que cambie `tiendaId`.
+  useEffect(() => {
+    if (!tiendaId) {
+      setTrabajos(null);
+      return;
+    }
+    let active = true;
+    getTrabajosByTienda(tiendaId).then((result) => {
+      if (!active) return;
+      if (result.ok) {
+        setTrabajos(result.data);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [tiendaId, activeJob?.id]);
+
+  const trabajosLive = useMemo(
+    () => (trabajos ?? []).filter((trabajo) => trabajo.estado === 'live'),
+    [trabajos],
+  );
+
+  // Conteo de ofertas por trabajo, en lote (una sola consulta para todos
+  // los `live`, no N+1) -- `liveIds` (string estable) en vez de
+  // `trabajosLive` (nuevo array en cada render) como dependencia real.
+  const liveIds = trabajosLive.map((trabajo) => trabajo.id).join(',');
+  useEffect(() => {
+    const ids = liveIds ? liveIds.split(',') : [];
+    if (ids.length === 0) {
+      setOfertasCountByTrabajoId({});
+      return;
+    }
+    let active = true;
+    ofertasRepository.getByTrabajoIds(ids).then((result) => {
+      if (!active) return;
+      if (result.ok) {
+        const counts: Record<string, number> = {};
+        for (const oferta of result.data) {
+          counts[oferta.trabajo_id] = (counts[oferta.trabajo_id] ?? 0) + 1;
+        }
+        setOfertasCountByTrabajoId(counts);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [liveIds]);
+
+  // Selección por defecto: el trabajo recién publicado en esta sesión
+  // (`activeJob`, comportamiento histórico preservado -- mismo criterio que
+  // antes, cuando era el único trabajo visible) si todavía no hay ninguna
+  // selección explícita; si no existe, el primero de la lista `live`.
+  useEffect(() => {
+    if (selectedTrabajoId) return;
+    if (activeJob?.trabajoId) {
+      setSelectedTrabajoId(activeJob.trabajoId);
+      return;
+    }
+    if (trabajosLive.length > 0) {
+      setSelectedTrabajoId(trabajosLive[0].id);
+    }
+  }, [activeJob?.trabajoId, trabajosLive, selectedTrabajoId]);
+
+  // Búsqueda -- filtrado 100% client-side sobre los trabajos `live` ya
+  // cargados (volumen real verificado vía MCP: unas pocas unidades por
+  // tienda hoy) -- sin consulta a Supabase por cada tecla. Campos
+  // existentes reales de `trabajos`, ninguno inventado.
+  const trabajosFiltrados = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return trabajosLive;
+    return trabajosLive.filter((trabajo) =>
+      [trabajo.codigo, trabajo.cliente_nombre, trabajo.direccion_exacta, trabajo.calle, trabajo.tipo, trabajo.zona]
+        .filter((value): value is string => Boolean(value))
+        .some((value) => value.toLowerCase().includes(q)),
+    );
+  }, [trabajosLive, busqueda]);
+
+  /**
+   * `DespachoKpiRow` -- ver JSDoc de ese componente para la definición
+   * exacta de cada contador (coincide verbatim con la aprobada):
+   * "Con ofertas" = trabajos `live` con >= 1 oferta real. "Por asignar" =
+   * mismo conjunto (un trabajo `live` con ofertas es exactamente el que
+   * requiere selección/asignación manual -- no se inventa un estado de
+   * negocio nuevo que los distinga). "Asignados hoy" = `estado='assigned'`
+   * cuyo `asignado_at` cae en la fecha de hoy.
+   */
+  const despachoKpis: DespachoKpis = useMemo(() => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    const conOfertas = trabajosLive.filter((trabajo) => (ofertasCountByTrabajoId[trabajo.id] ?? 0) > 0).length;
+    return {
+      activos: trabajosLive.length,
+      conOfertas,
+      porAsignar: conOfertas,
+      asignadosHoy: (trabajos ?? []).filter(
+        (trabajo) => trabajo.estado === 'assigned' && (trabajo.asignado_at ?? '').slice(0, 10) === hoy,
+      ).length,
+    };
+  }, [trabajos, trabajosLive, ofertasCountByTrabajoId]);
+
+  // Se invoca desde `ResponsesPanel` (`onAsignado`) justo después de una
+  // asignación exitosa -- el trabajo recién asignado deja de ser `live`,
+  // así que debe desaparecer de esta lista sin esperar a un remount/cambio
+  // de tienda. No es Realtime real (ningún canal/suscripción nueva) --
+  // mismo criterio ya aplicado en `AuthProvider.tsx` para el caso análogo
+  // de `documentos_ok`: reutilizar el mecanismo de consulta ya existente en
+  // vez de crear infraestructura de push nueva sin autorización explícita.
+  const recargarTrabajos = () => {
+    if (!tiendaId) return;
+    getTrabajosByTienda(tiendaId).then((result) => {
+      if (result.ok) setTrabajos(result.data);
+    });
+  };
+
+  // Regla 19 (mutuamente excluyente), extendida: `CoordinatorEmptyState`
+  // únicamente si YA se resolvió la consulta (`trabajos !== null`, evita un
+  // parpadeo del estado vacío mientras carga) y no existe absolutamente
+  // ningún trabajo `live` -- ni siquiera el recién publicado en esta sesión
+  // (`activeJob`, que técnicamente ya debería estar incluido en `trabajos`
+  // tras el recargo por `activeJob?.id`, pero se conserva la condición
+  // explícita como defensa adicional, cero costo).
+  if (trabajos !== null && trabajosLive.length === 0 && !activeJob) {
     return <CoordinatorEmptyState onOpenPublish={onOpenPublish} />;
   }
+
+  // El "trabajo destacado" (`JobSummaryCard`/`LiveDispatchCard`, con su
+  // countdown/radar reales) sigue siendo EXCLUSIVAMENTE el publicado en
+  // esta sesión (`activeJob`) -- mismo alcance exacto de siempre, sin
+  // extender ese bloque a cualquier trabajo de la lista (no hay datos
+  // reales de notificación/radar para un trabajo `live` antiguo, inventarlos
+  // violaría "no fingir una funcionalidad que no existe").
+  const trabajoDestacado = activeJob && selectedTrabajoId === activeJob.trabajoId ? activeJob : null;
 
   return (
     <TwoColumnLayout
       variant="despacho"
       left={
         <section className="mx-col">
-          <JobSummaryCard
-            job={activeJob}
-            remainingSeconds={activeJob.bidMins * 60}
-            onOpenPublish={onOpenPublish}
-          />
-          <LiveDispatchCard
-            notified={RADAR_DEMO_NOTIFIED}
-            instState={RADAR_DEMO_INST_STATE}
-            eligibleIds={ELIGIBLE_ORDER}
-            publishedAt={LIVECOUNTDOWN_DEMO_PUBLISHED_AT}
-            bidMins={LIVECOUNTDOWN_DEMO_BID_MINS}
-            onCancel={onOpenConfirmCancel}
-          />
+          {trabajoDestacado ? (
+            <>
+              <JobSummaryCard
+                job={trabajoDestacado}
+                remainingSeconds={trabajoDestacado.bidMins * 60}
+                onOpenPublish={onOpenPublish}
+              />
+              <LiveDispatchCard
+                notified={RADAR_DEMO_NOTIFIED}
+                instState={RADAR_DEMO_INST_STATE}
+                eligibleIds={ELIGIBLE_ORDER}
+                publishedAt={LIVECOUNTDOWN_DEMO_PUBLISHED_AT}
+                bidMins={LIVECOUNTDOWN_DEMO_BID_MINS}
+                onCancel={onOpenConfirmCancel}
+              />
+            </>
+          ) : null}
           {kpisError && (
             <p className="mx-sub" style={{ marginBottom: 14 }}>
               {kpisError}
             </p>
           )}
-          <JobIndicadoresCard kpis={kpis} bidMins={activeJob.bidMins} />
+          <JobIndicadoresCard kpis={kpis} bidMins={activeJob?.bidMins ?? 5} />
+          <DespachoKpiRow kpis={despachoKpis} />
+          <SearchBox
+            placeholder="Buscar por JOB, cliente, dirección, zona…"
+            value={busqueda}
+            onChange={(event) => setBusqueda(event.target.value)}
+          />
+          {trabajosFiltrados.length === 0 ? (
+            <EmptyState
+              size="compact"
+              icon={<Search size={22} />}
+              description={busqueda ? 'Sin resultados para esa búsqueda.' : 'No hay trabajos live en este momento.'}
+            />
+          ) : (
+            <div className="mx-joblist">
+              {trabajosFiltrados.map((trabajo) => (
+                <TrabajoRow
+                  key={trabajo.id}
+                  trabajo={trabajo}
+                  selected={trabajo.id === selectedTrabajoId}
+                  ofertasCount={ofertasCountByTrabajoId[trabajo.id]}
+                  onSelect={setSelectedTrabajoId}
+                />
+              ))}
+            </div>
+          )}
         </section>
       }
       right={
         <section className="mx-col">
-          <ResponsesPanel />
+          <ResponsesPanel trabajoId={selectedTrabajoId ?? undefined} onAsignado={recargarTrabajos} />
         </section>
       }
     />

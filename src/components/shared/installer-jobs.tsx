@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Loading } from '@/components/ui/spinner';
 import { trabajoEstadoInfo } from '@/constants';
+import { categoriaDeTrabajo, type Categoria } from '@/lib/trabajo-categoria';
 import { trabajosParaInstaladorRepository, type TrabajoParaInstaladorRow } from '@/repositories';
 
 /**
@@ -44,8 +45,6 @@ import { trabajosParaInstaladorRepository, type TrabajoParaInstaladorRow } from 
  * "Cancelado"/"Ofertado" por ausencia de esos datos, no por un defecto de
  * la consulta.
  */
-type Categoria = 'ofertados' | 'asignados' | 'completados' | 'cancelados';
-
 const CATEGORIAS: readonly [Categoria, string][] = [
   ['ofertados', 'Ofertados'],
   ['asignados', 'Asignados'],
@@ -59,16 +58,6 @@ const SIN_TRABAJOS: Record<Categoria, string> = {
   completados: 'No tienes trabajos completados.',
   cancelados: 'No tienes trabajos cancelados.',
 };
-
-function categoriaDeTrabajo(trabajo: TrabajoParaInstaladorRow): Categoria | null {
-  if (trabajo.gane_yo && trabajo.estado_trabajo === 'assigned') return 'asignados';
-  if (trabajo.gane_yo && trabajo.estado_trabajo === 'completed') return 'completados';
-  if ((trabajo.oferta_enviada || trabajo.gane_yo) && trabajo.estado_trabajo === 'cancelled') {
-    return 'cancelados';
-  }
-  if (trabajo.oferta_enviada && !trabajo.gane_yo) return 'ofertados';
-  return null;
-}
 
 export function InstallerJobs() {
   const [trabajos, setTrabajos] = useState<TrabajoParaInstaladorRow[] | null>(null);
