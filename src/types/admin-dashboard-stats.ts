@@ -22,6 +22,8 @@ export interface AdminDashboardResumen {
   completados: number;
   activos: number;
   pendientes: number;
+  /** `estado === 'pending_confirmation'` -- corrección de auditoría (GAP-2). */
+  porConfirmar: number;
   cancelados: number;
 }
 
@@ -32,6 +34,8 @@ export interface TiendaStat {
   completados: number;
   activos: number;
   pendientes: number;
+  /** `estado === 'pending_confirmation'` -- corrección de auditoría (GAP-2). */
+  porConfirmar: number;
   cancelados: number;
 }
 

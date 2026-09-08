@@ -64,6 +64,21 @@ export const RPC_FUNCTIONS = {
    * admin-only, Sprint 8.3, sin cambios).
    */
   nombreEmpresaInstaladora: 'nombre_empresa_instaladora',
+  /**
+   * RONDA — Ciclo de vida "Completado" (migración
+   * `0024_finalizacion_trabajo.sql`). `SECURITY DEFINER` -- el instalador
+   * declara que terminó físicamente el trabajo (`assigned` →
+   * `pending_confirmation`). Nunca puede escribir `completed` -- ver JSDoc
+   * de la migración.
+   */
+  marcarTrabajoTerminado: 'marcar_trabajo_terminado',
+  /**
+   * RONDA — Ciclo de vida "Completado" (migración
+   * `0024_finalizacion_trabajo.sql`). `SECURITY INVOKER` -- el coordinador/
+   * admin confirma el cierre (`pending_confirmation` → `completed`),
+   * reutilizando las policies de UPDATE ya existentes sobre `trabajos`.
+   */
+  confirmarTrabajoCompletado: 'confirmar_trabajo_completado',
 } as const;
 
 /**

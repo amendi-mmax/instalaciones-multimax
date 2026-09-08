@@ -1,5 +1,3 @@
-import { Radio } from 'lucide-react';
-
 /**
  * HeaderBrand — portado verbatim de `.mx-brand` (JSX de referencia: `App()`
  * en Multimax_Despacho_v1.3.html, líneas 2031–2041). Estático, sin props:
@@ -11,12 +9,22 @@ import { Radio } from 'lucide-react';
  * código fuente usa `Radio` (`React.createElement(Radio, { size: 18 })`,
  * línea 2035) — el path del SVG estático embebido en el HTML (círculo +
  * arcos concéntricos) corresponde al ícono `Radio`, no a una torre. Corregido.
+ *
+ * **Ajuste de branding**: el ícono genérico `Radio` se reemplaza por el
+ * emblema oficial de MULTIMAX (`public/multimax-emblem.png` -- recorte
+ * directo, sin redibujar, del archivo fuente proporcionado por el usuario,
+ * `Logo Multimax_1920 px_Vert_Color.png`, aislando únicamente el gráfico
+ * M+swoosh y descartando la palabra "MULTIMAX" incluida en el logo
+ * vertical completo -- el texto `.mx-brand-t` de abajo ya la muestra,
+ * evitar la duplicación visual). `.mx-logo` deja de ser una caja cuadrada
+ * con gradiente/sombra (esos estilos eran del ícono plano `Radio`) -- ver
+ * `globals.css` para el detalle del ajuste de tamaño/proporción.
  */
 export function HeaderBrand() {
   return (
     <div className="mx-brand">
       <div className="mx-logo">
-        <Radio size={18} />
+        <img src="/multimax-emblem.png" alt="Multimax" />
       </div>
       <div>
         <div className="mx-brand-t">MULTIMAX</div>

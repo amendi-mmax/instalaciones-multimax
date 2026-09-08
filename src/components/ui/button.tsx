@@ -14,6 +14,16 @@ import { cn } from '@/lib/utils';
  * Nota: `.mx-btn` incluye `flex: 1` en el CSS original (los botones se
  * distribuyen equitativamente dentro de una fila de acciones). Se preserva
  * tal cual — no se "corrige" por instrucción explícita del proyecto.
+ *
+ * **(Histórico) `violet`**: una ronda anterior agregó esta variante para el
+ * botón "Asignar" de `ResponsesPanel`, asumiendo por analogía con
+ * `.mx-btn-ice`/`.mx-btn-amber` que ese botón debía verse como un `.mx-btn`
+ * más. La RONDA DE CORRECCIÓN VISUAL (inspección directa del prototipo,
+ * `Multimax_Despacho_v1.3.html`) encontró que el botón real usa una clase
+ * completamente distinta y dedicada (`.mx-select`, sin relación con
+ * `.mx-btn`) -- se retira esta variante (sin otro consumidor en el
+ * proyecto, confirmado por búsqueda global) y `ResponsesPanel` ahora
+ * renderiza `.mx-select` directamente, verbatim del prototipo.
  */
 export type ButtonVariant = 'ice' | 'amber' | 'ghost' | 'plain';
 

@@ -1,22 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 
+import { Crosshair, Plus, ShieldCheck, TrendingUp } from 'lucide-react';
 import { CoordinatorEmptyState } from '@/components/shared/coordinator-empty-state';
-import { DespachoKpiRow, type DespachoKpis } from '@/components/shared/despacho-kpi-row';
-import { JobIndicadoresCard } from '@/components/shared/job-indicadores-card';
-import { JobSummaryCard } from '@/components/shared/job-summary-card';
-import { LiveDispatchCard } from '@/components/shared/live-dispatch-card';
-import { ResponsesPanel } from '@/components/shared/responses-panel';
-import { SearchBox } from '@/components/ui/search-box';
-import { TrabajoRow } from '@/components/shared/trabajo-row';
-import { TwoColumnLayout } from '@/components/shared/two-column-layout';
+import type { DespachoKpis } from '@/components/shared/despacho-kpi-row';
 import { EmptyState } from '@/components/shared/empty-state';
-import { Search } from 'lucide-react';
+import { JobSummaryCard, type JobSummaryCardJob } from '@/components/shared/job-summary-card';
+import { LiveDispatchCard } from '@/components/shared/live-dispatch-card';
 import type { RadarInstallerState } from '@/components/shared/radar';
-import { ELIGIBLE_ORDER } from '@/constants';
+import { ResponsesPanel } from '@/components/shared/responses-panel';
+import { StatTile } from '@/components/shared/stat-tile';
+import { TwoColumnLayout } from '@/components/shared/two-column-layout';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardHeader } from '@/components/ui/card';
+import { ELIGIBLE_ORDER, trabajoEstadoInfo } from '@/constants';
 import { useOperationalContext } from '@/hooks/useOperationalContext';
+import { createRealtimeChannel, removeRealtimeChannel } from '@/lib/supabase/realtime';
 import { ofertasRepository } from '@/repositories';
-import { getCoordinatorKpis, getTrabajosByTienda, type CoordinatorKpis, type TableRow } from '@/services';
+import { getTrabajosByTienda, type TableRow } from '@/services';
 import type { CoordinatorLayoutOutletContext } from '@/layouts/CoordinatorLayout';
 
 /**
@@ -42,30 +43,6 @@ const RADAR_DEMO_INST_STATE: Record<string, RadarInstallerState> = {
 };
 const LIVECOUNTDOWN_DEMO_PUBLISHED_AT = Date.now() - 60_000;
 const LIVECOUNTDOWN_DEMO_BID_MINS = 5;
-
-/**
- * ZERO_KPIS — corrección puntual posterior a "Coordinator KPI Loading
- * Resolution" (instrucción directa del usuario, sin brief formal de Sprint
- * nuevo): "`CoordinatorKpiRow` debe renderizarse siempre... si
- * `getCoordinatorKpis()` devuelve `[]` o no existen registros, el componente
- * debe recibir un objeto de KPIs con todos los valores en cero." No es un
- * mock ni un dato inventado: es el mismo objeto `CoordinatorKpis` real que
- * `calcularKpis()` (`dashboard.service.ts`) ya devuelve para `rows = []`
- * (`{pendientes:0, activos:0, finalizados:0, programadosHoy:0, total:0}`) --
- * aquí se declara localmente como el valor por defecto de `kpis` (nunca
- * `null`) para cubrir, con ese mismo valor legítimo, cualquier instante en
- * que todavía no exista una respuesta real de Supabase (`tiendaId`
- * resolviéndose, error de Postgrest/RLS, tienda inexistente, o el instante
- * inicial antes del primer fetch). `CoordinatorKpiRow` no cambia su
- * contrato (`{kpis: CoordinatorKpis}`) ni se modifica en este ajuste.
- */
-const ZERO_KPIS: CoordinatorKpis = {
-  pendientes: 0,
-  activos: 0,
-  finalizados: 0,
-  programadosHoy: 0,
-  total: 0,
-};
 
 /**
  * DespachoPage — "Despacho en vivo", ruta `/despacho` (Sprint 5.1, primera
@@ -115,12 +92,28 @@ const ZERO_KPIS: CoordinatorKpis = {
  * `JobSummaryCardJob`, ninguna lógica de subasta nueva).
  *
  * **KPIs / "Indicadores"**: `CoordinatorKpiRow` (Sprint 5.1, agregado
- * dashboard sin equivalente en el HTML oficial) permanece SIN NINGÚN
- * CAMBIO -- mismo componente, mismo fetch (`dashboard.service.ts`/
- * `getCoordinatorKpis`), mismo contrato. `JobIndicadoresCard` (Sprint 5.1.4)
- * lo envuelve con el marco visual real de "Indicadores" (título/ícono/
- * `mx-goal`). `kpisError` (Sprint 5.1.5) se sigue mostrando fuera de ese
- * bloque, sin cambios en esta ronda.
+ * dashboard sin equivalente en el HTML oficial) gobernó este bloque hasta
+ * la ronda "Recomposición de Despacho en vivo".
+ *
+ * **AJUSTE SPRINT — Recomposición de Despacho en vivo (3ª corrección,
+ * consolidación de Indicadores)**: `getCoordinatorKpis()`/`CoordinatorKpiRow`
+ * dejan de usarse EN ESTA PÁGINA (no se eliminan del código -- siguen
+ * intactos y sin cambios de contrato para cualquier otro consumidor futuro).
+ * `JobIndicadoresCard` (Sprint 5.1.4) tampoco se usa más aquí. Existían 2
+ * tarjetas de KPIs distintas en este dashboard (`JobIndicadoresCard` sobre
+ * el trabajo destacado + `DespachoKpiRow` sobre todos los `live`) -- decisión
+ * explícita del usuario, confirmada contra una captura real del prototipo:
+ * consolidarlas en UNA sola tarjeta "Indicadores", reutilizando el marco
+ * visual de `JobIndicadoresCard` (ícono `TrendingUp`+título+`mx-goal`) con
+ * el contenido de `DespachoKpiRow` (Activos/Con ofertas/Por asignar/
+ * Asignados hoy, derivados 100% de `getTrabajosByTienda()`+conteo de
+ * `ofertas`, ver `despachoKpis` más abajo) en una grilla 2×2 (`.mx-stats`
+ * con `gridTemplateColumns` local, en vez del 3+1 por defecto de
+ * `StatGrid`). Se construye inline en este archivo (reutilizando
+ * `Card`/`CardHeader`/`StatTile`, todos primitivos ya existentes) en vez de
+ * modificar `job-indicadores-card.tsx`/`despacho-kpi-row.tsx` -- ambos
+ * archivos quedan intactos por si algún Sprint futuro los vuelve a
+ * necesitar tal cual.
  *
  * **Qué NO hace este Sprint** (excluido explícitamente por el propio
  * brief): conexión de Supabase, persistencia, API, motor de subasta real,
@@ -140,7 +133,7 @@ const ZERO_KPIS: CoordinatorKpis = {
  * dos casos es.
  */
 export function DespachoPage() {
-  const { tiendaId, loading: contextoLoading, error: contextoError } = useOperationalContext();
+  const { tiendaId, tiendaNombre } = useOperationalContext();
   const { onOpenPublish, onOpenConfirmCancel, activeJob } =
     useOutletContext<CoordinatorLayoutOutletContext>();
 
@@ -168,120 +161,37 @@ export function DespachoPage() {
    * (mismo `activeJob?.id` como dependencia de recarga, patrón ya
    * establecido por el efecto de KPIs de arriba).
    *
-   * `CoordinatorKpiRow`/`JobIndicadoresCard` NO se modifican -- siguen
-   * mostrando exactamente lo mismo que antes, para el trabajo destacado.
+   * `getCoordinatorKpis()`/`CoordinatorKpiRow`/`JobIndicadoresCard` ya NO se
+   * usan en esta página (consolidación de Indicadores, ver JSDoc del
+   * componente más arriba) -- se retira por completo el efecto que los
+   * poblaba, junto con `kpis`/`kpisError`/`ZERO_KPIS`.
    */
   const [trabajos, setTrabajos] = useState<TableRow<'trabajos'>[] | null>(null);
   const [ofertasCountByTrabajoId, setOfertasCountByTrabajoId] = useState<Record<string, number>>({});
   const [selectedTrabajoId, setSelectedTrabajoId] = useState<string | null>(null);
-  const [busqueda, setBusqueda] = useState('');
-
-  // Ajuste posterior a "Coordinator KPI Loading Resolution" (instrucción
-  // directa del usuario): `kpis` deja de ser `CoordinatorKpis | null` --
-  // ahora es SIEMPRE un objeto válido, nunca `null`, con `ZERO_KPIS` como
-  // valor por defecto. Esto elimina la necesidad de cualquier señal de
-  // "cargando" para decidir si se muestra `CoordinatorKpiRow`: ya no se
-  // oculta nunca, se renderiza siempre con el `kpis` disponible en cada
-  // instante (cero mientras no haya datos reales, poblado en cuanto los
-  // haya). Por eso el estado `kpisLoading` introducido en la ronda anterior
-  // (y el `<Loading/>` que gobernaba en `JobIndicadoresCard`) se retiran por
-  // completo en este ajuste -- ya no tienen ningún consumidor real, y
-  // dejarlos declarados sin leer sería un `TS6133` real (no un artefacto de
-  // entorno).
-  const [kpis, setKpis] = useState<CoordinatorKpis>(ZERO_KPIS);
-  const [kpisError, setKpisError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-
-    // Sprint 5.1.1 -- mientras el Contexto Operativo todavía resuelve
-    // `tiendaId` (solo ocurre para un `admin` viendo "Coordinador", ver
-    // `OperationalContextProvider.tsx`), no se toca `kpisError` todavía.
-    // `kpis` se deja en `ZERO_KPIS` (nunca `null`) -- `CoordinatorKpiRow` se
-    // sigue mostrando, con ceros, mientras la resolución real está en
-    // curso, en vez de ocultarse. Para un Coordinador real, `contextoLoading`
-    // siempre es `false` -- este `if` nunca frena nada para ese caso.
-    if (contextoLoading) {
-      setKpis(ZERO_KPIS);
-      setKpisError(null);
-      return;
-    }
-
-    // El propio Contexto Operativo puede reportar un error real (ej. la
-    // sucursal elegida en `SucursalSelect` todavía no existe en la tabla
-    // real `tiendas` para la empresa Multimax) -- se muestra ese mensaje
-    // en vez del genérico de "sin tienda asignada", más preciso para el
-    // caso de un `admin` en modo superusuario. Por instrucción explícita del
-    // usuario, este caso NO impide que `CoordinatorKpiRow` se muestre: se
-    // muestra igual, con `ZERO_KPIS`, en vez de ocultarse -- el mensaje de
-    // `kpisError` se sigue mostrando aparte, fuera de ese bloque (sin
-    // cambios respecto de Sprint 5.1.5).
-    if (contextoError) {
-      setKpis(ZERO_KPIS);
-      setKpisError(contextoError);
-      return;
-    }
-
-    if (!tiendaId) {
-      setKpis(ZERO_KPIS);
-      setKpisError('Tu perfil de coordinador no tiene una tienda asignada.');
-      return;
-    }
-
-    setKpisError(null);
-    getCoordinatorKpis(tiendaId)
-      .then((result) => {
-        if (!active) return;
-        if (result.ok) {
-          setKpis(result.data);
-        } else {
-          // Un error real de Postgrest/RLS (`result.ok === false`) tampoco
-          // oculta `CoordinatorKpiRow`: se muestra con `ZERO_KPIS` (nunca
-          // queda un valor obsoleto de una tienda anterior) y `kpisError` se
-          // puebla para el mensaje que se muestra aparte.
-          setKpis(ZERO_KPIS);
-          setKpisError(result.error.message);
-        }
-      })
-      // Sprint 5.2.1 Fix ("Publish Workflow Stabilization", ronda anterior)
-      // — Objetivo 4: si `getCoordinatorKpis(tiendaId)` rechaza (p. ej. una
-      // falla de red, distinta de un error normal de Postgrest, que ya se
-      // maneja arriba vía `result.ok === false`), este `.catch()` sigue
-      // siendo necesario para que `kpisError` se puebre en vez de quedar en
-      // `null` para siempre. `getCoordinatorKpis()`/
-      // `trabajosRepository.getByTiendaId()`/`toServiceResult()` en sí NO
-      // son el origen de ningún bloqueo (auditados de nuevo en esta ronda,
-      // sin cambios: si la promesa que reciben SE RESUELVE -- con datos o
-      // con un error de Postgrest -- siempre entregan un `ServiceResult`
-      // explícito, nunca queda pendiente).
-      .catch((err: unknown) => {
-        if (!active) return;
-        setKpis(ZERO_KPIS);
-        setKpisError(
-          err instanceof Error
-            ? err.message
-            : 'No se pudieron cargar los indicadores (error de red inesperado).',
-        );
-      });
-    return () => {
-      active = false;
-    };
-    // `activeJob?.id` -- Sprint 5.2.3.3.1 ("Persistencia real del flujo
-    // Publish"). Hallazgo de auditoría (no relacionado con el INSERT en sí,
-    // ya confirmado correcto -- ver el reporte técnico de este Sprint): este
-    // efecto nunca dependía de `activeJob`, por lo que un `INSERT` real y
-    // exitoso en `trabajos` (Sprint 5.2.2.1, sin cambios) no disparaba una
-    // nueva consulta a `getCoordinatorKpis()` -- "Despacho en vivo" mostraba
-    // el trabajo recién publicado (estado de React, `activeJob`) mientras
-    // "Indicadores" seguía mostrando los valores de ANTES de publicar, hasta
-    // que `tiendaId` cambiara o la página se remontara. Se agrega `activeJob
-    // ?.id` (no el objeto completo, para no depender de su identidad de
-    // referencia) para que los KPIs se recarguen cada vez que cambia el
-    // trabajo activo (al publicar -- `null` → id real -- y al cancelar --
-    // id real → `null`), sin duplicar la llamada a `getCoordinatorKpis()`
-    // (misma función, mismo servicio, ya existente) ni tocar
-    // `CoordinatorLayout.tsx`/`trabajosRepository`/`OperationalContextProvider`.
-  }, [tiendaId, contextoLoading, contextoError, activeJob?.id]);
+  /**
+   * RONDA — "Mostrar ofertas" cambia de significado: ya NO es un refresco
+   * del trabajo seleccionado (`refreshOfertasTrigger`, retirado) -- ahora
+   * abre una bandeja GLOBAL con las ofertas pendientes de TODOS los
+   * trabajos `live` de la tienda, agrupadas por trabajo (ver JSDoc completo
+   * de `ResponsesPanel.modoGlobal`). `modoGlobal` es el único estado nuevo
+   * que este archivo necesita para ese cambio: un booleano de UI, sin datos
+   * de oferta. Se desactiva automáticamente al seleccionar un trabajo
+   * puntual desde el selector superior (ver su `onClick` más abajo) -- así
+   * ambos conceptos ("ver un JOB" / "ver todas las ofertas pendientes")
+   * quedan mutuamente excluyentes, nunca mezclados.
+   */
+  const [modoGlobal, setModoGlobal] = useState(false);
+  /**
+   * Filas reales de `ofertas` de TODOS los trabajos `live` -- alimentan
+   * exclusivamente el modo global de `ResponsesPanel` (agrupación por
+   * trabajo). Se obtienen extendiendo el efecto YA EXISTENTE de abajo
+   * (`ofertasRepository.getByTrabajoIds(liveIds)`, hasta ahora usado solo
+   * para contar hacia `despachoKpis`) -- cero consultas nuevas: la misma
+   * respuesta que ya llegaba se guarda también aquí, además de agregarse en
+   * `ofertasCountByTrabajoId`.
+   */
+  const [ofertasLive, setOfertasLive] = useState<TableRow<'ofertas'>[]>([]);
 
   // Todos los trabajos de la tienda (cualquier estado) -- misma consulta
   // real que ya usa `TrabajosPage.tsx`. `activeJob?.id` como dependencia
@@ -305,6 +215,59 @@ export function DespachoPage() {
     };
   }, [tiendaId, activeJob?.id]);
 
+  /**
+   * RONDA — Realtime de asignación. Causa raíz confirmada por código (no
+   * asumida): `asignar_instalador()` (RPC real) NUNCA modifica
+   * `public.ofertas` -- solo hace `UPDATE` sobre `public.trabajos`
+   * (`estado`/`instalador_asignado_id`/`asignado_at`/
+   * `contacto_visible_hasta`) y `public.trabajo_instaladores`. Por eso una
+   * asignación realizada en OTRA sesión (otra pestaña/otro coordinador)
+   * nunca podía reflejarse en tiempo real -- los únicos canales existentes
+   * escuchaban `INSERT` sobre `ofertas`, una tabla que este flujo jamás
+   * modifica. `trabajos` ya pertenece a la publicación `supabase_realtime`
+   * (verificado por MCP antes de escribir este efecto) -- no hace falta
+   * ninguna migración ni cambio de RLS (la misma policy de `SELECT` que ya
+   * usa `getTrabajosByTienda()` autoriza también la suscripción Realtime).
+   *
+   * Al llegar un `UPDATE` real, se reemplaza esa fila dentro del ÚNICO
+   * estado `trabajos` ya existente -- NO es una segunda fuente de verdad.
+   * Todo lo que ya deriva de `trabajos` (`trabajosLive`, `liveIds`,
+   * `ofertasLive`/`ofertasCountByTrabajoId` vía el efecto de abajo, la
+   * reselección de `selectedTrabajoId`, y `gruposGlobales` dentro de
+   * `ResponsesPanel`, que recibe `trabajosLive`/`ofertasLive` como props) se
+   * actualiza solo, sin ningún cambio en `ResponsesPanel.tsx`: en cuanto el
+   * trabajo asignado deja de tener `estado='live'`, sale de `trabajosLive`
+   * → `liveIds` cambia → `ofertasLive` se recalcula sin sus ofertas → el
+   * grupo desaparece de la bandeja global y, si estaba seleccionado en modo
+   * detalle, la reselección automática (ya corregida en una ronda anterior)
+   * elige otro trabajo `live` sin ocultar el dashboard.
+   *
+   * `public.ofertas` NO necesita ningún listener adicional para este caso
+   * -- nunca cambia en la asignación, así que no hay ningún evento de esa
+   * tabla que "faltara" escuchar.
+   */
+  useEffect(() => {
+    if (!tiendaId) return;
+    const channel = createRealtimeChannel(`trabajos:${tiendaId}`);
+    channel
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'trabajos', filter: `tienda_id=eq.${tiendaId}` },
+        (payload) => {
+          const trabajoActualizado = payload.new as TableRow<'trabajos'>;
+          setTrabajos((prev) =>
+            prev
+              ? prev.map((trabajo) => (trabajo.id === trabajoActualizado.id ? trabajoActualizado : trabajo))
+              : prev,
+          );
+        },
+      )
+      .subscribe();
+    return () => {
+      void removeRealtimeChannel(channel);
+    };
+  }, [tiendaId]);
+
   const trabajosLive = useMemo(
     () => (trabajos ?? []).filter((trabajo) => trabajo.estado === 'live'),
     [trabajos],
@@ -313,11 +276,17 @@ export function DespachoPage() {
   // Conteo de ofertas por trabajo, en lote (una sola consulta para todos
   // los `live`, no N+1) -- `liveIds` (string estable) en vez de
   // `trabajosLive` (nuevo array en cada render) como dependencia real.
+  //
+  // RONDA — se extiende para además guardar las FILAS completas
+  // (`setOfertasLive`), no solo el conteo -- misma respuesta de
+  // `getByTrabajoIds()`, ninguna consulta adicional. Esas filas alimentan
+  // el modo global de `ResponsesPanel` (agrupación por trabajo).
   const liveIds = trabajosLive.map((trabajo) => trabajo.id).join(',');
   useEffect(() => {
     const ids = liveIds ? liveIds.split(',') : [];
     if (ids.length === 0) {
       setOfertasCountByTrabajoId({});
+      setOfertasLive([]);
       return;
     }
     let active = true;
@@ -329,6 +298,7 @@ export function DespachoPage() {
           counts[oferta.trabajo_id] = (counts[oferta.trabajo_id] ?? 0) + 1;
         }
         setOfertasCountByTrabajoId(counts);
+        setOfertasLive(result.data);
       }
     });
     return () => {
@@ -336,34 +306,77 @@ export function DespachoPage() {
     };
   }, [liveIds]);
 
-  // Selección por defecto: el trabajo recién publicado en esta sesión
-  // (`activeJob`, comportamiento histórico preservado -- mismo criterio que
-  // antes, cuando era el único trabajo visible) si todavía no hay ninguna
-  // selección explícita; si no existe, el primero de la lista `live`.
+  /**
+   * Realtime del modo global -- solo se suscribe mientras `modoGlobal` está
+   * activo (evita mantener una suscripción de fondo permanente cuando el
+   * coordinador nunca abre la bandeja). Un ÚNICO canal para todos los
+   * trabajos `live` a la vez (filtro `trabajo_id=in.(id1,id2,...)`,
+   * soportado por Realtime de Supabase) -- opción más simple que suscribir
+   * un canal por trabajo, y evita multiplicar suscripciones/limpiezas. Al
+   * llegar un `INSERT` real, se agrega a `ofertasLive` -- deduplicado por
+   * `id` (mismo criterio que el canal de detalle en `ResponsesPanel`). Se
+   * recrea si cambia el conjunto de trabajos `live` (`liveIds`) mientras la
+   * bandeja sigue abierta -- p. ej. un trabajo nuevo se publica y pasa a
+   * `live` con la bandeja ya abierta.
+   */
   useEffect(() => {
-    if (selectedTrabajoId) return;
+    if (!modoGlobal || !liveIds) return;
+    const channel = createRealtimeChannel(`ofertas-global:${liveIds}`);
+    channel
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'ofertas', filter: `trabajo_id=in.(${liveIds})` },
+        (payload) => {
+          const nuevaOferta = payload.new as TableRow<'ofertas'>;
+          setOfertasLive((prev) => {
+            if (prev.some((oferta) => oferta.id === nuevaOferta.id)) return prev;
+            return [...prev, nuevaOferta];
+          });
+        },
+      )
+      .subscribe();
+    return () => {
+      void removeRealtimeChannel(channel);
+    };
+  }, [modoGlobal, liveIds]);
+
+  /**
+   * Selección por defecto (comportamiento histórico preservado): el trabajo
+   * recién publicado en esta sesión (`activeJob`) si todavía no hay ninguna
+   * selección explícita; si no existe, el primero de la lista `live`.
+   *
+   * RONDA DE VALIDACIÓN — corrección de un bug real reportado ("al asignar
+   * una oferta desaparece el bloque del trabajo seleccionado y el radar").
+   * Causa raíz: `asignar()` (`ResponsesPanel`) dispara `onAsignado()` →
+   * `recargarTrabajos()` → el trabajo recién asignado pasa a `estado=
+   * 'assigned'` → sale de `trabajosLive` -- pero `selectedTrabajoId` seguía
+   * apuntando a ese id, ahora inexistente en `trabajosLive`. Como este
+   * efecto ANTES solo actuaba `if (selectedTrabajoId) return`, nunca
+   * corregía una selección que se volvió inválida DESPUÉS de la carga
+   * inicial: `selectedTrabajo` quedaba `null` → `jobSummaryData` quedaba
+   * `null` → se mostraba el `EmptyState` genérico en vez de
+   * `JobSummaryCard`/`LiveDispatchCard` -- el radar completo desaparecía,
+   * aunque otros trabajos `live` siguieran existiendo.
+   *
+   * Corrección mínima: en vez de "salir si ya hay una selección", el efecto
+   * ahora valida que esa selección siga siendo real -- o el `activeJob`
+   * destacado (que sigue siendo válido mientras exista, mismo criterio que
+   * `trabajoDestacado` más abajo -- no se toca esa lógica), o un id
+   * presente en `trabajosLive`. Si no es ninguno de los dos (el caso del
+   * bug), reselecciona automáticamente otro trabajo `live` disponible --
+   * sin ocultar el dashboard mientras existan otros trabajos activos.
+   */
+  useEffect(() => {
+    if (selectedTrabajoId) {
+      if (selectedTrabajoId === activeJob?.trabajoId) return;
+      if (trabajosLive.some((trabajo) => trabajo.id === selectedTrabajoId)) return;
+    }
     if (activeJob?.trabajoId) {
       setSelectedTrabajoId(activeJob.trabajoId);
       return;
     }
-    if (trabajosLive.length > 0) {
-      setSelectedTrabajoId(trabajosLive[0].id);
-    }
+    setSelectedTrabajoId(trabajosLive[0]?.id ?? null);
   }, [activeJob?.trabajoId, trabajosLive, selectedTrabajoId]);
-
-  // Búsqueda -- filtrado 100% client-side sobre los trabajos `live` ya
-  // cargados (volumen real verificado vía MCP: unas pocas unidades por
-  // tienda hoy) -- sin consulta a Supabase por cada tecla. Campos
-  // existentes reales de `trabajos`, ninguno inventado.
-  const trabajosFiltrados = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
-    if (!q) return trabajosLive;
-    return trabajosLive.filter((trabajo) =>
-      [trabajo.codigo, trabajo.cliente_nombre, trabajo.direccion_exacta, trabajo.calle, trabajo.tipo, trabajo.zona]
-        .filter((value): value is string => Boolean(value))
-        .some((value) => value.toLowerCase().includes(q)),
-    );
-  }, [trabajosLive, busqueda]);
 
   /**
    * `DespachoKpiRow` -- ver JSDoc de ese componente para la definición
@@ -412,74 +425,245 @@ export function DespachoPage() {
     return <CoordinatorEmptyState onOpenPublish={onOpenPublish} />;
   }
 
-  // El "trabajo destacado" (`JobSummaryCard`/`LiveDispatchCard`, con su
-  // countdown/radar reales) sigue siendo EXCLUSIVAMENTE el publicado en
-  // esta sesión (`activeJob`) -- mismo alcance exacto de siempre, sin
-  // extender ese bloque a cualquier trabajo de la lista (no hay datos
-  // reales de notificación/radar para un trabajo `live` antiguo, inventarlos
-  // violaría "no fingir una funcionalidad que no existe").
+  // El "trabajo destacado" es EXCLUSIVAMENTE el publicado en esta sesión
+  // (`activeJob`) -- distinción que solo importa para 2 cosas reales: (a)
+  // el botón "Publicar otro" de `JobSummaryCard` reutiliza `onOpenPublish`
+  // igual para cualquier caso, sin diferencia; (b) "Cancelar"
+  // (`LiveDispatchCard`) SÍ depende de esta distinción -- ver
+  // `cancelDisabled` más abajo, porque ese flujo (`ConfirmCancelDialog` →
+  // `setActiveJob(null)`) solo tiene sentido real para el `activeJob`.
   const trabajoDestacado = activeJob && selectedTrabajoId === activeJob.trabajoId ? activeJob : null;
+  const selectedTrabajo = trabajosLive.find((trabajo) => trabajo.id === selectedTrabajoId) ?? null;
+
+  /**
+   * AJUSTE SPRINT — Recomposición de Despacho en vivo (2ª corrección).
+   *
+   * Hallazgo del usuario, correcto: el bloque "Despacho en vivo" (radar +
+   * `LiveDispatchCard`) es y siempre fue 100% visual/demo incluso para
+   * `activeJob` (`RADAR_DEMO_*`/`LIVECOUNTDOWN_DEMO_*`, constantes fijas
+   * desde el Sprint 3.7/3.9 -- nunca dependieron de datos reales de
+   * notificación). Lo único que SÍ era real en el bloque "destacado" era
+   * `JobSummaryCard` (código/tipo/zona/fecha/hora/monto/urgencia del
+   * trabajo). Por lo tanto, restringir el despacho completo únicamente al
+   * `activeJob` era más conservador de lo necesario -- se unifica acá: se
+   * arma un `JobSummaryCardJob` con datos 100% reales de CUALQUIER trabajo
+   * `live` seleccionado (no solo `activeJob`), reutilizando las mismas
+   * columnas reales ya usadas en `TrabajoRow`/`TrabajoDetailPage`
+   * (`codigo`/`tipo`/`zona`/`provincia`/`fecha`/`hora`/`bid_minutos`/
+   * `urgente`). `sucursal` usa `tiendaNombre` (Contexto Operativo, ya
+   * resuelto) -- todos los trabajos de `trabajosLive` pertenecen a la
+   * misma tienda (`getTrabajosByTienda(tiendaId)`), así que es válido para
+   * cualquiera de ellos.
+   *
+   * El radar/countdown de `LiveDispatchCard` sigue siendo el mismo mock de
+   * siempre para AMBOS casos -- nunca finge ser distinto por trabajo (ya
+   * era así antes de este ajuste). Lo único condicionado por
+   * `trabajoDestacado` es el botón "Cancelar" (`cancelDisabled`), porque
+   * ese es el único control con una acción real de backend detrás.
+   */
+  const jobSummaryData: JobSummaryCardJob | null = trabajoDestacado
+    ? trabajoDestacado
+    : selectedTrabajo
+      ? {
+          id: selectedTrabajo.codigo,
+          tipo: selectedTrabajo.tipo,
+          zona: selectedTrabajo.zona,
+          provincia: selectedTrabajo.provincia,
+          fecha: selectedTrabajo.fecha,
+          hora: selectedTrabajo.hora,
+          sucursal: tiendaNombre ?? '',
+          bidMins: selectedTrabajo.bid_minutos ?? 5,
+          urgente: selectedTrabajo.urgente,
+          trabajoId: selectedTrabajo.id,
+        }
+      : null;
 
   return (
-    <TwoColumnLayout
-      variant="despacho"
-      left={
-        <section className="mx-col">
-          {trabajoDestacado ? (
-            <>
-              <JobSummaryCard
-                job={trabajoDestacado}
-                remainingSeconds={trabajoDestacado.bidMins * 60}
-                onOpenPublish={onOpenPublish}
-              />
-              <LiveDispatchCard
-                notified={RADAR_DEMO_NOTIFIED}
-                instState={RADAR_DEMO_INST_STATE}
-                eligibleIds={ELIGIBLE_ORDER}
-                publishedAt={LIVECOUNTDOWN_DEMO_PUBLISHED_AT}
-                bidMins={LIVECOUNTDOWN_DEMO_BID_MINS}
-                onCancel={onOpenConfirmCancel}
-              />
-            </>
-          ) : null}
-          {kpisError && (
-            <p className="mx-sub" style={{ marginBottom: 14 }}>
-              {kpisError}
-            </p>
-          )}
-          <JobIndicadoresCard kpis={kpis} bidMins={activeJob?.bidMins ?? 5} />
-          <DespachoKpiRow kpis={despachoKpis} />
-          <SearchBox
-            placeholder="Buscar por JOB, cliente, dirección, zona…"
-            value={busqueda}
-            onChange={(event) => setBusqueda(event.target.value)}
-          />
-          {trabajosFiltrados.length === 0 ? (
-            <EmptyState
-              size="compact"
-              icon={<Search size={22} />}
-              description={busqueda ? 'Sin resultados para esa búsqueda.' : 'No hay trabajos live en este momento.'}
-            />
-          ) : (
-            <div className="mx-joblist">
-              {trabajosFiltrados.map((trabajo) => (
-                <TrabajoRow
-                  key={trabajo.id}
-                  trabajo={trabajo}
-                  selected={trabajo.id === selectedTrabajoId}
-                  ofertasCount={ofertasCountByTrabajoId[trabajo.id]}
-                  onSelect={setSelectedTrabajoId}
+    <div className="mx-col">
+      {/* AJUSTE SPRINT -- Selector compacto de trabajos, corregido contra una
+          captura real del prototipo (`Multimax_Despacho_v1.3.html`): en vez
+          de chips de una sola línea (`.mx-jobfilter button`), cada trabajo
+          se muestra como una mini-tarjeta de 2 líneas (código JOB + tipo
+          truncado) con su badge de estado, reutilizando primitivos ya
+          existentes (`.mx-card`/`.mx-jobrow-id`/`Badge`/`trabajoEstadoInfo`
+          -- mismo vocabulario visual que `TrabajoRow`) en vez de CSS nuevo.
+          El contenedor sigue siendo `.mx-jobfilter` (fila horizontal con
+          scroll, ya existente) -- solo cambia el contenido de cada botón.
+          Borde cian (mismo tono `var(--ice)` que usaba `TrabajoRow.selected`
+          en la lista ya retirada de este archivo -- ver más abajo) marca la
+          tarjeta seleccionada. Alcance deliberado: solo trabajos `live`
+          (mismo criterio ya establecido -- "Despacho en vivo" es sobre
+          trabajos activos, no sobre el historial completo).
+
+          RONDA DE CORRECCIÓN -- "no inventar lógica funcional / usar datos
+          reales": la lista completa de trabajos (`SearchBox`+`mx-joblist`+
+          `TrabajoRow`, con conteo de ofertas por fila) que existía debajo
+          del dashboard se RETIRA de este archivo -- hallazgo correcto del
+          usuario: conceptualmente pertenece a "Mis trabajos"
+          (`TrabajosPage.tsx`, ruta `/trabajos`), que YA tiene esa misma
+          lista completa con filtros por estado (`TRABAJOS_FILTROS` --
+          Todos/En vivo/Asignados/Completados/Cancelados), sin ninguna
+          pérdida de funcionalidad real. "Despacho en vivo" vuelve a
+          mostrar EXCLUSIVAMENTE el selector compacto + el dashboard de 2
+          columnas del trabajo seleccionado -- nada debajo.
+          `ofertasCountByTrabajoId`/su efecto (`ofertasRepository.
+          getByTrabajoIds()`) NO se retiran -- siguen siendo necesarios para
+          `despachoKpis` ("Con ofertas"/"Por asignar"), su único consumidor
+          real ahora.
+
+          AJUSTE SPRINT -- Corrección estructural: `.mx-jobfilter` (a
+          diferencia de `.mx-grid`, usado por `TwoColumnLayout` más abajo)
+          no tenía ningún `max-width`/`margin:auto` propio en globals.css --
+          por eso se estiraba al ancho completo de `<main>` (sin límite
+          propio) mientras el dashboard, que sí usa `.mx-grid`, se
+          autocentraba en 1240px. Se agrega el mismo `maxWidth`/`margin`
+          exactos que ya usa `.mx-grid` (y `.mx-suc-sel`/`.mx-subtabs-wrap`/
+          `.mx-page`, la misma constante repetida en todo `globals.css`) vía
+          `style` local -- sin tocar la clase `.mx-jobfilter` compartida
+          (la reutilizan `TrabajosPage.tsx`/`InstallerJobs.tsx`, con
+          contenedores propios distintos que no deben verse afectados).
+
+          RONDA DE VALIDACIÓN -- espacio vertical entre `CoordinatorSubtabs`
+          ("Despacho en vivo"/"Mis trabajos", `CoordinatorLayout.tsx`) y este
+          selector: `.mx-subtabs-wrap` no tiene padding inferior (`padding:
+          16px 16px 0`) y `.mx-col` (este contenedor) no agrega margen antes
+          de su primer hijo (`gap` solo aplica ENTRE hermanos) -- quedaban
+          pegados. Se agrega `marginTop: 16` (mismo valor que ya usa `.mx-col`
+          como `gap` y `.mx-page`/`.mx-subtabs-wrap` como padding -- la
+          misma escala de espaciado ya establecida, sin inventar un valor
+          nuevo). */}
+      <div
+        className="mx-jobfilter"
+        style={{ height: 'auto', flexWrap: 'wrap', maxWidth: 1240, width: '100%', margin: '16px auto 0' }}
+      >
+        {trabajosLive.map((trabajo) => {
+          const estadoInfo = trabajoEstadoInfo(trabajo.estado);
+          // RONDA -- mientras `modoGlobal` está activo ningún JOB puntual
+          // está "seleccionado" en el sentido visual (la bandeja muestra
+          // todos a la vez) -- se oculta el borde cian para no sugerir una
+          // selección que ya no gobierna lo que se ve en el panel derecho.
+          const seleccionado = !modoGlobal && trabajo.id === selectedTrabajoId;
+          return (
+            <button
+              key={trabajo.id}
+              type="button"
+              className="mx-card"
+              onClick={() => {
+                // RONDA -- clic en un JOB puntual SIEMPRE sale del modo
+                // global (Sección "Dos modos distintos": ambos conceptos
+                // deben quedar mutuamente excluyentes).
+                setSelectedTrabajoId(trabajo.id);
+                setModoGlobal(false);
+              }}
+              style={{
+                flex: '0 0 auto',
+                width: 168,
+                padding: '10px 12px',
+                textAlign: 'left',
+                cursor: 'pointer',
+                borderColor: seleccionado ? 'var(--ice)' : undefined,
+                background: seleccionado ? 'rgba(52,225,232,0.06)' : undefined,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                <span className="mx-jobrow-id">{trabajo.codigo}</span>
+                <span style={{ fontSize: 10.5, color: 'var(--muted)' }}>{trabajo.hora}</span>
+              </div>
+              <div
+                style={{
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  margin: '4px 0 6px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {trabajo.tipo}
+              </div>
+              <Badge tone={estadoInfo.tone}>{estadoInfo.label}</Badge>
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          className="mx-card"
+          style={{ flex: '0 0 auto', width: 120, padding: '10px 12px', cursor: 'pointer' }}
+          onClick={onOpenPublish}
+        >
+          <Plus size={14} style={{ verticalAlign: -2, marginRight: 4 }} />
+          Publicar otro
+        </button>
+      </div>
+
+      <TwoColumnLayout
+        variant="despacho"
+        left={
+          <section className="mx-col">
+            {jobSummaryData ? (
+              <>
+                <JobSummaryCard
+                  job={jobSummaryData}
+                  remainingSeconds={jobSummaryData.bidMins * 60}
+                  onOpenPublish={onOpenPublish}
                 />
-              ))}
-            </div>
-          )}
-        </section>
-      }
-      right={
-        <section className="mx-col">
-          <ResponsesPanel trabajoId={selectedTrabajoId ?? undefined} onAsignado={recargarTrabajos} />
-        </section>
-      }
-    />
+                <LiveDispatchCard
+                  notified={RADAR_DEMO_NOTIFIED}
+                  instState={RADAR_DEMO_INST_STATE}
+                  eligibleIds={ELIGIBLE_ORDER}
+                  publishedAt={LIVECOUNTDOWN_DEMO_PUBLISHED_AT}
+                  bidMins={LIVECOUNTDOWN_DEMO_BID_MINS}
+                  onCancel={onOpenConfirmCancel}
+                  cancelDisabled={!trabajoDestacado}
+                  onMostrarOfertas={() => setModoGlobal(true)}
+                />
+              </>
+            ) : (
+              <EmptyState
+                size="compact"
+                icon={<Crosshair size={22} />}
+                description="Selecciona un trabajo del selector para ver su despacho."
+              />
+            )}
+            {/* AJUSTE SPRINT -- Consolidación de Indicadores: UNA sola
+                tarjeta (antes eran 2: `JobIndicadoresCard` +
+                `DespachoKpiRow`), con el marco visual de la primera
+                (ícono+título+`mx-goal`) y el contenido real de la segunda
+                (Activos/Con ofertas/Por asignar/Asignados hoy, derivados de
+                `despachoKpis` -- ver su JSDoc), en grilla 2×2 (`.mx-stats`
+                con `gridTemplateColumns` local, en vez del 3+1 por defecto
+                de `StatGrid`). Se muestra siempre, independiente de si hay
+                un trabajo seleccionado (mismo criterio que ya tenía
+                `DespachoKpiRow`) -- el texto de la meta usa el `bidMins` del
+                trabajo seleccionado si existe, o el valor por defecto (5,
+                mismo fallback ya usado en `jobSummaryData` más arriba). */}
+            <Card>
+              <CardHeader icon={<TrendingUp size={14} />} cardTitle="Indicadores" />
+              <div className="mx-stats" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <StatTile value={despachoKpis.activos} label="Activos" sublabel="Trabajos live abiertos" />
+                <StatTile value={despachoKpis.conOfertas} label="Con ofertas" sublabel="Con al menos 1 oferta" />
+                <StatTile value={despachoKpis.porAsignar} label="Por asignar" sublabel="Requieren selección" />
+                <StatTile value={despachoKpis.asignadosHoy} label="Asignados hoy" />
+              </div>
+              <div className="mx-goal">
+                <ShieldCheck size={13} />
+                Meta: una opción de instalación disponible en {jobSummaryData?.bidMins ?? 5} minutos o menos.
+              </div>
+            </Card>
+          </section>
+        }
+        right={
+          <section className="mx-col">
+            <ResponsesPanel
+              trabajoId={selectedTrabajoId ?? undefined}
+              onAsignado={recargarTrabajos}
+              modoGlobal={modoGlobal}
+              trabajosLive={trabajosLive}
+              ofertasLive={ofertasLive}
+            />
+          </section>
+        }
+      />
+    </div>
   );
 }

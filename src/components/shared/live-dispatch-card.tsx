@@ -1,4 +1,4 @@
-import { Crosshair, Play, XCircle } from 'lucide-react';
+import { Crosshair, RefreshCw, XCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
@@ -24,13 +24,32 @@ import { Radar, type RadarInstallerState } from '@/components/shared/radar';
  * `CoordinatorLayoutOutletContext` (Sprint 5.1.2) — el diálogo en sí sigue
  * viviendo en `CoordinatorLayout.tsx`, sin cambios.
  *
- * **"Simular respuestas" (nuevo, inerte)**: el HTML oficial lo dispara
- * contra `simulateJob(job.id)`, parte del motor de subasta (Sprint 5.3,
- * explícitamente fuera de alcance — "no debe implementarse el motor de
- * subasta"). Se muestra `disabled`, con el mismo criterio ya establecido
- * en `TrabajoDetailPage`/`HeaderUserMenu` para acciones reales todavía sin
- * lógica: visible para fidelidad visual, sin fingir una funcionalidad que
- * no existe.
+ * **"Simular respuestas" → "Mostrar ofertas"** (RONDA DE VALIDACIÓN): el
+ * HTML oficial dispara este botón contra `simulateJob(job.id)`, parte del
+ * motor de subasta del prototipo standalone (nunca existió en la
+ * aplicación React real). Dos rondas anteriores ya cerraron esa discusión:
+ * (1) conectarlo a una simulación 100% en memoria era incorrecto ("hacía
+ * parecer" que el panel funcionaba sin representar el flujo real de
+ * ofertas); (2) el gap real reportado entonces sigue siendo cierto -- la
+ * aplicación no tiene, hoy, ningún mecanismo backend de "iniciar/publicar
+ * una ronda de ofertas" distinto de que el trabajo ya esté `estado='live'`
+ * (mientras dure ese estado, cualquier instalador elegible ya puede ofertar
+ * en cualquier momento vía `submit_bid()` -- `InstallerSolicitudes` →
+ * `callSubmitBid()`, RPC real que inserta en `ofertas`).
+ *
+ * Esta ronda identificó que ESE gap no es lo único que puede vivir en esta
+ * posición del layout: el prototipo también necesita, en la práctica, una
+ * forma de recargar manualmente las ofertas reales del trabajo
+ * seleccionado (p. ej. si Realtime tardó, o para confirmar el estado
+ * actual sin esperar). Esa acción SÍ existe realmente -- es la misma
+ * consulta que ya usa `ResponsesPanel` (`ofertasRepository.
+ * getByTrabajoId()`, vía su función interna `cargarOfertas()`, la misma que
+ * ya alimenta su propio botón "Actualizar ofertas"). Se renombra el botón a
+ * "Mostrar ofertas" y se conecta a `onMostrarOfertas` -- un segundo punto
+ * de entrada a la MISMA consulta real, sin infraestructura paralela: este
+ * componente no sabe nada de ofertas, solo reenvía el click (mismo patrón
+ * que `onCancel`); `ResponsesPanel` decide qué hacer con la señal. Cero
+ * datos ficticios, cero mocks -- ver su JSDoc completo.
  *
  * **"Ronda única" con estado fijo `act`**: el HTML alterna
  * `.mx-round.act`/`.mx-round.done` según `job.phase`; el job de
@@ -57,6 +76,27 @@ export interface LiveDispatchCardProps {
   publishedAt: number;
   bidMins: number;
   onCancel: () => void;
+  /**
+   * RONDA DE VALIDACIÓN — dispara una recarga real de las ofertas del
+   * trabajo seleccionado (ver JSDoc de "Mostrar ofertas" arriba y de
+   * `ResponsesPanel.refreshTrigger`). Al igual que `onCancel`, este
+   * componente no genera ni conoce las ofertas -- solo reenvía el click.
+   */
+  onMostrarOfertas: () => void;
+  /**
+   * AJUSTE SPRINT — Recomposición de Despacho en vivo: este bloque ahora se
+   * muestra para CUALQUIER trabajo `live` seleccionado (antes, solo para el
+   * `activeJob` recién publicado en la sesión). `onCancel` (vía
+   * `CoordinatorLayoutOutletContext`/`ConfirmCancelDialog`) solo tiene
+   * sentido real para ESE `activeJob` -- confirmarlo hace `setActiveJob(null)`
+   * en `CoordinatorLayout.tsx`, sin relación con ningún otro trabajo. Para
+   * un trabajo `live` distinto (elegido desde el selector/lista), no existe
+   * ningún flujo real de cancelación en este alcance -- se deshabilita el
+   * botón (con `title` explicativo) en vez de fingir una acción que no
+   * cancela realmente ese trabajo. Default `false` -- comportamiento
+   * histórico sin cambios para el único consumidor real hasta ahora.
+   */
+  cancelDisabled?: boolean;
 }
 
 export function LiveDispatchCard({
@@ -66,6 +106,8 @@ export function LiveDispatchCard({
   publishedAt,
   bidMins,
   onCancel,
+  cancelDisabled = false,
+  onMostrarOfertas,
 }: LiveDispatchCardProps) {
   return (
     <Card>
@@ -85,18 +127,21 @@ export function LiveDispatchCard({
         </div>
       </div>
       <div className="mx-actionsrow">
-        <Button
-          variant="amber"
-          disabled
-          title="Disponible cuando exista el motor de subasta (Sprint 5.3)"
-        >
-          <Play size={14} />
-          Simular respuestas
+        <Button variant="amber" onClick={onMostrarOfertas}>
+          <RefreshCw size={14} />
+          Mostrar ofertas
         </Button>
         <button
           type="button"
           className="mx-btn mx-btn-ghost"
-          style={{ flex: 'none', color: 'var(--red)', borderColor: 'rgba(255,92,122,.35)' }}
+          style={{
+            flex: 'none',
+            color: 'var(--red)',
+            borderColor: 'rgba(255,92,122,.35)',
+            opacity: cancelDisabled ? 0.5 : 1,
+          }}
+          disabled={cancelDisabled}
+          title={cancelDisabled ? 'Disponible únicamente para el trabajo recién publicado en esta sesión' : undefined}
           onClick={onCancel}
         >
           <XCircle size={14} />

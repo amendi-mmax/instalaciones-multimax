@@ -132,7 +132,24 @@ export function InstallerSolicitudes({ profile }: InstallerSolicitudesProps) {
     );
   }
 
-  if (trabajos.length === 0) {
+  // RONDA DE VALIDACIÓN -- corrección de un gap real entre este JSDoc (línea
+  // ~44-53, "incluye TODOS los trabajos 'live' de su empresa") y el código:
+  // nunca existía este filtro. `trabajosParaInstaladorRepository.getAll()`
+  // puede devolver trabajos que YA NO son `live` (`assigned`/`completed`/
+  // `cancelled`) para los que el instalador tiene una fila antigua en
+  // `trabajo_instaladores` (la policy real "fui notificado" solo verifica
+  // existencia de esa fila, sin importar el `estado` actual del trabajo --
+  // `instalador_fue_notificado()`, confirmado vía MCP). Sin este filtro,
+  // esos trabajos ya decididos se mezclaban en "Solicitudes" (que es,
+  // conceptualmente, la bandeja de trabajos ABIERTOS a oferta) -- riesgo
+  // real de que el instalador oferte sobre un trabajo equivocado que ya no
+  // acepta ofertas nuevas. "Mis trabajos" (`InstallerJobs.tsx`,
+  // `categoriaDeTrabajo()`) sigue siendo el único lugar que muestra el
+  // historial completo (Ofertados/Asignados/Completados/Cancelados) -- sin
+  // cambios ahí.
+  const trabajosLive = trabajos.filter((trabajo) => trabajo.estado_trabajo === 'live');
+
+  if (trabajosLive.length === 0) {
     return <InstallerSolicitudesEmptyState />;
   }
 
@@ -141,7 +158,7 @@ export function InstallerSolicitudes({ profile }: InstallerSolicitudesProps) {
   // oculta ni se excluye ningún trabajo de otra zona, solo cambia el
   // orden. `esMiZona` se calcula acá, en memoria, sobre datos ya
   // cargados -- no se persiste en Supabase (regla explícita del brief).
-  const trabajosOrdenados = [...trabajos].sort((a, b) => {
+  const trabajosOrdenados = [...trabajosLive].sort((a, b) => {
     const aEsMiZona = a.zona === profile.zona ? 0 : 1;
     const bEsMiZona = b.zona === profile.zona ? 0 : 1;
     return aEsMiZona - bEsMiZona;

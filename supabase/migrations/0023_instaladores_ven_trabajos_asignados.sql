@@ -1,0 +1,104 @@
+-- ============================================================
+-- HANDYMAX · Multimax Despacho — RONDA DE VALIDACIÓN
+-- Fix RLS: instaladores no ven el trabajo para el que fueron asignados
+-- ============================================================
+-- Requiere: 0001..0022 ya aplicadas. Es ADITIVA/no destructiva: agrega
+-- una única policy RLS nueva sobre `public.trabajos` (solo SELECT). No
+-- modifica, reemplaza ni elimina ninguna policy existente. No modifica
+-- datos, columnas, tablas, RPCs, ni la lógica de ofertas/asignación.
+--
+-- ────────────────────────────────────────────────────────────
+-- CAUSA RAÍZ (confirmada vía MCP contra datos reales, no asumida)
+-- ────────────────────────────────────────────────────────────
+-- Flujo real probado en navegador: Coordinador publica → Instalador
+-- oferta (`submit_bid`) → Coordinador asigna (`asignar_instalador`) →
+-- el trabajo pasa a `estado='assigned'` con `instalador_asignado_id`
+-- correcto -- pero el instalador ganador deja de poder verlo por
+-- completo, incluida la pestaña "Asignados" de "Mis trabajos".
+--
+-- `public.trabajos` tenía, antes de esta migración, exactamente 2
+-- policies de SELECT para instaladores:
+--   1. "instaladores ven trabajos donde fueron notificados" --
+--      depende de `instalador_fue_notificado(id)`, que solo verifica
+--      EXISTS una fila en `trabajo_instaladores` para ese instalador +
+--      trabajo (sin importar el `estado` actual del trabajo). Esa fila
+--      SOLO se crea vía `notificar_instaladores_elegibles()` al
+--      publicar, filtrando por empresa+provincia+zona (migración 0006).
+--   2. "instaladores ven trabajos live de su empresa" -- exige
+--      `estado = 'live'` (migración 0018).
+--
+-- Un trabajo `assigned` para el que el instalador NUNCA fue notificado
+-- (posible desde 0018, que amplió deliberadamente la visibilidad de
+-- "Solicitudes" a toda zona -- un instalador puede ofertar sin haber
+-- sido notificado) no tiene fila en `trabajo_instaladores`, así que la
+-- policy 1 no lo cubre; y al dejar de ser `live`, la policy 2 tampoco.
+-- Resultado: RLS bloquea el `SELECT` por completo, sin importar que
+-- `trabajos.instalador_asignado_id` sea, literalmente, el propio uuid
+-- del instalador -- confirmado con datos reales (`JOB-9250`: `estado=
+-- 'assigned'`, `instalador_asignado_id` = uuid del único instalador de
+-- prueba, cero filas en `trabajo_instaladores`).
+--
+-- ────────────────────────────────────────────────────────────
+-- VALIDACIÓN DEL MODELO (confirmada vía MCP antes de escribir esta
+-- migración, no asumida)
+-- ────────────────────────────────────────────────────────────
+-- `trabajos.instalador_asignado_id` es `uuid`, FK real hacia
+-- `instaladores.id` (`trabajos_instalador_asignado_id_fkey`,
+-- confirmado en `information_schema`). `instaladores.id = auth.uid()`
+-- es el mismo patrón YA usado y confiado por el resto del proyecto para
+-- esta tabla -- la propia policy "instaladores ven trabajos live de su
+-- empresa" (0018) lo usa (`i.id = auth.uid()`), y la vista
+-- `trabajos_para_instalador` (0018) calcula `gane_yo` con la MISMA
+-- expresión exacta que esta policy (`t.instalador_asignado_id =
+-- auth.uid()`). No existe ningún helper/función intermedia para este
+-- caso -- una comparación directa es la forma ya establecida.
+--
+-- ────────────────────────────────────────────────────────────
+-- ALCANCE (mínimo necesario, sin tocar nada más)
+-- ────────────────────────────────────────────────────────────
+-- Una única policy PERMISIVA de SELECT (Postgres combina policies
+-- permisivas del mismo comando con OR -- esta se SUMA a las 4 policies
+-- de SELECT ya existentes sobre `trabajos`, no las reemplaza). No
+-- amplía el acceso general de instaladores a trabajos `assigned` de
+-- OTROS instaladores -- la condición `instalador_asignado_id =
+-- auth.uid()` es estrictamente de propiedad individual, no de empresa.
+-- No modifica INSERT/UPDATE/DELETE. No modifica `ofertas`,
+-- `trabajo_instaladores`, `submit_bid`, `asignar_instalador`, ni
+-- ninguna Edge Function.
+-- ============================================================
+
+CREATE POLICY "instaladores ven trabajos donde fueron asignados"
+    ON public.trabajos FOR SELECT
+    TO authenticated
+    USING (instalador_asignado_id = auth.uid());
+
+
+-- ============================================================
+-- VALIDACIÓN (ejecutar después de aplicar)
+-- ============================================================
+-- select policyname, cmd, roles, qual
+-- from pg_policies
+-- where tablename = 'trabajos' and cmd = 'SELECT'
+-- order by policyname;
+-- -- debe mostrar 5 policies de SELECT: las 4 preexistentes (admins/
+-- -- coordinadores/notificados/live-de-empresa) sin ningún cambio, más
+-- -- esta nueva.
+--
+-- Validación funcional (con datos reales, sin crear ninguno para esta
+-- prueba): un trabajo real `assigned` con `instalador_asignado_id` =
+-- uuid de un instalador real -- ese instalador debe poder verlo vía
+-- `trabajos_para_instalador` (que ya tiene `security_invoker=true`
+-- desde 0021, así que respeta esta policy nueva sin cambios
+-- adicionales); un instalador DISTINTO (`instalador_asignado_id` no
+-- coincide, y no fue notificado ni es `live`) NO debe poder verlo.
+
+
+-- ============================================================
+-- ROLLBACK
+-- ============================================================
+-- DROP POLICY IF EXISTS "instaladores ven trabajos donde fueron asignados"
+-- ON public.trabajos;
+
+-- ============================================================
+-- FIN DE LA MIGRACIÓN 0023
+-- ============================================================

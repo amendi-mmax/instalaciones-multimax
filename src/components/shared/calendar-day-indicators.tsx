@@ -15,6 +15,11 @@ import type { CalendarDaySummary } from '@/types/calendar';
  * tono que `TRABAJO_ESTADO_INFO.live`), `var(--violet)` (asignado),
  * `var(--green)` (finalizado), `var(--muted)` (cancelado), `var(--red)`
  * (vencido/crítico) -- ninguna paleta nueva.
+ *
+ * **Corrección de auditoría (GAP-3)**: se agrega el punto `porConfirmar`
+ * (`var(--ice)`, mismo tono que `TRABAJO_ESTADO_INFO.pending_confirmation`
+ * en `constants/index.ts`) -- sin esto, un día con un trabajo
+ * `pending_confirmation` mostraba menos puntos que trabajos reales tenía.
  */
 export interface CalendarDayIndicatorsProps {
   summary: CalendarDaySummary | undefined;
@@ -31,6 +36,7 @@ export function CalendarDayIndicators({ summary }: CalendarDayIndicatorsProps) {
   const dots: Dot[] = [];
   if (summary.pendientes > 0) dots.push({ key: 'pendiente', color: 'var(--amber)' });
   if (summary.asignados > 0) dots.push({ key: 'asignado', color: 'var(--violet)' });
+  if (summary.porConfirmar > 0) dots.push({ key: 'porConfirmar', color: 'var(--ice)' });
   if (summary.finalizados > 0) dots.push({ key: 'finalizado', color: 'var(--green)' });
   if (summary.cancelados > 0) dots.push({ key: 'cancelado', color: 'var(--muted)' });
   if (summary.vencidos > 0) dots.push({ key: 'vencido', color: 'var(--red)' });

@@ -195,3 +195,46 @@ export async function callNombreEmpresaInstaladora(
   }
   return { ok: true, data };
 }
+
+/**
+ * Invocación tipada de `marcar_trabajo_terminado` (RPC real de Producción,
+ * RONDA "Ciclo de vida Completado" -- `supabase/migrations/
+ * 0024_finalizacion_trabajo.sql`). Ver `callAsignarInstalador` para la
+ * justificación del patrón general.
+ *
+ * `Returns: boolean` -- `true` únicamente si el `UPDATE` interno del RPC
+ * afectó una fila real (el trabajo era `assigned` y pertenecía al
+ * instalador autenticado). `false` significa "la transición NO ocurrió"
+ * (trabajo ajeno, ya no `assigned`, o inexistente) -- quien llame a este
+ * helper NO debe mostrar un mensaje de éxito cuando `data` sea `false`,
+ * aunque `result.ok` sea `true` (la llamada RPC en sí no falló, pero la
+ * transición de negocio sí).
+ */
+export async function callMarcarTrabajoTerminado(
+  args: Database['public']['Functions']['marcar_trabajo_terminado']['Args'],
+): Promise<ServiceResult<Database['public']['Functions']['marcar_trabajo_terminado']['Returns']>> {
+  const { data, error } = await getClient().rpc(RPC_FUNCTIONS.marcarTrabajoTerminado, args);
+  if (error) {
+    return { ok: false, error: normalizeSupabaseError(error) };
+  }
+  return { ok: true, data };
+}
+
+/**
+ * Invocación tipada de `confirmar_trabajo_completado` (RPC real de
+ * Producción, RONDA "Ciclo de vida Completado" -- `supabase/migrations/
+ * 0024_finalizacion_trabajo.sql`). Ver `callMarcarTrabajoTerminado` para la
+ * misma justificación de `Returns: boolean` -- `false` significa que el
+ * trabajo no estaba en `pending_confirmation` (o no pertenece a la
+ * tienda/empresa del coordinador, filtrado por RLS), no que la llamada
+ * falló.
+ */
+export async function callConfirmarTrabajoCompletado(
+  args: Database['public']['Functions']['confirmar_trabajo_completado']['Args'],
+): Promise<ServiceResult<Database['public']['Functions']['confirmar_trabajo_completado']['Returns']>> {
+  const { data, error } = await getClient().rpc(RPC_FUNCTIONS.confirmarTrabajoCompletado, args);
+  if (error) {
+    return { ok: false, error: normalizeSupabaseError(error) };
+  }
+  return { ok: true, data };
+}

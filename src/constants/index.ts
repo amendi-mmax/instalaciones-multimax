@@ -667,15 +667,25 @@ export const REVEAL: RevealMock = {
  * `SPRINT_4_2_1_AUTH_REPORT.md` sobre la restricción de red del sandbox).
  *
  * Por eso `trabajoEstadoInfo()` es defensiva: si `estado` no es una de las
- * 4 claves conocidas, no oculta el dato ni lo reclasifica -- devuelve un
+ * claves conocidas, no oculta el dato ni lo reclasifica -- devuelve un
  * tono `muted` con la etiqueta siendo el valor crudo tal cual vino de la
  * base de datos. Ningún trabajo queda invisible por un valor inesperado.
+ *
+ * **RONDA — Ciclo de vida "Completado"**: `pending_confirmation` es el
+ * primer valor de este catálogo verificado como REAL desde su origen (no
+ * inferido) -- lo escribe `marcar_trabajo_terminado()`, RPC real de esta
+ * misma ronda (`supabase/migrations/0024_finalizacion_trabajo.sql`).
+ * `completed` deja de ser puramente inferido también: `confirmar_trabajo_
+ * completado()` (misma migración) es la primera función real que lo
+ * escribe. Ninguno de los 2 tiene CHECK/ENUM que lo respalde -- siguen
+ * siendo convención de aplicación, igual que el resto de esta columna.
  */
-export type TrabajoEstadoReal = 'live' | 'assigned' | 'completed' | 'cancelled';
+export type TrabajoEstadoReal = 'live' | 'assigned' | 'pending_confirmation' | 'completed' | 'cancelled';
 
 export const TRABAJO_ESTADO_INFO: Record<TrabajoEstadoReal, EstadoUiInfo> = {
   live: { tone: 'amber', label: 'En vivo' },
   assigned: { tone: 'violet', label: 'Asignado' },
+  pending_confirmation: { tone: 'ice', label: 'Pendiente de confirmación' },
   completed: { tone: 'green', label: 'Completado' },
   cancelled: { tone: 'red', label: 'Cancelado' },
 };
@@ -697,6 +707,14 @@ export function trabajoEstadoInfo(estado: string): EstadoUiInfo {
  * ["completado","Completados"], ["cancelado","Cancelados"]]`), pero con
  * las claves de `TrabajoEstadoReal` (arriba) en vez del vocabulario en
  * español del mock, ya que este Sprint filtra trabajos reales.
+ *
+ * **Corrección de auditoría (GAP-1)**: se agrega el chip `pending_confirmation`
+ * → "Por confirmar" -- hasta esta corrección, un trabajo en ese estado solo
+ * era visible bajo "Todos" (ningún chip lo mostraba explícitamente).
+ * `TrabajosPage.tsx` filtra con `trabajo.estado === filtro` -- no requirió
+ * ningún cambio propio, ya soporta cualquier clave de `TrabajoEstadoReal`
+ * de forma genérica. No se reclasifica como "Completados" -- son estados
+ * distintos (ver `TrabajoEstadoReal` arriba).
  */
 export const TRABAJOS_FILTROS: readonly (readonly [
   'todos' | TrabajoEstadoReal,
@@ -705,6 +723,7 @@ export const TRABAJOS_FILTROS: readonly (readonly [
   ['todos', 'Todos'],
   ['live', 'En vivo'],
   ['assigned', 'Asignados'],
+  ['pending_confirmation', 'Por confirmar'],
   ['completed', 'Completados'],
   ['cancelled', 'Cancelados'],
 ] as const;

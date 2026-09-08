@@ -186,7 +186,7 @@ export function InstallerDashboard({ profile }: InstallerDashboardProps) {
         >
           <InstallerResumenStrip disponibles={disponibles} enCurso={enCurso} />
           {instTab === 'solicitudes' ? <InstallerSolicitudes profile={profile} /> : null}
-          {instTab === 'trabajos' ? <InstallerJobs /> : null}
+          {instTab === 'trabajos' ? <InstallerJobs profile={profile} /> : null}
           {instTab === 'perfil' ? <InstallerProfile profile={profile} /> : null}
         </PhoneFrame>
       }
