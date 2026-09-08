@@ -56,16 +56,18 @@ function calcularResumen(rows: readonly TrabajoRow[]): AdminDashboardResumen {
   let completados = 0;
   let activos = 0;
   let pendientes = 0;
+  let porConfirmar = 0;
   let cancelados = 0;
 
   for (const row of rows) {
     if (row.estado === 'completed') completados += 1;
     else if (row.estado === 'assigned') activos += 1;
     else if (row.estado === 'live') pendientes += 1;
+    else if (row.estado === 'pending_confirmation') porConfirmar += 1;
     else if (row.estado === 'cancelled') cancelados += 1;
   }
 
-  return { totalEnRango: rows.length, completados, activos, pendientes, cancelados };
+  return { totalEnRango: rows.length, completados, activos, pendientes, porConfirmar, cancelados };
 }
 
 function calcularPorSucursal(
@@ -81,6 +83,7 @@ function calcularPorSucursal(
       completados: 0,
       activos: 0,
       pendientes: 0,
+      porConfirmar: 0,
       cancelados: 0,
     });
   }
@@ -92,6 +95,7 @@ function calcularPorSucursal(
     if (row.estado === 'completed') stat.completados += 1;
     else if (row.estado === 'assigned') stat.activos += 1;
     else if (row.estado === 'live') stat.pendientes += 1;
+    else if (row.estado === 'pending_confirmation') stat.porConfirmar += 1;
     else if (row.estado === 'cancelled') stat.cancelados += 1;
   }
 

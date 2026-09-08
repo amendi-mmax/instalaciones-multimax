@@ -1,12 +1,14 @@
-import { Calendar, MapPin, MessageSquare, RotateCcw, Send, User } from 'lucide-react';
+import { Calendar, CheckCircle2, MapPin, MessageSquare, RotateCcw, Send, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Loading } from '@/components/ui/spinner';
+import { Loading, Spinner } from '@/components/ui/spinner';
 import { trabajoEstadoInfo } from '@/constants';
 import { instaladoresRepository } from '@/repositories';
+import { callConfirmarTrabajoCompletado } from '@/services/database.service';
 import { getTrabajoDetalle, type TableRow } from '@/services';
 
 /**
@@ -30,6 +32,44 @@ import { getTrabajoDetalle, type TableRow } from '@/services';
  *   criterio ya establecido en `HeaderUserMenu` (Sprint 4.2.1) para ítems
  *   de menú sin implementación real todavía: visibles para fidelidad
  *   visual, pero sin fingir una funcionalidad que no existe.
+ *
+ * **Ajustes finales del flujo Instalador** (commit `9dd34f99`): se había
+ * agregado acá `ResponsesPanel` cuando `trabajo.estado === 'live'`, como
+ * único lugar donde un Admin/Coordinador podía ver las ofertas de
+ * cualquier trabajo `live` (no solo del `activeJob` efímero de "Despacho
+ * en vivo" de esa época).
+ *
+ * **AJUSTE SPRINT — Recomposición de Despacho en vivo** (`8ede7a6` en
+ * adelante): esa integración se retira de aquí. "Despacho en vivo"
+ * (`DespachoPage.tsx`) ahora carga TODOS los trabajos `live` de la tienda
+ * (no solo el `activeJob` de la sesión) y permite seleccionar cualquiera
+ * desde su propia lista, con `ResponsesPanel` en su sidebar derecho -- ese
+ * es, desde este ajuste, el ÚNICO lugar de la aplicación donde se
+ * coordinan/visualizan ofertas y se asigna un instalador. Esta página
+ * (`/trabajos/:id`, alcanzable desde "Mis trabajos" del Coordinador) vuelve
+ * a ser exclusivamente detalle/seguimiento de UN trabajo puntual -- mismo
+ * criterio que ya regía antes de `9dd34f99` para `assigned`/`completed`/
+ * `cancelled`, ahora extendido también a `live`.
+ *
+ * **RONDA — Ciclo de vida "Completado"**: por instrucción explícita
+ * ("NO agregues la confirmación de completado al Despacho en vivo... la
+ * confirmación debe vivir en la parte administrativa/detalle de trabajos
+ * existente"), esta página (no `DespachoPage.tsx`) es el único lugar donde
+ * el coordinador confirma el cierre de un trabajo `pending_confirmation`.
+ * Botón "Confirmar completado" (visible únicamente cuando `trabajo.estado
+ * === 'pending_confirmation'`), invoca `callConfirmarTrabajoCompletado()`
+ * (RPC real `SECURITY INVOKER`, migración
+ * `0024_finalizacion_trabajo.sql`) -- reutiliza las policies de `UPDATE`
+ * sobre `trabajos` ya existentes para coordinadores/admins, sin RLS nueva.
+ * El RPC devuelve `boolean`: si es `false` (0 filas afectadas -- p. ej. el
+ * trabajo ya no está `pending_confirmation`), se muestra un error real en
+ * vez de un éxito falso. Tras un éxito real, se vuelve a consultar
+ * `getTrabajoDetalle()` (misma función ya existente) para reflejar
+ * `estado='completed'` sin recargar la página. Sin Realtime propio en esta
+ * página -- el canal de `DespachoPage.tsx` (`trabajos` UPDATE) no aplica
+ * acá (esta pantalla no vive en esa página) y no se pidió uno nuevo; el
+ * coordinador que confirma ve el cambio de inmediato porque es él mismo
+ * quien lo produce, en la misma pestaña.
  */
 export function TrabajoDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -38,6 +78,8 @@ export function TrabajoDetailPage() {
   const [trabajo, setTrabajo] = useState<TableRow<'trabajos'> | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [instaladorNombre, setInstaladorNombre] = useState<string | null>(null);
+  const [confirmando, setConfirmando] = useState(false);
+  const [confirmarError, setConfirmarError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -64,6 +106,33 @@ export function TrabajoDetailPage() {
       active = false;
     };
   }, [id]);
+
+  // RONDA — Ciclo de vida "Completado": ver JSDoc de cabecera. `id` siempre
+  // está presente cuando este botón es alcanzable (la ruta `/trabajos/:id`
+  // ya requiere el parámetro; si faltara, `trabajo` nunca se resolvería y
+  // este bloque no se renderiza).
+  const confirmarCompletado = async () => {
+    if (!id || confirmando) return;
+    setConfirmarError(null);
+    setConfirmando(true);
+    const result = await callConfirmarTrabajoCompletado({ p_trabajo_id: id });
+    setConfirmando(false);
+
+    if (!result.ok) {
+      setConfirmarError(result.error.message);
+      return;
+    }
+    if (!result.data) {
+      // 0 filas afectadas -- la transición NO ocurrió (el trabajo ya no
+      // estaba `pending_confirmation`). No se finge éxito.
+      setConfirmarError('No se pudo confirmar. Puede que el trabajo ya haya cambiado de estado.');
+      return;
+    }
+    const refreshed = await getTrabajoDetalle(id);
+    if (refreshed.ok) {
+      setTrabajo(refreshed.data);
+    }
+  };
 
   if (error) {
     return (
@@ -98,6 +167,8 @@ export function TrabajoDetailPage() {
   const estadoInfo = trabajoEstadoInfo(trabajo.estado);
   const completado = trabajo.estado === 'completed';
   const cancelado = trabajo.estado === 'cancelled';
+  // RONDA — Ciclo de vida "Completado".
+  const pendienteConfirmacion = trabajo.estado === 'pending_confirmation';
 
   const steps = [
     { b: 'Publicado', s: `${trabajo.fecha} · solicitud enviada`, cls: 'done' },
@@ -110,7 +181,15 @@ export function TrabajoDetailPage() {
           : 'Esperando ofertas de instaladores',
       cls: instaladorNombre ? 'done' : trabajo.estado === 'live' ? 'act' : '',
     },
-    { b: 'Completado', s: completado ? 'Servicio realizado y confirmado' : 'Pendiente', cls: completado ? 'done' : '' },
+    {
+      b: 'Completado',
+      s: completado
+        ? 'Servicio realizado y confirmado'
+        : pendienteConfirmacion
+          ? 'El instalador marcó el trabajo como terminado -- pendiente de tu confirmación'
+          : 'Pendiente',
+      cls: completado ? 'done' : pendienteConfirmacion ? 'act' : '',
+    },
   ];
 
   return (
@@ -176,6 +255,30 @@ export function TrabajoDetailPage() {
               </div>
             )}
           </div>
+          {pendienteConfirmacion ? (
+            <div style={{ marginTop: 4 }}>
+              {confirmarError ? (
+                <p className="mx-sub" style={{ color: 'var(--red)', marginBottom: 8 }}>
+                  {confirmarError}
+                </p>
+              ) : null}
+              <Button
+                variant="ice"
+                style={{ width: '100%' }}
+                disabled={confirmando}
+                onClick={() => void confirmarCompletado()}
+              >
+                {confirmando ? (
+                  <Spinner size={16} />
+                ) : (
+                  <>
+                    <CheckCircle2 size={14} />
+                    Confirmar completado
+                  </>
+                )}
+              </Button>
+            </div>
+          ) : null}
           <div className="mx-detailacts">
             <button type="button" disabled title="Disponible cuando exista el motor de ofertas (Sprint 5.3)">
               <MessageSquare size={14} />

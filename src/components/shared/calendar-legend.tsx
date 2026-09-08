@@ -14,10 +14,15 @@ import { Badge } from '@/components/ui/badge';
  * Solo 2 niveles de prioridad ("Alta"/"Normal"), no 3 -- ver
  * `types/calendar.ts` para la justificación (columna real `urgente`,
  * `boolean`, sin un tercer nivel en el schema).
+ *
+ * **Corrección de auditoría (GAP-3)**: se agrega "Por confirmar" (tono
+ * `ice`, mismo tono que `TRABAJO_ESTADO_INFO.pending_confirmation`) --
+ * coherente con el punto nuevo de `CalendarDayIndicators`.
  */
 const ESTADOS = [
   { tone: 'amber', label: 'Pendiente' },
   { tone: 'violet', label: 'Asignado' },
+  { tone: 'ice', label: 'Por confirmar' },
   { tone: 'green', label: 'Finalizado' },
   { tone: 'muted', label: 'Cancelado' },
 ] as const;

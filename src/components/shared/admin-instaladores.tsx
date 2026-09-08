@@ -91,6 +91,7 @@ export function AdminInstaladores() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [updatingDocsId, setUpdatingDocsId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [empresasInstaladoras, setEmpresasInstaladoras] = useState<EmpresaInstaladoraRow[] | null>(null);
@@ -198,13 +199,53 @@ export function AdminInstaladores() {
     await loadInstaladores();
   };
 
-  const toggleSuspendido = async (installer: InstaladorRow) => {
+  /**
+   * Ajustes funcionales del flujo Instalador -- 3 acciones administrativas
+   * posibles, mutuamente excluyentes según el estado real del instalador
+   * (nunca ambas visibles a la vez):
+   * - `suspendido === true` -> "Activar" (`reactivateInstalador`, solo
+   *   toca `suspendido`).
+   * - `suspendido === false && activo === false` -> "Aprobar"
+   *   (`setInstaladorActivo({activo:true})`, solo toca `activo` -- el
+   *   único mecanismo real que puede sacar a un instalador recién invitado
+   *   de su estado inicial `activo:false`).
+   * - `suspendido === false && activo === true` -> "Suspender"
+   *   (`suspendInstalador`, solo toca `suspendido`).
+   */
+  const ejecutarAccion = async (installer: InstaladorRow) => {
     setError(null);
     setUpdatingId(installer.id);
     const result = installer.suspendido
       ? await adminOperationsService.reactivateInstalador({ instalador_id: installer.id })
-      : await adminOperationsService.suspendInstalador({ instalador_id: installer.id });
+      : !installer.activo
+        ? await adminOperationsService.setInstaladorActivo({ instalador_id: installer.id, activo: true })
+        : await adminOperationsService.suspendInstalador({ instalador_id: installer.id });
     setUpdatingId(null);
+
+    if (!result.ok) {
+      setError(result.error.message);
+      return;
+    }
+
+    await loadInstaladores();
+  };
+
+  /**
+   * Ajustes finales del flujo Instalador -- "Aprobación de documentos".
+   * Antes no existía ninguna acción para esto (`documentos_ok` solo se leía,
+   * nunca se escribía después de la invitación) -- mismo criterio de
+   * `ejecutarAccion()`: recarga la lista completa tras el `UPDATE`, en vez
+   * de mutar el estado local a mano, para mantener una única fuente de
+   * verdad (Supabase).
+   */
+  const toggleDocumentosOk = async (installer: InstaladorRow) => {
+    setError(null);
+    setUpdatingDocsId(installer.id);
+    const result = await adminOperationsService.setInstaladorDocumentosOk({
+      instalador_id: installer.id,
+      documentos_ok: !installer.documentos_ok,
+    });
+    setUpdatingDocsId(null);
 
     if (!result.ok) {
       setError(result.error.message);
@@ -233,12 +274,20 @@ export function AdminInstaladores() {
             ) : (
               instaladores.map((installer) => {
                 const suspendido = installer.suspendido;
-                const tone: BadgeTone = suspendido ? 'red' : !installer.documentos_ok ? 'amber' : 'green';
+                const pendienteAprobacion = !suspendido && !installer.activo;
+                const tone: BadgeTone = suspendido
+                  ? 'red'
+                  : pendienteAprobacion || !installer.documentos_ok
+                    ? 'amber'
+                    : 'green';
                 const label = suspendido
                   ? 'Suspendido'
-                  : !installer.documentos_ok
-                    ? 'Docs pendientes'
-                    : 'Activo';
+                  : pendienteAprobacion
+                    ? 'Pendiente de aprobación'
+                    : !installer.documentos_ok
+                      ? 'Docs pendientes'
+                      : 'Activo';
+                const accionLabel = suspendido ? 'Activar' : pendienteAprobacion ? 'Aprobar' : 'Suspender';
                 const isRowUpdating = updatingId === installer.id;
                 // Parte 5: nombre resuelto mediante la relación real
                 // (mapa id -> nombre del catálogo), nunca texto plano.
@@ -271,20 +320,41 @@ export function AdminInstaladores() {
                           {installer.cumplimiento ?? 0}% cumpl.
                         </span>
                       </div>
+                      {/* Ajustes finales del flujo Instalador -- checkbox
+                          administrativo para "Aprobación de documentos".
+                          Antes solo existía el badge de lectura ("Docs
+                          pendientes"/arriba) -- este control es la acción
+                          real que faltaba. Independiente de
+                          Aprobar/Suspender/Activar (columnas distintas:
+                          `documentos_ok` vs. `activo`/`suspendido`). */}
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          marginTop: 6,
+                          fontSize: 11.5,
+                          color: 'var(--muted)',
+                          cursor: updatingDocsId === installer.id ? 'default' : 'pointer',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={installer.documentos_ok}
+                          disabled={updatingDocsId === installer.id}
+                          onChange={() => void toggleDocumentosOk(installer)}
+                        />
+                        {updatingDocsId === installer.id ? <Spinner size={11} /> : null}
+                        Documentos verificados
+                      </label>
                     </div>
                     <button
                       type="button"
-                      className={`mx-admin-act${suspendido ? '' : ' danger'}`}
+                      className={`mx-admin-act${accionLabel === 'Suspender' ? ' danger' : ''}`}
                       disabled={isRowUpdating}
-                      onClick={() => void toggleSuspendido(installer)}
+                      onClick={() => void ejecutarAccion(installer)}
                     >
-                      {isRowUpdating ? (
-                        <Spinner size={12} />
-                      ) : suspendido ? (
-                        'Reactivar'
-                      ) : (
-                        'Suspender'
-                      )}
+                      {isRowUpdating ? <Spinner size={12} /> : accionLabel}
                     </button>
                   </div>
                 );

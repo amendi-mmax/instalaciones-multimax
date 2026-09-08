@@ -37,14 +37,29 @@ import type { TableRow } from '@/services';
 export interface TrabajoRowProps {
   trabajo: TableRow<'trabajos'>;
   onSelect: (id: string) => void;
+  /**
+   * Evolución de Despacho en vivo — cantidad de ofertas reales recibidas
+   * para este trabajo (ya resuelta por el llamador, sin consulta propia
+   * de este componente). `undefined`/`0` no muestra el badge -- mismo
+   * criterio que el resto de badges opcionales de esta fila
+   * (`precio_sugerido`).
+   */
+  ofertasCount?: number;
+  /** Evolución de Despacho en vivo — resalta la fila actualmente seleccionada. */
+  selected?: boolean;
 }
 
-export function TrabajoRow({ trabajo, onSelect }: TrabajoRowProps) {
+export function TrabajoRow({ trabajo, onSelect, ofertasCount, selected }: TrabajoRowProps) {
   const estadoInfo = trabajoEstadoInfo(trabajo.estado);
   const direccion = trabajo.direccion_exacta ?? trabajo.calle ?? `${trabajo.zona} · ${trabajo.provincia}`;
 
   return (
-    <button type="button" className="mx-jobrow" onClick={() => onSelect(trabajo.id)}>
+    <button
+      type="button"
+      className="mx-jobrow"
+      style={selected ? { borderColor: 'var(--ice)', background: 'rgba(52,225,232,0.06)' } : undefined}
+      onClick={() => onSelect(trabajo.id)}
+    >
       <div className="mx-jobrow-main">
         <div className="mx-jobrow-top">
           <span className="mx-jobrow-id">{trabajo.codigo}</span>
@@ -52,6 +67,11 @@ export function TrabajoRow({ trabajo, onSelect }: TrabajoRowProps) {
           <Badge tone={trabajo.urgente ? 'red' : 'muted'}>
             {trabajo.urgente ? 'Urgente' : 'Normal'}
           </Badge>
+          {ofertasCount ? (
+            <Badge tone="ice">
+              {ofertasCount} oferta{ofertasCount === 1 ? '' : 's'}
+            </Badge>
+          ) : null}
         </div>
         <div className="mx-jobrow-t">{trabajo.tipo}</div>
         <div className="mx-jobrow-meta">

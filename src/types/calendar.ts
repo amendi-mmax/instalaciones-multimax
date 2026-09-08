@@ -109,12 +109,22 @@ export interface CalendarJobViewModel {
   tiempoRealMin: number | null;
 }
 
-/** Conteos agregados de un día -- alimenta los indicadores visuales de cada celda del calendario (Sprint 8.2.2), sin texto. */
+/**
+ * Conteos agregados de un día -- alimenta los indicadores visuales de cada
+ * celda del calendario (Sprint 8.2.2), sin texto.
+ *
+ * **Corrección de auditoría (GAP-3)**: se agrega `porConfirmar`
+ * (`estado === 'pending_confirmation'`) -- antes de este campo, `total` sí
+ * contaba estos trabajos pero ningún sub-contador lo reflejaba, dejando la
+ * suma de `pendientes+asignados+finalizados+cancelados` por debajo de
+ * `total` en cualquier día con un trabajo en ese estado.
+ */
 export interface CalendarDaySummary {
   fecha: string;
   total: number;
   pendientes: number;
   asignados: number;
+  porConfirmar: number;
   finalizados: number;
   cancelados: number;
   vencidos: number;

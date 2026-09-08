@@ -1,0 +1,117 @@
+-- ============================================================
+-- HANDYMAX · Multimax Despacho — Ajustes funcionales del flujo Instalador
+-- Fix de seguridad: security_invoker en trabajos_para_instalador
+-- ============================================================
+-- Requiere: 0001..0020 ya aplicadas (en particular 0018, cuya vista
+-- redefinida es la que esta migración corrige). Es ADITIVA/no destructiva:
+-- cambia únicamente una opción de la vista (`ALTER VIEW ... SET`), no
+-- modifica columnas, no modifica el `SELECT` de la vista, no toca ninguna
+-- tabla ni policy.
+--
+-- ────────────────────────────────────────────────────────────
+-- CAUSA RAÍZ (auditoría de seguridad pre-deploy, confirmada vía MCP en
+-- vivo contra pg_roles/pg_class/pg_views -- no asumida)
+-- ────────────────────────────────────────────────────────────
+-- `public.trabajos_para_instalador` (vista real, existente desde el
+-- Sprint 7.2, creada fuera de banda -- ver `0008_authenticated_view_
+-- grants_sprint72.sql`) tiene como owner a `postgres`. `postgres` tiene el
+-- atributo `rolbypassrls = true` (verificado: `select rolbypassrls from
+-- pg_roles where rolname='postgres'` -> true).
+--
+-- En PostgreSQL, una vista SIN `security_invoker = true` evalúa las
+-- políticas RLS de las tablas subyacentes usando la identidad del OWNER
+-- de la vista, no la del usuario que realmente consulta (comportamiento
+-- documentado oficialmente por PostgreSQL; `security_invoker` -- opción
+-- disponible desde PostgreSQL 15, este proyecto corre 17.6, confirmado
+-- vía `select version()` -- existe exactamente para permitir que una
+-- vista respete el usuario invocador en vez del owner).
+--
+-- Consecuencia real: como el owner (`postgres`) tiene `BYPASSRLS`, TODAS
+-- las policies RLS de `public.trabajos` (incluida la nueva de `0018`,
+-- "instaladores ven trabajos live de su empresa", y también las
+-- preexistentes "instaladores ven trabajos donde fueron notificados"/
+-- "coordinadores..."/"admins...") se OMITEN por completo cuando se
+-- consulta a través de esta vista -- sin importar cuántas policies
+-- correctas existan sobre `trabajos`, la vista las ignora y expondría
+-- TODOS los trabajos de TODAS las empresas y TODOS los estados a
+-- cualquier usuario autenticado con `SELECT` sobre la vista (ya otorgado
+-- a `authenticated` desde `0008`).
+--
+-- No se pudo reproducir empíricamente con datos reales (Producción no
+-- tiene trabajos en el momento de esta auditoría) -- la conclusión se
+-- basa en el mecanismo documentado de PostgreSQL + los metadatos reales
+-- de catálogo, no en una prueba con filas. Se trata como bloqueante por
+-- el riesgo (exposición cross-tenant total) hasta poder confirmarlo con
+-- datos de prueba reales.
+--
+-- ────────────────────────────────────────────────────────────
+-- RELACIÓN CON 0018
+-- ────────────────────────────────────────────────────────────
+-- `0018` redefine `trabajos_para_instalador` (LEFT JOIN ampliado +
+-- columnas `oferta_enviada`/`mi_oferta_precio`/`mi_oferta_enviado_at`) y
+-- agrega la policy RLS nueva sobre `trabajos` que debía scoped-ar el
+-- resultado por empresa/activo/estado. Esta migración (`0021`) es
+-- OBLIGATORIA para que esa policy (y las 3 preexistentes de `trabajos`)
+-- realmente se apliquen cuando el instalador consulta vía la vista -- sin
+-- `0021`, `0018` no logra su objetivo de aislamiento por empresa a través
+-- de este camino de lectura. `0021` no depende de ningún cambio de SQL de
+-- `0018` más allá de que la vista exista con ese nombre -- se aplicaría
+-- igual de correctamente sobre la definición vieja o la nueva de la
+-- vista, pero se documenta como dependiente de `0018` para mantener el
+-- orden de aplicación ya definido en el plan de deployment.
+--
+-- Las columnas `mi_estado`/`oferta_enviada`/`mi_oferta_precio`/
+-- `mi_oferta_enviado_at`/`gane_yo`/`cliente_*` NO se ven afectadas por
+-- este hallazgo -- se calculan con condiciones escritas directamente en
+-- el `JOIN`/`CASE` de la propia vista (`... = auth.uid()`), no mediante
+-- RLS; `auth.uid()` resuelve correctamente por sesión (GUC
+-- `request.jwt.claims`, inyectado por PostgREST) sin importar si RLS se
+-- evalúa o no. Esta migración no cambia nada de esa parte.
+--
+-- ────────────────────────────────────────────────────────────
+-- ALCANCE (mínimo necesario)
+-- ────────────────────────────────────────────────────────────
+-- Una única sentencia `ALTER VIEW ... SET (security_invoker = true)`.
+-- Sin cambios de columnas, sin cambios de JOINs, sin nuevas policies, sin
+-- nuevos GRANTs -- el `GRANT SELECT ... TO authenticated` ya existente
+-- (desde `0008`, reafirmado en `0018`) permanece como única puerta de
+-- entrada de privilegio de tabla; el aislamiento de FILAS pasa a
+-- depender, correctamente, de las policies RLS reales evaluadas como el
+-- usuario invocador.
+-- ============================================================
+
+
+-- ============================================================
+-- 1. FIX — security_invoker en trabajos_para_instalador
+-- ============================================================
+ALTER VIEW public.trabajos_para_instalador
+    SET (security_invoker = true);
+
+
+-- ============================================================
+-- VALIDACIÓN (ejecutar después de aplicar)
+-- ============================================================
+-- select c.relname, c.reloptions
+-- from pg_class c
+-- where c.relname = 'trabajos_para_instalador' and c.relnamespace = 'public'::regnamespace;
+-- -- Esperado: reloptions incluye "security_invoker=true".
+--
+-- Validación funcional (requiere datos de prueba reales, NO creados por
+-- esta migración): con 2 empresas, cada una con al menos 1 instalador
+-- activo y 1 trabajo 'live', confirmar que un instalador de la Empresa A
+-- consultando `trabajos_para_instalador` obtiene ÚNICAMENTE trabajos
+-- 'live' de la Empresa A -- ni trabajos de la Empresa B, ni trabajos
+-- 'assigned'/'completed'/'cancelled' de su propia empresa salvo que
+-- `gane_yo` sea verdadero para ellos (cubierto por la policy "fui
+-- notificado"/"fui asignado", sin cambios).
+
+
+-- ============================================================
+-- ROLLBACK
+-- ============================================================
+-- ALTER VIEW public.trabajos_para_instalador
+--     RESET (security_invoker);
+
+-- ============================================================
+-- FIN DE LA MIGRACIÓN 0021
+-- ============================================================

@@ -1,0 +1,91 @@
+-- ============================================================
+-- HANDYMAX · Multimax Despacho — Corrección de permisos SQL (GRANT)
+-- Fix del 403 al asignar un instalador (asignar_instalador())
+-- ============================================================
+-- Requiere: 0001..0021 ya aplicadas. Es ADITIVA/no destructiva: un único
+-- GRANT de privilegio SQL estándar sobre una tabla ya existente. No crea,
+-- modifica ni elimina ninguna policy RLS, ninguna función, ninguna
+-- columna. Mismo patrón exacto ya aplicado y validado en
+-- `0007_authenticated_grants_sprint72.sql` para `trabajo_instaladores`/
+-- `ofertas` (mismo tipo de hallazgo, tabla distinta).
+--
+-- ────────────────────────────────────────────────────────────
+-- CAUSA RAÍZ (confirmada vía MCP, consulta directa a
+-- information_schema.role_table_grants -- no asumida)
+-- ────────────────────────────────────────────────────────────
+-- `0001_initial_schema.sql` otorga únicamente:
+--     GRANT SELECT, INSERT ON public.trabajos TO authenticated;
+-- Nunca se otorgó UPDATE. Las policies RLS de UPDATE sobre `trabajos`
+-- ("coordinadores actualizan su tienda", desde 0001; "admins actualizan
+-- trabajos de su empresa", desde 0019) están correctamente definidas y
+-- correctamente scoped -- pero en PostgreSQL el GRANT de tabla se evalúa
+-- ANTES que cualquier policy RLS. Sin GRANT UPDATE, cualquier intento de
+-- `UPDATE trabajos ...` desde un cliente `authenticated` falla con
+-- `42501: permission denied for table trabajos`, sin llegar siquiera a
+-- evaluar RLS -- PostgREST traduce ese error a `403 Forbidden`.
+--
+-- Consecuencia real detectada: `asignar_instalador(p_trabajo_id,
+-- p_instalador_id)` es `SECURITY INVOKER` (corre con los permisos reales
+-- de quien la invoca) y su primera sentencia es exactamente
+-- `UPDATE trabajos SET estado='assigned', ...` -- es la primera vez que
+-- algún flujo del proyecto intenta un UPDATE real sobre `trabajos` desde
+-- el cliente autenticado, lo que expuso este hueco preexistente desde el
+-- Sprint inicial (nunca ejercitado hasta ahora).
+--
+-- ────────────────────────────────────────────────────────────
+-- VERIFICACIÓN DE QUE RLS SIGUE SIENDO LA BARRERA EFECTIVA (vía MCP,
+-- antes de crear este archivo -- ver informe entregado al usuario)
+-- ────────────────────────────────────────────────────────────
+-- `relrowsecurity = true` sobre `public.trabajos` (RLS habilitado).
+-- Únicas 2 policies UPDATE existentes, ninguna con condición abierta:
+--   - "admins actualizan trabajos de su empresa" (TO authenticated):
+--     USING/WITH CHECK = EXISTS admins a WHERE a.id=auth.uid() AND
+--     a.empresa_id = trabajos.empresa_id.
+--   - "coordinadores actualizan su tienda" (sin TO explícito -- filtrada
+--     igual por auth.uid() vía coordinadores): USING = tienda_id propia,
+--     o empresa_id propia si coordinadores.rol='admin'. Sin WITH CHECK
+--     explícito -- PostgreSQL reutiliza automáticamente el USING como
+--     WITH CHECK cuando no se declara uno (comportamiento estándar
+--     documentado, no un hueco).
+-- Este GRANT no crea, modifica ni debilita ninguna de las dos -- solo
+-- permite que Postgres llegue a evaluarlas. Un `authenticated` que no sea
+-- admin/coordinador de la empresa/tienda correspondiente sigue sin poder
+-- modificar ninguna fila (0 filas afectadas, RLS las filtra).
+--
+-- ────────────────────────────────────────────────────────────
+-- ALCANCE (mínimo necesario, sin tocar nada más)
+-- ────────────────────────────────────────────────────────────
+-- Una única sentencia GRANT. Ningún DELETE concedido -- ninguna policy
+-- RLS existente contempla borrado sobre `trabajos`.
+-- ============================================================
+
+
+-- ============================================================
+-- 1. GRANT — UPDATE sobre trabajos para authenticated
+-- ============================================================
+GRANT UPDATE ON public.trabajos TO authenticated;
+
+
+-- ============================================================
+-- VALIDACIÓN (ejecutar después de aplicar)
+-- ============================================================
+-- select grantee, privilege_type
+-- from information_schema.role_table_grants
+-- where table_name = 'trabajos' and grantee = 'authenticated'
+-- order by privilege_type;
+-- -- debe incluir ahora: INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE.
+--
+-- Validación funcional: un Coordinador/Admin real invocando
+-- asignar_instalador(p_trabajo_id, p_instalador_id) sobre un trabajo
+-- 'live' de su propia tienda/empresa debe recibir 200 (sin error), y el
+-- trabajo debe quedar en estado 'assigned'. La misma llamada intentada
+-- por un usuario de otra empresa/tienda debe seguir sin efecto (RLS).
+
+-- ============================================================
+-- ROLLBACK
+-- ============================================================
+-- REVOKE UPDATE ON public.trabajos FROM authenticated;
+
+-- ============================================================
+-- FIN DE LA MIGRACIÓN 0022
+-- ============================================================

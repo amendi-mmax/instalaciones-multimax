@@ -2,6 +2,36 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Ajustes funcionales del flujo Instalador — Aprobación + empresa + solicitudes por zona + Mis trabajos] — 2026-08-27 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
+
+Corrección funcional completa del flujo de Instaladores, precedida de una auditoría exhaustiva (schema real vía MCP + código) que confirmó, con evidencia concreta, 5 gaps reales -- ninguno asumido:
+
+1. **Ninguna acción existente activaba a un instalador**: `invite_instalador` siempre crea `activo:false` (correcto, "pendiente de aprobación"), pero `suspend_instalador`/`reactivate_instalador` (únicas acciones existentes) solo tocan `suspendido` -- confirmado línea por línea en `admin-operations/index.ts` (`setSuspendido()`: `.update({ suspendido })`, nunca `activo`). Un instalador invitado por este flujo nunca podía activarse desde la UI.
+2. **El encabezado del portal del instalador mostraba texto hardcodeado**: `"Multimax · Instalador"` estaba literal dentro de `phone-frame.tsx`, y el selector debajo mostraba `"Pendiente de asignación"` fijo en `installer-dashboard.tsx`, ignorando `profile.empresaInstaladoraId` -- pese a que `InstallerProfile` (Sprint 8.4) ya resolvía correctamente ese mismo dato.
+3. **Las "Solicitudes" del instalador estaban acotadas a su zona**: la única policy RLS de `trabajos` para instaladores depende de `trabajo_instaladores` (fila creada exclusivamente por `notificar_instaladores_elegibles()`, filtrada por `empresa+provincia+zona`) -- un trabajo de otra zona era, literalmente, invisible para RLS.
+4. **El badge "Oferta enviada" quedaba incorrecto para trabajos de otra zona**: se basaba en `trabajo_instaladores.estado`, que nunca existe para un trabajo sin notificación previa, aunque la oferta sí se hubiera guardado en `ofertas`.
+5. **"Mis trabajos" no distinguía "ofertado" de "asignado"**: solo mostraba `gane_yo === true` -- un trabajo donde el instalador ofertó pero no fue decidido no aparecía en ningún lado.
+6. **No existía ninguna UI de asignación en todo el proyecto** (`ResponsesPanel` documentaba explícitamente desde el Sprint 7.2 que la selección de ganador quedaba fuera de alcance) -- `callAsignarInstalador()` existía desde Sprint 4.1.1B sin ningún consumidor real. Además, solo `coordinadores` tenía policy RLS de `UPDATE` sobre `trabajos`/`trabajo_instaladores` -- `public.admins` no podía asignar bajo ninguna circunstancia (mismo hueco ya corregido para `SELECT` en `0005`).
+
+**Migraciones nuevas** (creadas, NO aplicadas todavía -- pendiente de autorización explícita):
+- `0018_instaladores_visibilidad_ampliada.sql`: 1 policy RLS nueva de SELECT sobre `trabajos` (instaladores activos de su empresa, solo `estado='live'`, aditiva -- no reemplaza `"instaladores ven trabajos donde fueron notificados"`) + `CREATE OR REPLACE VIEW trabajos_para_instalador` (mismo objeto ya existente desde `0008`) cambiando `INNER JOIN` por `LEFT JOIN` contra `trabajo_instaladores` y agregando `LEFT JOIN ofertas` para exponer `oferta_enviada`/`mi_oferta_precio`/`mi_oferta_enviado_at`. `notificar_instaladores_elegibles()` NO se toca -- sigue siendo la señal real de "notificación por zona", ahora explícitamente distinta de "visible".
+- `0019_admins_asignan_trabajos.sql`: 2 policies RLS nuevas de UPDATE (`trabajos`/`trabajo_instaladores`) para `public.admins`, mismo criterio exacto que las ya existentes de `coordinadores` -- necesarias para que `asignar_instalador()` (SECURITY INVOKER) funcione tanto para un Coordinador real como para un Administrador.
+
+**Edge Function** (`admin-operations/index.ts`, MODIFICADA, no desplegada todavía): 1 acción nueva, `set_instalador_activo` (mismo molde exacto que `set_admin_activo`/`set_coordinador_activo`) -- toca EXCLUSIVAMENTE `activo`, nunca `suspendido`/`documentos_ok`.
+
+**Frontend**:
+- `admin-instaladores.tsx` (MODIFICADO): 3 acciones mutuamente excluyentes según estado real (`suspendido` -> "Activar"; `!activo` -> "Aprobar"; si no, "Suspender"), badge "Pendiente de aprobación" nuevo.
+- `src/hooks/useEmpresaInstaladoraNombre.ts` (NUEVO): extrae la resolución de nombre de empresa instaladora (antes duplicada) a un hook compartido.
+- `installer-profile.tsx` (MODIFICADO, sin cambio de comportamiento): usa el hook nuevo.
+- `phone-frame.tsx` (MODIFICADO): `headerLabel` reemplaza el literal hardcodeado.
+- `installer-dashboard.tsx` (MODIFICADO): encabezado con la empresa instaladora real (fallback al tenant real, nunca texto inventado), selector con la zona real, pasa `profile` a `InstallerSolicitudes`.
+- `trabajos-para-instalador.repository.ts` (MODIFICADO): `TrabajoParaInstaladorRow` extendido con las 3 columnas nuevas de la vista (intersección de tipos, sin tocar `database.generated.ts` -- archivo regenerado por el usuario vía CLI, no por este entorno).
+- `installer-solicitudes.tsx` (MODIFICADO): badge `EN TU ZONA`/`OTRA ZONA` (calculado en memoria, nunca persistido), orden con la misma zona primero (sin ocultar nada), badge de oferta corregido con `oferta_enviada` real.
+- `installer-jobs.tsx` (MODIFICADO): 4 categorías con chips de filtro (mismo patrón `.mx-jobfilter` de `TrabajosPage.tsx`) -- Ofertados/Asignados/Completados/Cancelados, ninguna basada en "visibilidad", todas en participación real (`oferta_enviada`/`gane_yo`).
+- `responses-panel.tsx` (MODIFICADO): botón "Asignar" por oferta, invoca `callAsignarInstalador()` (primer consumidor real de ese wrapper).
+
+`typecheck`/`build`/`lint` limpios (mismos 3 warnings preexistentes, sin advertencias nuevas). Sin aplicar migraciones, sin desplegar la Edge Function, sin datos de prueba tocados. Rama nueva `feature/instaladores-flujo-completo` (separada de `feature/sprint-9-4-dashboard-statistics`, tarea previa no relacionada). Sin `git push`.
+
 ## [Sprint 9.4 — Dashboard Ejecutivo: estadísticas operativas] — 2026-08-26 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
 
 Extiende el Dashboard Ejecutivo del Administrador con una segunda capa de estadísticas, tomando como referencia de producto (no de copia visual) el panel administrativo del prototipo InstalaMax. Precedida de una auditoría completa (Fase 1/2) del modelo de datos real (9 tablas confirmadas vía MCP `list_tables`: `empresas`/`tiendas`/`coordinadores`/`instaladores`/`trabajos`/`trabajo_instaladores`/`ofertas`/`admins`/`empresas_instaladoras`) contra las 9 métricas del prototipo (ingresos, comisión Multimax 30%, pagado a instaladores/vendedores, utilidad neta, cobros extra pendientes, y desgloses por sucursal/vendedor/instalador).

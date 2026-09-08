@@ -160,6 +160,11 @@ export function AdminDashboardStats() {
             <StatTile value={stats.resumen.completados} label="Completados" />
             <StatTile value={stats.resumen.activos} label="Activos" sublabel="Con instalador asignado" />
             <StatTile value={stats.resumen.pendientes} label="Pendientes" sublabel="En vivo, sin asignar" />
+            <StatTile
+              value={stats.resumen.porConfirmar}
+              label="Por confirmar"
+              sublabel="Instalador marcó terminado"
+            />
             <StatTile value={stats.resumen.cancelados} label="Cancelados" />
           </StatGrid>
 
@@ -180,6 +185,7 @@ export function AdminDashboardStats() {
                         <span>{tienda.completados} completados</span>
                         <span>{tienda.activos} activos</span>
                         <span>{tienda.pendientes} pendientes</span>
+                        <span>{tienda.porConfirmar} por confirmar</span>
                         <span>{tienda.cancelados} cancelados</span>
                       </div>
                     </div>

@@ -81,6 +81,8 @@ export interface AdminKpiData {
   activos: number;
   /** `estado === 'live'`. */
   pendientes: number;
+  /** `estado === 'pending_confirmation'` -- corrección de auditoría (GAP-2): antes de este KPI, un trabajo en este estado no incrementaba ningún contador (desaparecía de `activos` sin todavía contar en `finalizados`). */
+  porConfirmar: number;
   /** `estado === 'completed'`. */
   finalizados: number;
   /** `estado === 'cancelled'`. */
@@ -103,6 +105,7 @@ function calcularKpisDeTrabajos(rows: readonly TableRow<'trabajos'>[]) {
   let publicadosHoy = 0;
   let activos = 0;
   let pendientes = 0;
+  let porConfirmar = 0;
   let finalizados = 0;
   let cancelados = 0;
 
@@ -110,11 +113,12 @@ function calcularKpisDeTrabajos(rows: readonly TableRow<'trabajos'>[]) {
     if (esHoy(row.publicado_at)) publicadosHoy += 1;
     if (row.estado === 'assigned') activos += 1;
     else if (row.estado === 'live') pendientes += 1;
+    else if (row.estado === 'pending_confirmation') porConfirmar += 1;
     else if (row.estado === 'completed') finalizados += 1;
     else if (row.estado === 'cancelled') cancelados += 1;
   }
 
-  return { publicadosHoy, activos, pendientes, finalizados, cancelados };
+  return { publicadosHoy, activos, pendientes, porConfirmar, finalizados, cancelados };
 }
 
 function calcularInstaladoresActivos(rows: readonly TableRow<'instaladores'>[]): number {
@@ -179,6 +183,7 @@ export type AdminKpiId =
   | 'publicadosHoy'
   | 'activos'
   | 'pendientes'
+  | 'porConfirmar'
   | 'finalizados'
   | 'cancelados'
   | 'instaladoresActivos'
@@ -194,16 +199,23 @@ export interface AdminKpiViewModel {
 }
 
 /**
- * buildAdminKpiViewModels — arma los 8 KPIs del Dashboard Ejecutivo en un
+ * buildAdminKpiViewModels — arma los 9 KPIs del Dashboard Ejecutivo en un
  * orden fijo, con el `status` correcto para cada uno:
- * - `data === undefined` (todavía no respondió la consulta) -> los 6 KPIs
+ * - `data === undefined` (todavía no respondió la consulta) -> los 7 KPIs
  *   reales quedan en `'loading'`.
- * - `data === null` (la consulta terminó con error real) -> los 6 KPIs
+ * - `data === null` (la consulta terminó con error real) -> los 7 KPIs
  *   reales quedan en `'error'`.
- * - `data` presente -> los 6 KPIs reales quedan en `'ready'` con su valor.
+ * - `data` presente -> los 7 KPIs reales quedan en `'ready'` con su valor.
  * - Los últimos 2 (tiempos promedio) SIEMPRE quedan en `'pending'`,
  *   cualquiera sea `data` -- no son un dato que pueda fallar o cargar,
  *   simplemente no están implementados todavía (ver JSDoc de cabecera).
+ *
+ * **Corrección de auditoría (GAP-2)**: se agrega el 7º KPI real "Por
+ * confirmar" (`estado === 'pending_confirmation'`) siguiendo exactamente el
+ * patrón de 3 pasos ya documentado en la cabecera de este archivo ("Agregar
+ * un KPI nuevo... sin tocar `AdminKpiCard` ni el componente de dashboard")
+ * -- `AdminKpiDashboard.tsx` no requirió ningún cambio, ya itera
+ * `AdminKpiViewModel[]` de forma genérica.
  */
 export function buildAdminKpiViewModels(data: AdminKpiData | null | undefined): AdminKpiViewModel[] {
   const status: AdminKpiStatus = data === undefined ? 'loading' : data === null ? 'error' : 'ready';
@@ -223,6 +235,13 @@ export function buildAdminKpiViewModels(data: AdminKpiData | null | undefined): 
       sublabel: 'En vivo, sin asignar',
       status,
       value: data?.pendientes,
+    },
+    {
+      id: 'porConfirmar',
+      label: 'Por confirmar',
+      sublabel: 'Instalador marcó terminado',
+      status,
+      value: data?.porConfirmar,
     },
     { id: 'finalizados', label: 'Finalizados', sublabel: 'Completados', status, value: data?.finalizados },
     { id: 'cancelados', label: 'Cancelados', status, value: data?.cancelados },

@@ -37,6 +37,29 @@ export interface ReactivateInstaladorPayload {
 }
 
 /**
+ * Ajustes funcionales del flujo Instalador -- espejo exacto de
+ * `SetInstaladorActivoPayload` en la Edge Function. Toca EXCLUSIVAMENTE
+ * `activo` (aprobación administrativa) -- distinto de
+ * `SuspendInstaladorPayload`/`ReactivateInstaladorPayload`, que tocan
+ * `suspendido`. Es el único mecanismo real que puede pasar un instalador
+ * recién invitado (`activo:false` de fábrica) a activo.
+ */
+export interface SetInstaladorActivoPayload {
+  instalador_id: string;
+  activo: boolean;
+}
+
+/**
+ * Ajustes finales del flujo Instalador -- espejo exacto de
+ * `SetInstaladorDocumentosOkPayload` en la Edge Function. Toca
+ * EXCLUSIVAMENTE `documentos_ok` -- distinto de `SetInstaladorActivoPayload`.
+ */
+export interface SetInstaladorDocumentosOkPayload {
+  instalador_id: string;
+  documentos_ok: boolean;
+}
+
+/**
  * Sprint B -- espejo exacto de `InviteAdminPayload` en la Edge Function
  * (`admin-operations/index.ts`). `empresa_id`/`es_principal`/`activo`/`rol`
  * NUNCA viajan acá -- la función los fuerza server-side (ver su propio

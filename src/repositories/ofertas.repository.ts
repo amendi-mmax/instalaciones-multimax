@@ -53,6 +53,22 @@ async function getByTrabajoId(trabajoId: string): Promise<ServiceResult<TableRow
   return toServiceResult(query);
 }
 
+/**
+ * Evolución de Despacho en vivo — variante en lote de `getByTrabajoId()`
+ * para poder derivar "cuántas ofertas tiene cada trabajo" (conteo por
+ * `trabajo_id`) sobre una lista de trabajos `live`, sin una consulta por
+ * cada uno (N+1). RLS sigue siendo la única fuente real de scoping por
+ * empresa -- sin filtro adicional aquí, mismo criterio que el resto de
+ * este archivo.
+ */
+async function getByTrabajoIds(trabajoIds: string[]): Promise<ServiceResult<TableRow<'ofertas'>[]>> {
+  if (trabajoIds.length === 0) {
+    return { ok: true, data: [] };
+  }
+  const query = getClient().from(TABLES.ofertas).select('*').in('trabajo_id', trabajoIds);
+  return toServiceResult(query);
+}
+
 async function getByInstaladorId(instaladorId: string): Promise<ServiceResult<TableRow<'ofertas'>[]>> {
   const query = getClient().from(TABLES.ofertas).select('*').eq('instalador_id', instaladorId);
   return toServiceResult(query);
@@ -60,6 +76,7 @@ async function getByInstaladorId(instaladorId: string): Promise<ServiceResult<Ta
 
 export const ofertasRepository: Repository<'ofertas'> & {
   getByTrabajoId: typeof getByTrabajoId;
+  getByTrabajoIds: typeof getByTrabajoIds;
   getByInstaladorId: typeof getByInstaladorId;
 } = {
   getAll,
@@ -68,5 +85,6 @@ export const ofertasRepository: Repository<'ofertas'> & {
   update,
   remove,
   getByTrabajoId,
+  getByTrabajoIds,
   getByInstaladorId,
 };

@@ -155,6 +155,7 @@ export function getMonthlySummary(jobs: readonly CalendarJobViewModel[]): Record
       total: 0,
       pendientes: 0,
       asignados: 0,
+      porConfirmar: 0,
       finalizados: 0,
       cancelados: 0,
       vencidos: 0,
@@ -164,6 +165,7 @@ export function getMonthlySummary(jobs: readonly CalendarJobViewModel[]): Record
     current.total += 1;
     if (job.estado === 'live') current.pendientes += 1;
     else if (job.estado === 'assigned') current.asignados += 1;
+    else if (job.estado === 'pending_confirmation') current.porConfirmar += 1;
     else if (job.estado === 'completed') current.finalizados += 1;
     else if (job.estado === 'cancelled') current.cancelados += 1;
     if (job.vencido) current.vencidos += 1;
