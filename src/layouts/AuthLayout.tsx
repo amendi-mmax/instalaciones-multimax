@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { Radio } from 'lucide-react';
 
 /**
  * AuthLayout — shell centrado para pantallas públicas de autenticación
@@ -11,9 +10,22 @@ import { Radio } from 'lucide-react';
  *
  * Construido exclusivamente con los tokens/paleta ya existentes
  * (`--ink`/`--surf`/`--line`/`--ice`, `font-display`/`font-body` vía
- * `--fd`/`--fb`) y el mismo tratamiento de logo que `HeaderBrand`
- * (`.mx-logo`, degradado `--ice`→`#1fb6bd`) -- sin ninguna plantilla externa,
- * sin clases/colores nuevos.
+ * `--fd`/`--fb`) -- sin ninguna plantilla externa, sin clases/colores
+ * nuevos.
+ *
+ * **Sprint "Branding login"**: se reemplaza el ícono genérico `Radio` por
+ * el emblema oficial MULTIMAX (`public/multimax-emblem.png`) -- el mismo
+ * asset ya usado en `HeaderBrand.tsx` (Ajuste de branding, ronda
+ * anterior), reutilizado tal cual (auditoría previa confirmó que no
+ * existía ningún otro asset de branding "de login" distinto -- se evita
+ * duplicar el archivo). No se reutiliza la clase `.mx-logo` en sí: esa
+ * clase quedó dimensionada para el contenedor de 34px del header
+ * (`globals.css`, misma ronda) -- un contexto de tamaño distinto al de
+ * esta pantalla (originalmente 48x48px, `h-12 w-12`); se usa `h-12 w-auto`
+ * inline (Tailwind) para conservar el mismo alto que tenía el ícono
+ * anterior sin forzar el ancho (evita deformar el logo, que no es
+ * cuadrado). `alt="Multimax"` para accesibilidad, mismo texto ya usado en
+ * `HeaderBrand`.
  */
 export interface AuthLayoutProps {
   children: ReactNode;
@@ -24,9 +36,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
     <div className="flex min-h-screen items-center justify-center bg-ink px-4 py-10">
       <div className="w-full max-w-[420px]">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
-          <div className="mx-logo grid h-12 w-12 place-items-center">
-            <Radio size={22} />
-          </div>
+          <img src="/multimax-emblem.png" alt="Multimax" className="h-12 w-auto" />
           <div>
             <div className="font-display text-lg font-bold text-text">Multimax Despacho</div>
             <div className="text-xs text-muted">Sistema de Gestión de Instalaciones</div>

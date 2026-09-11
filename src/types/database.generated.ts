@@ -363,6 +363,66 @@ export type Database = {
           },
         ]
       }
+      trabajo_extras: {
+        Row: {
+          created_at: string
+          estado: string
+          fotos: string[]
+          id: string
+          instalador_id: string
+          monto_aprobado: number | null
+          monto_solicitado: number
+          notas: string
+          reviewed_at: string | null
+          revisado_por: string | null
+          revision_nota: string | null
+          trabajo_id: string
+        }
+        Insert: {
+          created_at?: string
+          estado?: string
+          fotos?: string[]
+          id?: string
+          instalador_id: string
+          monto_aprobado?: number | null
+          monto_solicitado: number
+          notas: string
+          reviewed_at?: string | null
+          revisado_por?: string | null
+          revision_nota?: string | null
+          trabajo_id: string
+        }
+        Update: {
+          created_at?: string
+          estado?: string
+          fotos?: string[]
+          id?: string
+          instalador_id?: string
+          monto_aprobado?: number | null
+          monto_solicitado?: number
+          notas?: string
+          reviewed_at?: string | null
+          revisado_por?: string | null
+          revision_nota?: string | null
+          trabajo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trabajo_extras_instalador_id_fkey"
+            columns: ["instalador_id"]
+            isOneToOne: false
+            referencedRelation: "instaladores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trabajo_extras_trabajo_id_fkey"
+            columns: ["trabajo_id"]
+            isOneToOne: false
+            referencedRelation: "trabajos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trabajo_instaladores: {
         Row: {
           abierto_at: string | null
@@ -433,6 +493,7 @@ export type Database = {
           equipo: string | null
           estado: string
           extra: string | null
+          factura_multimax: string | null
           fecha: string
           finalizado_at: string | null
           hora: string
@@ -465,6 +526,7 @@ export type Database = {
           equipo?: string | null
           estado?: string
           extra?: string | null
+          factura_multimax?: string | null
           fecha: string
           finalizado_at?: string | null
           hora: string
@@ -497,6 +559,7 @@ export type Database = {
           equipo?: string | null
           estado?: string
           extra?: string | null
+          factura_multimax?: string | null
           fecha?: string
           finalizado_at?: string | null
           hora?: string
@@ -603,6 +666,25 @@ export type Database = {
       notificar_instaladores_elegibles: {
         Args: { p_trabajo_id: string }
         Returns: number
+      }
+      revisar_costo_extra: {
+        Args: {
+          p_aprobado: boolean
+          p_extra_id: string
+          p_monto_aprobado?: number
+          p_nota?: string
+        }
+        Returns: boolean
+      }
+      solicitar_costo_extra: {
+        Args: {
+          p_fotos: string[]
+          p_id: string
+          p_monto: number
+          p_notas: string
+          p_trabajo_id: string
+        }
+        Returns: boolean
       }
       submit_bid: {
         Args: {

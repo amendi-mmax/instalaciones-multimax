@@ -238,3 +238,38 @@ export async function callConfirmarTrabajoCompletado(
   }
   return { ok: true, data };
 }
+
+/**
+ * Invocación tipada de `solicitar_costo_extra` (RPC real de Producción,
+ * Sprint "Costos adicionales" -- `supabase/migrations/
+ * 0026_trabajo_extras.sql`). Ver `callMarcarTrabajoTerminado` para la
+ * misma justificación de `Returns: boolean` -- `false` significa que la
+ * solicitud NO se creó (trabajo ajeno, ya no `assigned`, monto/notas
+ * inválidos), no que la llamada falló.
+ */
+export async function callSolicitarCostoExtra(
+  args: Database['public']['Functions']['solicitar_costo_extra']['Args'],
+): Promise<ServiceResult<Database['public']['Functions']['solicitar_costo_extra']['Returns']>> {
+  const { data, error } = await getClient().rpc(RPC_FUNCTIONS.solicitarCostoExtra, args);
+  if (error) {
+    return { ok: false, error: normalizeSupabaseError(error) };
+  }
+  return { ok: true, data };
+}
+
+/**
+ * Invocación tipada de `revisar_costo_extra` (RPC real de Producción,
+ * Sprint "Costos adicionales" -- `supabase/migrations/
+ * 0026_trabajo_extras.sql`). `Returns: boolean` -- `false` significa que
+ * la solicitud ya no estaba `pendiente` (doble revisión) o no pertenece
+ * al ámbito del coordinador/admin que invoca (filtrado por RLS).
+ */
+export async function callRevisarCostoExtra(
+  args: Database['public']['Functions']['revisar_costo_extra']['Args'],
+): Promise<ServiceResult<Database['public']['Functions']['revisar_costo_extra']['Returns']>> {
+  const { data, error } = await getClient().rpc(RPC_FUNCTIONS.revisarCostoExtra, args);
+  if (error) {
+    return { ok: false, error: normalizeSupabaseError(error) };
+  }
+  return { ok: true, data };
+}
