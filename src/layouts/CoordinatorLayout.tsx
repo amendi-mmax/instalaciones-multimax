@@ -531,6 +531,11 @@ export function CoordinatorLayout({
             precio_sugerido: form.precioSugerido,
             urgente: form.urgente,
             bid_minutos: form.bidMins,
+            // Sprint "Factura Multimax" -- campo opcional del formulario;
+            // string vacío se persiste como NULL (mismo criterio que
+            // "sin factura asociada", nunca un string vacío ambiguo en la
+            // base de datos).
+            factura_multimax: form.facturaMultimax.trim() || null,
           };
 
           // `trabajosRepository.create()` ya existía (Sprint 4.1.1, sin

@@ -2,6 +2,27 @@
 
 Formato libre, en orden cronológico descendente. Cada entrada corresponde a una sesión/fase de trabajo (desde el Sprint 3.1, a un Sprint).
 
+## [Sprint — Factura Multimax, branding login y costos adicionales] — 2026-09-09 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
+
+Rama `feature/factura-login-extras` (creada desde `main`, ya con el flujo completo de instaladores integrado). Tres requerimientos, auditados antes de implementar cada uno.
+
+**Requerimiento A — Factura Multimax**: `supabase/migrations/0025_trabajos_factura_multimax.sql` (aditiva, `ALTER TABLE trabajos ADD COLUMN factura_multimax text NULL`). `publish-modal.tsx` (`PublishForm.facturaMultimax`, campo opcional junto a "Notas adicionales", sin agregarlo a `CampoObligatorio`/`validarPublishForm()`). `CoordinatorLayout.tsx` (payload del `INSERT`, `''` → `NULL`). `TrabajoDetailPage.tsx` (fila "FACTURA MULTIMAX" en "Detalle", solo si existe). `database.generated.ts` (columna agregada a `trabajos.Row/Insert/Update`).
+
+**Requerimiento B — Branding login**: `AuthLayout.tsx` -- se retira el ícono `Radio`/`.mx-logo` (gradiente cian, ya no vigente desde el ajuste de branding del header) y se reemplaza por `<img src="/multimax-emblem.png">`, mismo asset que `HeaderBrand.tsx`, `h-12 w-auto` para no deformarlo, `alt="Multimax"`.
+
+**Requerimiento C — Costos adicionales**: `supabase/migrations/0026_trabajo_extras.sql` (aditiva) --
+- Tabla `trabajo_extras` (`trabajo_id`/`instalador_id`/`monto_solicitado`/`notas`/`fotos text[]`/`estado`/`monto_aprobado`/`revision_nota`/`revisado_por`/timestamps). `estado` sin CHECK/ENUM (mismo criterio que `trabajos.estado`). `revisado_por` sin FK a propósito (puede ser `coordinadores.id` o `admins.id`, ambos roles revisan -- una FK a una sola tabla sería incorrecta la mitad de las veces).
+- RLS: 3 policies SELECT (instalador propio, coordinador de su tienda/empresa-si-admin, admin de su empresa -- mismo patrón exacto que `trabajos`) + 2 policies UPDATE (solo coordinador/admin -- ningún instalador tiene policy de UPDATE, por lo que nunca puede aprobar su propia solicitud ni modificarla tras enviarla). `GRANT SELECT, UPDATE` a `authenticated` (sin INSERT -- la creación es exclusivamente vía RPC `SECURITY DEFINER`).
+- Storage: primer bucket del proyecto, `trabajo-extras` (privado, `file_size_limit=5MB`, `allowed_mime_types` solo imágenes). 4 policies sobre `storage.objects` (instalador sube/lee sobre sus propios trabajos asignados vía `(storage.foldername(name))[1]` = `trabajo_id`; coordinador/admin leen según el mismo scoping de tienda/empresa que `trabajos`).
+- RPC `solicitar_costo_extra(p_id, p_trabajo_id, p_monto, p_notas, p_fotos)` -- `SECURITY DEFINER`, `id` generado en el cliente (permite subir fotos a Storage ANTES de crear la fila), exige `estado='assigned'` + `instalador_asignado_id=auth.uid()`, valida monto>0/notas no vacías/máximo 5 fotos.
+- RPC `revisar_costo_extra(p_extra_id, p_aprobado, p_monto_aprobado?, p_nota?)` -- `SECURITY INVOKER`, reutiliza las 2 policies UPDATE nuevas, exige `estado='pendiente'` (doble revisión segura), `monto_aprobado = monto_solicitado` si no se pasa uno explícito.
+- Redefinición (`CREATE OR REPLACE`, sin tocar `0024_finalizacion_trabajo.sql`) de `marcar_trabajo_terminado()`: mismo cuerpo + `AND NOT EXISTS (... trabajo_extras WHERE estado='pendiente')` -- bloquea la finalización mientras haya un extra sin resolver.
+- `ALTER PUBLICATION supabase_realtime ADD TABLE trabajo_extras` (primera vez que este proyecto declara explícitamente una tabla en la publicación vía SQL versionado).
+
+Frontend: `installer-extra-form.tsx` (NUEVO, Drawer "Solicitud de costo adicional" -- monto/notas/fotos, sube a Storage y luego invoca `solicitar_costo_extra`). `installer-jobs.tsx` (botón "Solicitar costo extra" mientras `assigned`; "Marcar como completado" oculto si hay un extra `pendiente`, con nota informativa; Realtime nuevo `trabajo_extras` filtrado por `instalador_id`). `TrabajoDetailPage.tsx` (sección "Costos adicionales": lista + Aprobar/Rechazar + fotos vía URL firmada + total reconstruido oferta+extras aprobados; Realtime nuevo `trabajo_extras` filtrado por `trabajo_id`). `trabajo-extras.repository.ts` (NUEVO -- sin `create`/`update`, mutaciones solo vía RPC, mismo criterio que `ofertas.repository.ts`/`trabajos.repository.ts` para `submit_bid`/`asignar_instalador`). `database.service.ts` (+`callSolicitarCostoExtra`/`callRevisarCostoExtra`). `lib/supabase/config.ts` (+`TABLES.trabajoExtras`, `+STORAGE_BUCKETS`, +2 `RPC_FUNCTIONS`).
+
+`npm run lint`/`typecheck`/`build` limpios (mismos 3 warnings preexistentes, ninguno nuevo). Sin script `test` en `package.json` (documentado, no inventado). **Migraciones `0025`/`0026` creadas y revisadas, NO aplicadas a Producción** -- pendientes de autorización explícita separada (mismo checkpoint ya establecido: crear ≠ aplicar). Sin datos de prueba creados. Sin `git commit`/`push`.
+
 ## [Ajustes funcionales del flujo Instalador — Aprobación + empresa + solicitudes por zona + Mis trabajos] — 2026-08-27 — 🟢 Implementado, compilando — DETENIDO PARA REVISIÓN
 
 Corrección funcional completa del flujo de Instaladores, precedida de una auditoría exhaustiva (schema real vía MCP + código) que confirmó, con evidencia concreta, 5 gaps reales -- ninguno asumido:

@@ -82,6 +82,18 @@ import { BID_OPTIONS, PROVINCIAS, SLOTS_COORD, SUCURSALES, ZONAS } from '@/const
  * obligatorios vacíos.
  *
  * ---------------------------------------------------------------------
+ * Factura Multimax — Sprint "Factura Multimax"
+ * ---------------------------------------------------------------------
+ * Campo nuevo, `facturaMultimax` -- referencia opcional a una factura
+ * Multimax ya emitida en la sucursal (caso de negocio: el cliente pagó el
+ * servicio en una factura existente). Auditoría previa confirmó que
+ * ninguna regla de negocio obliga a asociar una factura a todo trabajo
+ * publicado -- por eso NO se agrega a `CampoObligatorio`/
+ * `validarPublishForm()`, es puramente opcional, sin bloquear el envío si
+ * queda vacío (persiste como `NULL` en `trabajos.factura_multimax`, ver
+ * `CoordinatorLayout.tsx`).
+ *
+ * ---------------------------------------------------------------------
  * AJUSTE — Sprint 5.2.3.2 ("Consistencia completa del selector de
  * sucursal para Coordinador")
  * ---------------------------------------------------------------------
@@ -126,6 +138,8 @@ export interface PublishForm {
   precioSugerido: number;
   urgente: boolean;
   bidMins: number;
+  /** Sprint "Factura Multimax" -- opcional, ver JSDoc de cabecera. */
+  facturaMultimax: string;
 }
 
 export interface PublishModalProps {
@@ -194,6 +208,7 @@ export function PublishModal({
     precioSugerido: 130,
     urgente: false,
     bidMins: 5,
+    facturaMultimax: '',
   });
 
   const set = <K extends keyof PublishForm>(k: K, v: PublishForm[K]) => {
@@ -385,6 +400,14 @@ export function PublishModal({
                     value={f.extra}
                     placeholder="Notas para el instalador"
                     onChange={(e) => set('extra', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Factura Multimax (opcional)
+                  <Input
+                    value={f.facturaMultimax}
+                    placeholder="Ej. FAC-123456"
+                    onChange={(e) => set('facturaMultimax', e.target.value)}
                   />
                 </label>
                 <div className="mx-f2">

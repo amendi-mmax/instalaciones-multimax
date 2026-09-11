@@ -1,4 +1,4 @@
-import { Briefcase, Calendar, CheckCircle2, MapPin } from 'lucide-react';
+import { AlertTriangle, Briefcase, Calendar, CheckCircle2, MapPin, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -7,9 +7,11 @@ import { Loading, Spinner } from '@/components/ui/spinner';
 import { trabajoEstadoInfo } from '@/constants';
 import { createRealtimeChannel, removeRealtimeChannel } from '@/lib/supabase/realtime';
 import { categoriaDeTrabajo, type Categoria } from '@/lib/trabajo-categoria';
-import { trabajosParaInstaladorRepository, type TrabajoParaInstaladorRow } from '@/repositories';
+import { trabajoExtrasRepository, trabajosParaInstaladorRepository, type TrabajoParaInstaladorRow } from '@/repositories';
 import { callMarcarTrabajoTerminado } from '@/services/database.service';
+import type { TableRow } from '@/services/database.service';
 import type { Perfil } from '@/types/perfil';
+import { InstallerExtraForm } from '@/components/shared/installer-extra-form';
 
 /**
  * InstallerJobs — Estabilización del módulo Instalador (post Sprint 8.2).
@@ -69,6 +71,20 @@ import type { Perfil } from '@/types/perfil';
  * directamente -- esa transición es exclusiva del coordinador
  * (`TrabajoDetailPage.tsx`).
  *
+ * **Sprint "Costos adicionales"**: se agrega "Solicitar costo extra"
+ * (`estado_trabajo === 'assigned'`) -- abre `InstallerExtraForm`, que
+ * invoca `solicitar_costo_extra()`. Mientras exista una solicitud
+ * `pendiente` para un trabajo, "Marcar como completado" se OCULTA para
+ * ese trabajo (reemplazado por una nota informativa) -- coherente con la
+ * misma regla ya aplicada en `marcar_trabajo_terminado()` (redefinida en
+ * la migración `0026_trabajo_extras.sql` para rechazar la transición si
+ * hay un extra pendiente); esta ocultación en UI es una segunda capa, no
+ * la única -- el RPC sigue siendo la fuente real de verdad. Extras propios
+ * cargados vía `trabajoExtrasRepository.getAll()` (RLS ya los scoped a
+ * `instalador_id = auth.uid()`, sin filtro adicional acá) + un canal
+ * Realtime nuevo (`trabajo_extras`, filtrado por `instalador_id`) para
+ * recibir el resultado de la revisión del coordinador sin recargar.
+ *
  * **Realtime (nuevo, esta ronda)**: hasta ahora esta pantalla solo
  * consultaba una vez al montar, sin Realtime -- gap detectado y diferido en
  * una ronda de análisis anterior. Se agrega un canal `postgres_changes`
@@ -111,6 +127,16 @@ export function InstallerJobs({ profile }: InstallerJobsProps) {
   const [categoria, setCategoria] = useState<Categoria>('ofertados');
   const [marcandoId, setMarcandoId] = useState<string | null>(null);
   const [marcarError, setMarcarError] = useState<string | null>(null);
+
+  // Sprint "Costos adicionales" -- ver JSDoc de cabecera.
+  const [extras, setExtras] = useState<TableRow<'trabajo_extras'>[]>([]);
+  const [extraModalTrabajoId, setExtraModalTrabajoId] = useState<string | null>(null);
+
+  const cargarExtras = () => {
+    trabajoExtrasRepository.getAll().then((result) => {
+      if (result.ok) setExtras(result.data);
+    });
+  };
 
   const cargarTrabajos = () => {
     trabajosParaInstaladorRepository.getAll().then((result) => {
@@ -156,6 +182,35 @@ export function InstallerJobs({ profile }: InstallerJobsProps) {
         () => {
           cargarTrabajos();
         },
+      )
+      .subscribe();
+    return () => {
+      void removeRealtimeChannel(channel);
+    };
+  }, [profile.id]);
+
+  // Sprint "Costos adicionales" -- carga inicial + Realtime (mismo patrón
+  // señal + refetch que el canal de arriba). INSERT+UPDATE: el INSERT
+  // cubre una solicitud creada desde otra pestaña/sesión del mismo
+  // instalador; el UPDATE cubre el resultado de la revisión del
+  // coordinador.
+  useEffect(() => {
+    cargarExtras();
+  }, []);
+
+  useEffect(() => {
+    if (!profile.id) return;
+    const channel = createRealtimeChannel(`trabajo-extras-instalador:${profile.id}`);
+    channel
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'trabajo_extras', filter: `instalador_id=eq.${profile.id}` },
+        () => cargarExtras(),
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'trabajo_extras', filter: `instalador_id=eq.${profile.id}` },
+        () => cargarExtras(),
       )
       .subscribe();
     return () => {
@@ -242,7 +297,13 @@ export function InstallerJobs({ profile }: InstallerJobsProps) {
       ) : (
         items.map((trabajo) => {
           const estado = trabajoEstadoInfo(trabajo.estado_trabajo ?? '');
-          const puedeMarcarTerminado = trabajo.estado_trabajo === 'assigned' && trabajo.trabajo_id;
+          const extrasDelTrabajo = extras.filter((extra) => extra.trabajo_id === trabajo.trabajo_id);
+          const tienePendiente = extrasDelTrabajo.some((extra) => extra.estado === 'pendiente');
+          const asignado = trabajo.estado_trabajo === 'assigned' && trabajo.trabajo_id;
+          const puedeMarcarTerminado = asignado && !tienePendiente;
+          const totalExtrasAprobados = extrasDelTrabajo
+            .filter((extra) => extra.estado === 'aprobado')
+            .reduce((total, extra) => total + (extra.monto_aprobado ?? extra.monto_solicitado), 0);
 
           return (
             <div key={trabajo.trabajo_id} className="mx-myjob">
@@ -262,9 +323,32 @@ export function InstallerJobs({ profile }: InstallerJobsProps) {
                 {(trabajo.mi_oferta_precio ?? trabajo.precio_sugerido) != null ? (
                   <span className="mx-myjob-price">
                     ${trabajo.mi_oferta_precio ?? trabajo.precio_sugerido}
+                    {totalExtrasAprobados > 0 ? ` + $${totalExtrasAprobados} extra` : ''}
                   </span>
                 ) : null}
               </div>
+              {extrasDelTrabajo.length > 0 && (
+                <p className="mx-sub" style={{ marginTop: 6 }}>
+                  {tienePendiente ? (
+                    <span style={{ color: 'var(--amber)' }}>
+                      <AlertTriangle size={12} style={{ verticalAlign: -1, marginRight: 4 }} />
+                      Costo extra pendiente de aprobación -- no puedes marcar como completado todavía.
+                    </span>
+                  ) : (
+                    `${extrasDelTrabajo.length} solicitud${extrasDelTrabajo.length === 1 ? '' : 'es'} de costo extra registrada${extrasDelTrabajo.length === 1 ? '' : 's'}.`
+                  )}
+                </p>
+              )}
+              {asignado ? (
+                <Button
+                  variant="ghost"
+                  style={{ width: '100%', marginTop: 8 }}
+                  onClick={() => setExtraModalTrabajoId(trabajo.trabajo_id!)}
+                >
+                  <Plus size={14} />
+                  Solicitar costo extra
+                </Button>
+              ) : null}
               {puedeMarcarTerminado ? (
                 <Button
                   variant="ice"
@@ -286,6 +370,19 @@ export function InstallerJobs({ profile }: InstallerJobsProps) {
           );
         })
       )}
+      {extraModalTrabajoId ? (
+        <InstallerExtraForm
+          open={extraModalTrabajoId !== null}
+          onOpenChange={(open) => {
+            if (!open) setExtraModalTrabajoId(null);
+          }}
+          trabajoId={extraModalTrabajoId}
+          onSubmitted={() => {
+            cargarExtras();
+            setExtraModalTrabajoId(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

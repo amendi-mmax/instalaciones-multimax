@@ -1,4 +1,4 @@
-import { Calendar, CheckCircle2, MapPin, MessageSquare, RotateCcw, Send, User } from 'lucide-react';
+import { AlertTriangle, Calendar, CheckCircle2, FileText, MapPin, MessageSquare, RotateCcw, Send, User, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Loading, Spinner } from '@/components/ui/spinner';
 import { trabajoEstadoInfo } from '@/constants';
-import { instaladoresRepository } from '@/repositories';
-import { callConfirmarTrabajoCompletado } from '@/services/database.service';
+import { createRealtimeChannel, removeRealtimeChannel } from '@/lib/supabase/realtime';
+import { instaladoresRepository, trabajoExtrasRepository } from '@/repositories';
+import { callConfirmarTrabajoCompletado, callRevisarCostoExtra } from '@/services/database.service';
 import { getTrabajoDetalle, type TableRow } from '@/services';
 
 /**
@@ -70,6 +71,19 @@ import { getTrabajoDetalle, type TableRow } from '@/services';
  * acá (esta pantalla no vive en esa página) y no se pidió uno nuevo; el
  * coordinador que confirma ve el cambio de inmediato porque es él mismo
  * quien lo produce, en la misma pestaña.
+ *
+ * **Sprint "Costos adicionales"**: se agrega la sección "Costos
+ * adicionales" -- lista las solicitudes de extra (`trabajo_extras`) del
+ * trabajo, con monto/notas/fotos (URLs firmadas generadas bajo demanda,
+ * bucket privado) y, mientras estén `pendiente`, botones "Aprobar"/
+ * "Rechazar" (`callRevisarCostoExtra()`, RPC `SECURITY INVOKER`,
+ * reutiliza las policies de UPDATE nuevas sobre `trabajo_extras` -- sin
+ * RLS adicional). A diferencia de la confirmación de completado, esta
+ * sección SÍ necesita Realtime propio: el instalador puede enviar una
+ * solicitud desde otra sesión mientras el coordinador ya tiene esta
+ * página abierta -- canal `postgres_changes` (`INSERT`+`UPDATE`) sobre
+ * `trabajo_extras`, filtrado por `trabajo_id=eq.<id>`, señal + refetch
+ * (mismo patrón que `installer-jobs.tsx`).
  */
 export function TrabajoDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -80,6 +94,12 @@ export function TrabajoDetailPage() {
   const [instaladorNombre, setInstaladorNombre] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState(false);
   const [confirmarError, setConfirmarError] = useState<string | null>(null);
+
+  // Sprint "Costos adicionales" -- ver JSDoc de cabecera.
+  const [extras, setExtras] = useState<TableRow<'trabajo_extras'>[]>([]);
+  const [fotoUrls, setFotoUrls] = useState<Record<string, string>>({});
+  const [revisandoId, setRevisandoId] = useState<string | null>(null);
+  const [revisarError, setRevisarError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -132,6 +152,95 @@ export function TrabajoDetailPage() {
     if (refreshed.ok) {
       setTrabajo(refreshed.data);
     }
+  };
+
+  // Sprint "Costos adicionales" -- carga inicial + Realtime. Señal +
+  // refetch (mismo criterio que `installer-jobs.tsx`) -- más simple que
+  // mergear el payload a mano dado que un evento puede ser tanto un
+  // INSERT (nueva solicitud) como un UPDATE (revisión), y el refetch ya
+  // trae ambos casos correctamente ordenados.
+  const cargarExtras = () => {
+    if (!id) return;
+    trabajoExtrasRepository.getByTrabajoId(id).then((result) => {
+      if (result.ok) setExtras(result.data);
+    });
+  };
+
+  useEffect(() => {
+    cargarExtras();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    const channel = createRealtimeChannel(`trabajo-extras:${id}`);
+    channel
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'trabajo_extras', filter: `trabajo_id=eq.${id}` },
+        () => cargarExtras(),
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'trabajo_extras', filter: `trabajo_id=eq.${id}` },
+        () => cargarExtras(),
+      )
+      .subscribe();
+    return () => {
+      void removeRealtimeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // Resuelve URLs firmadas para cada foto referenciada por los extras ya
+  // cargados -- bucket privado, nunca una URL pública/persistida. Se
+  // recalcula solo cuando cambia el conjunto real de rutas (no en cada
+  // render) comparando la lista de `fotos` aplanada.
+  useEffect(() => {
+    const rutas = extras.flatMap((extra) => extra.fotos);
+    const pendientes = rutas.filter((ruta) => !(ruta in fotoUrls));
+    if (pendientes.length === 0) return;
+    let active = true;
+    Promise.all(
+      pendientes.map(async (ruta) => {
+        const result = await trabajoExtrasRepository.getFotoSignedUrl(ruta);
+        return [ruta, result.ok ? result.data : null] as const;
+      }),
+    ).then((entries) => {
+      if (!active) return;
+      setFotoUrls((prev) => {
+        const next = { ...prev };
+        for (const [ruta, url] of entries) {
+          if (url) next[ruta] = url;
+        }
+        return next;
+      });
+    });
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [extras]);
+
+  const revisarExtra = async (extraId: string, aprobado: boolean) => {
+    if (revisandoId) return;
+    setRevisarError(null);
+    setRevisandoId(extraId);
+    const result = await callRevisarCostoExtra({
+      p_extra_id: extraId,
+      p_aprobado: aprobado,
+    });
+    setRevisandoId(null);
+
+    if (!result.ok) {
+      setRevisarError(result.error.message);
+      return;
+    }
+    if (!result.data) {
+      setRevisarError('No se pudo registrar la revisión. Puede que la solicitud ya haya sido resuelta.');
+      return;
+    }
+    cargarExtras();
   };
 
   if (error) {
@@ -254,6 +363,15 @@ export function TrabajoDetailPage() {
                 </div>
               </div>
             )}
+            {trabajo.factura_multimax && (
+              <div className="mx-kv-row">
+                <FileText size={14} />
+                <div>
+                  <b>FACTURA MULTIMAX</b>
+                  {trabajo.factura_multimax}
+                </div>
+              </div>
+            )}
           </div>
           {pendienteConfirmacion ? (
             <div style={{ marginTop: 4 }}>
@@ -307,6 +425,105 @@ export function TrabajoDetailPage() {
             ))}
           </div>
         </Card>
+
+        {extras.length > 0 && (
+          <Card>
+            <div className="mx-section-h">
+              <span>Costos adicionales</span>
+            </div>
+            {extras.some((extra) => extra.estado === 'pendiente') && (
+              <p className="mx-sub" style={{ color: 'var(--amber)', marginBottom: 10 }}>
+                <AlertTriangle size={13} style={{ verticalAlign: -2, marginRight: 4 }} />
+                Hay costos adicionales pendientes de aprobación.
+              </p>
+            )}
+            {revisarError ? (
+              <p className="mx-sub" style={{ color: 'var(--red)', marginBottom: 10 }}>
+                {revisarError}
+              </p>
+            ) : null}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {extras.map((extra) => {
+                const estadoExtra =
+                  extra.estado === 'aprobado'
+                    ? { tone: 'green' as const, label: 'Aprobado' }
+                    : extra.estado === 'rechazado'
+                      ? { tone: 'red' as const, label: 'Rechazado' }
+                      : { tone: 'amber' as const, label: 'Pendiente de aprobación' };
+                return (
+                  <div
+                    key={extra.id}
+                    style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 12 }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                      <b style={{ fontSize: 16 }}>
+                        ${extra.estado === 'aprobado' ? (extra.monto_aprobado ?? extra.monto_solicitado) : extra.monto_solicitado}
+                      </b>
+                      <Badge tone={estadoExtra.tone}>{estadoExtra.label}</Badge>
+                    </div>
+                    <p className="mx-sub" style={{ marginTop: 6 }}>
+                      {extra.notas}
+                    </p>
+                    {extra.fotos.length > 0 && (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                        {extra.fotos.map((ruta) =>
+                          fotoUrls[ruta] ? (
+                            <a key={ruta} href={fotoUrls[ruta]} target="_blank" rel="noreferrer">
+                              <img
+                                src={fotoUrls[ruta]}
+                                alt="Evidencia del costo adicional"
+                                style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8 }}
+                              />
+                            </a>
+                          ) : null,
+                        )}
+                      </div>
+                    )}
+                    {extra.estado === 'pendiente' && (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                        <Button
+                          variant="ghost"
+                          style={{ flex: 1 }}
+                          disabled={revisandoId !== null}
+                          onClick={() => void revisarExtra(extra.id, false)}
+                        >
+                          {revisandoId === extra.id ? <Spinner size={16} /> : <>
+                            <X size={14} />
+                            Rechazar
+                          </>}
+                        </Button>
+                        <Button
+                          variant="ice"
+                          style={{ flex: 1 }}
+                          disabled={revisandoId !== null}
+                          onClick={() => void revisarExtra(extra.id, true)}
+                        >
+                          {revisandoId === extra.id ? <Spinner size={16} /> : <>
+                            <CheckCircle2 size={14} />
+                            Aprobar
+                          </>}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {extras.some((extra) => extra.estado === 'aprobado') && trabajo.precio_sugerido != null && (
+              <div className="mx-goal" style={{ marginTop: 12 }}>
+                Oferta original: ${trabajo.precio_sugerido} · Extras aprobados: $
+                {extras
+                  .filter((extra) => extra.estado === 'aprobado')
+                  .reduce((total, extra) => total + (extra.monto_aprobado ?? extra.monto_solicitado), 0)}{' '}
+                · Total: $
+                {trabajo.precio_sugerido +
+                  extras
+                    .filter((extra) => extra.estado === 'aprobado')
+                    .reduce((total, extra) => total + (extra.monto_aprobado ?? extra.monto_solicitado), 0)}
+              </div>
+            )}
+          </Card>
+        )}
       </div>
     </div>
   );

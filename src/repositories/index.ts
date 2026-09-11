@@ -23,3 +23,4 @@ export {
   trabajosParaInstaladorRepository,
   type TrabajoParaInstaladorRow,
 } from '@/repositories/trabajos-para-instalador.repository';
+export { trabajoExtrasRepository } from '@/repositories/trabajo-extras.repository';

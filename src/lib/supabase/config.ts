@@ -33,9 +33,23 @@ export const TABLES = {
   trabajos: 'trabajos',
   trabajoInstaladores: 'trabajo_instaladores',
   ofertas: 'ofertas',
+  /** Sprint "Costos adicionales" -- tabla nueva, `supabase/migrations/0026_trabajo_extras.sql`. */
+  trabajoExtras: 'trabajo_extras',
 } as const;
 
 export type TableName = (typeof TABLES)[keyof typeof TABLES];
+
+/**
+ * Buckets reales de Supabase Storage (Sprint "Costos adicionales" --
+ * primer uso de Storage en este proyecto, `supabase/migrations/
+ * 0026_trabajo_extras.sql`). Bucket privado (`public: false`) -- el
+ * acceso real es siempre vía URL firmada (`createSignedUrl`, generada del
+ * lado del cliente con la sesión real del usuario, sujeta a las policies
+ * de `storage.objects` ya aplicadas), nunca vía URL pública.
+ */
+export const STORAGE_BUCKETS = {
+  trabajoExtras: 'trabajo-extras',
+} as const;
 
 /**
  * Vista real de Producción (`docs/database/DATABASE_INVENTORY.md` §4). Se
@@ -79,6 +93,19 @@ export const RPC_FUNCTIONS = {
    * reutilizando las policies de UPDATE ya existentes sobre `trabajos`.
    */
   confirmarTrabajoCompletado: 'confirmar_trabajo_completado',
+  /**
+   * Sprint "Costos adicionales" (migración `0026_trabajo_extras.sql`).
+   * `SECURITY DEFINER` -- el instalador reporta un costo extra surgido
+   * durante la instalación (monto + notas + fotos ya subidas a Storage).
+   */
+  solicitarCostoExtra: 'solicitar_costo_extra',
+  /**
+   * Sprint "Costos adicionales" (migración `0026_trabajo_extras.sql`).
+   * `SECURITY INVOKER` -- el coordinador/admin aprueba o rechaza una
+   * solicitud, reutilizando las policies de UPDATE nuevas sobre
+   * `trabajo_extras`.
+   */
+  revisarCostoExtra: 'revisar_costo_extra',
 } as const;
 
 /**
